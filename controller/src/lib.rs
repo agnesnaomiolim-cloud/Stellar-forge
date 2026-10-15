@@ -11,10 +11,15 @@
 //!
 //! - [`deployment`] — StellarNode deployment pipeline, including the
 //!   [`deployment::optimizer`] WASM bytecode optimizer.
+//! - [`finalizers`] — Kubernetes finalizer cleanup recovery controller.
+//!   Detects `StellarNode` resources stuck in `Terminating` state, verifies
+//!   cloud storage detachment via AWS EBS / GCP PD APIs, and safely removes
+//!   orphaned finalizers without risking data loss.
 //! - [`quorum`] — Quorum-set graph analysis utilities.
 //! - [`webhook`] — Admission webhook handlers, including the
 //!   [`webhook::wasm_mutator`] MutatingAdmissionWebhook for WASM optimization.
 
 pub mod deployment;
+pub mod finalizers;
 pub mod quorum;
 pub mod webhook;

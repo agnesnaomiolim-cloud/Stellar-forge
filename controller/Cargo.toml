@@ -9,11 +9,14 @@ license = "Apache-2.0"
 # Async runtime
 tokio = { version = "1", features = ["full"] }
 
-# HTTP client for sidecar communication
+# HTTP client for sidecar communication and cloud provider API calls
 reqwest = { version = "0.12", default-features = false, features = [
     "json",
     "rustls-tls-manual-roots",
 ] }
+
+# Async traits (used by CloudVolumeVerifier and KubeClient)
+async-trait = "0.1"
 
 # HTTP server (sidecar + axum handler)
 axum = { version = "0.8", features = [] }
