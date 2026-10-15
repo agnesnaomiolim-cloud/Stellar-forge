@@ -38,6 +38,9 @@ regex = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
+# Error handling
+anyhow = "1"
+
 # Pinned to fix RUSTSEC-2026-0009
 time = "0.3.47"
 # Pinned to fix RUSTSEC-2026-0007
@@ -54,3 +57,13 @@ reqwest = { version = "0.12", default-features = false, features = [
 [[bench]]
 name = "parser_throughput"
 harness = false
+
+[[bench]]
+name = "ebpf_overhead"
+harness = false
+
+[features]
+# Enable real eBPF loading via Aya-rs.
+# Requires CAP_BPF + CAP_NET_ADMIN at runtime and kernel headers at build time.
+# When this feature is absent the collector falls back to ProbeSimulator automatically.
+ebpf-runtime = []

@@ -35,6 +35,7 @@
 //! - [`exporter`] — Prometheus metrics exporter with an HTTP `/metrics` endpoint.
 //! - [`proxy`]   — Intelligent rate-limiter proxy for the Stellar Core metrics endpoint.
 
+pub mod ebpf;
 pub mod exporter;
 pub mod parser;
 pub mod proxy;
