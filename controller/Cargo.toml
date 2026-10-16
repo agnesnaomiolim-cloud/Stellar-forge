@@ -24,8 +24,6 @@ serde_json = "1"
 
 # Base64 encoding/decoding (WASM binary field in StellarNode spec)
 base64 = "0.21"
-
-# Error handling
 anyhow = "1"
 thiserror = "1"
 
@@ -35,10 +33,24 @@ tracing = "0.1"
 # Temporary files for wasm-opt subprocess I/O
 tempfile = "3"
 
+# Wasm runtime for admission webhook
+wasmtime = "24.0.7"
+wasmtime-wasi = { version = "24.0.7", features = ["preview1"] }
+
+# TLS support for webhook server
+tokio-rustls = "0.26"
+rustls-pemfile = "2"
+tower = { version = "0.4", features = ["util"] }
+
+# TLS certificate generation (self-signed, for dev/CI)
+rcgen = { version = "0.13", features = ["pem"] }
+time = "0.3"
+
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
 axum = { version = "0.8", features = [] }
 serde_json = "1"
 base64 = "0.21"
-
-[workspace]
+# WAT (WebAssembly Text format) compiler for unit tests
+wat = "1.246"
+tower = "0.4"

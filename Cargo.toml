@@ -109,6 +109,9 @@ stellar-wasm-cache = { path = "wasm-plugins" }
 # Intelligent Prometheus metrics rate-limiter proxy
 stellar-telemetry = { path = "telemetry" }
 
+# WASM admission webhook policy engine (controller crate)
+controller = { path = "controller" }
+
 # Wasm runtime for custom validation plugins
 wasmtime = { version = "24.0.7", optional = true }
 wasmtime-wasi = { version = "24.0.7", features = ["preview1"], optional = true }
@@ -237,4 +240,4 @@ name = "stellar-metrics-proxy"
 path = "src/bin/stellar-metrics-proxy.rs"
 
 [workspace]
-members = ["wasm-plugins", "telemetry", "security/p2p-firewall"]
+members = ["wasm-plugins", "telemetry", "security/p2p-firewall", "controller"]

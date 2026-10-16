@@ -12,9 +12,17 @@
 //! - [`deployment`] — StellarNode deployment pipeline, including the
 //!   [`deployment::optimizer`] WASM bytecode optimizer.
 //! - [`quorum`] — Quorum-set graph analysis utilities.
-//! - [`webhook`] — Admission webhook handlers, including the
-//!   [`webhook::wasm_mutator`] MutatingAdmissionWebhook for WASM optimization.
+//! - [`tls`] — Self-signed TLS certificate generation for the admission webhook.
+//! - [`wasm`] — Wasmtime module cache (LRU, metrics, eviction).
+//! - [`webhook`] — Admission webhook handlers:
+//!   - [`webhook::wasm_mutator`] — MutatingAdmissionWebhook for WASM bytecode
+//!     optimisation.
+//!   - [`webhook::wasm_runner`] — Sandboxed Wasmtime policy execution engine.
+//!   - [`webhook::admission`] — Kubernetes AdmissionReview HTTP server with
+//!     fail-open/fail-closed routing.
 
 pub mod deployment;
 pub mod quorum;
+pub mod tls;
+pub mod wasm;
 pub mod webhook;
