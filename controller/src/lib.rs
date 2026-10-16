@@ -16,5 +16,6 @@
 //!   [`webhook::wasm_mutator`] MutatingAdmissionWebhook for WASM optimization.
 
 pub mod deployment;
+pub mod maintenance;
 pub mod quorum;
 pub mod webhook;
