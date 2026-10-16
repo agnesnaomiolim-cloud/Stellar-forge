@@ -1,0 +1,185 @@
+# Restricted primary-reconciliation profile; see docs/security/rbac-hardening.md.
+# Match --namespace, --watch-namespace and POD_NAMESPACE to these names.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: stellar-system
+  labels:
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: stellar
+  labels:
+    stellar.org/network: testnet
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: stellar-operator
+  namespace: stellar-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: stellar-operator
+  namespace: stellar
+rules:
+  - apiGroups: [stellar.org]
+    resources: [stellarnodes]
+    verbs: [get, list, watch, patch]
+  - apiGroups: [stellar.org]
+    resources: [stellarnodes/status]
+    verbs: [patch]
+  - apiGroups: [stellar.org]
+    resources: [stellarnodes/finalizers]
+    verbs: [update]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets]
+    verbs: [get, list, watch, patch, delete]
+  - apiGroups: [""]
+    resources: [services, persistentvolumeclaims]
+    verbs: [get, list, watch, patch, delete]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [create]
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get, patch, delete]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, patch, delete]
+  - apiGroups: [""]
+    resources: [pods/eviction]
+    verbs: [create]
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get, list, watch]
+  - apiGroups: [networking.k8s.io]
+    resources: [networkpolicies, ingresses]
+    verbs: [patch, delete]
+  - apiGroups: [policy]
+    resources: [poddisruptionbudgets]
+    verbs: [get, list, watch, patch, delete]
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: [patch, delete]
+  # Cleanup runs even without spec.vpaConfig; 404 is ignored.
+  - apiGroups: [autoscaling.k8s.io]
+    resources: [verticalpodautoscalers]
+    verbs: [delete]
+  # kube runtime recorder and legacy Event publishers use separate APIs.
+  - apiGroups: ["", events.k8s.io]
+    resources: [events]
+    verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: stellar-operator
+  namespace: stellar
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: stellar-operator
+subjects:
+  - kind: ServiceAccount
+    name: stellar-operator
+    namespace: stellar-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: stellar-operator-runtime
+  namespace: stellar-system
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [list]
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [list]
+  - apiGroups: [""]
+    resources: [configmaps]
+    resourceNames: [stellar-operator-config]
+    verbs: [watch]
+  - apiGroups: [""]
+    resources: [configmaps]
+    resourceNames: [stellar-peers]
+    verbs: [get, patch]
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    verbs: [list, create]
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    resourceNames: [stellar-operator-leader]
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: stellar-operator-runtime
+  namespace: stellar-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: stellar-operator-runtime
+subjects:
+  - kind: ServiceAccount
+    name: stellar-operator
+    namespace: stellar-system
+---
+# Current stock binary requires these cluster-wide reads despite watchNamespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: stellar-operator-runtime-observer
+rules:
+  - apiGroups: [stellar.org]
+    resources: [stellarnodes]
+    verbs: [list]
+  - apiGroups: [stellar.org]
+    resources: [stellarbenchmarks]
+    verbs: [list, watch]
+  - apiGroups: [""]
+    resources: [pods, nodes]
+    verbs: [list, watch]
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [namespaces]
+    resourceNames: [stellar-system, stellar]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [namespaces]
+    resourceNames: [stellar]
+    verbs: [patch]
+  - apiGroups: [storage.k8s.io]
+    resources: [storageclasses]
+    resourceNames: [local-path, local-storage]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: stellar-operator-runtime-observer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: stellar-operator-runtime-observer
+subjects:
+  - kind: ServiceAccount
+    name: stellar-operator
+    namespace: stellar-system

@@ -140,6 +140,7 @@ nav:
       - Error Codes: api/error-codes.md
       - Client Libraries: api/client-libraries.md
   - Security:
+    - RBAC Hardening: security/rbac-hardening.md
     - Security Compliance Guide: security/compliance-guide.md
     - Container Image Security: container-image-security.md
     - Credentials & Secrets: security/credentials-and-secrets.md
@@ -150,6 +151,8 @@ nav:
   - Networking:
     - Comprehensive Network Guide: networking/index.md
   - Development:
+    - Governance Registry: development/governance-registry.md
+    - Parallel Catchup Downloader: development/catchup-downloader.md
     - Regeneration Guide: development/regeneration-guide.md
     - Repo Health Checklist: development/repo-health-checklist.md
     - Static Analysis Gates: development/static-analysis-gates.md

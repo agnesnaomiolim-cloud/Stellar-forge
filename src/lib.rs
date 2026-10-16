@@ -96,6 +96,8 @@ pub mod api_gateway;
 pub mod backup;
 pub mod benchmark_compare;
 pub mod bootstrap_verify;
+#[path = "../controller/src/catchup/mod.rs"]
+pub mod catchup;
 pub mod byzantine;
 pub mod canary_deployment;
 pub mod capacity_planning;

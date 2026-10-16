@@ -32,7 +32,7 @@
 //!
 //! # Constraints
 //!
-//! - All downloads stream directly to disk (`tokio::io::copy`); no in-memory
+//! - All downloads stream ranges directly to disk; no in-memory
 //!   buffering of the archive body.
 //! - SHA-256 verification is mandatory; extraction is skipped on mismatch.
 //! - Extraction is atomic: performed into a `.tmp` directory, then renamed.
@@ -47,7 +47,6 @@ use flate2::read::GzDecoder;
 use serde::{Deserialize, Serialize};
 use tar::Archive as TarArchive;
 use tokio::fs;
-use tokio::io::AsyncWriteExt;
 use tracing::{debug, error, info, instrument, warn};
 
 use super::verifier::{parse_sha256_sidecar, verify_file};
@@ -206,8 +205,9 @@ impl SnapshotReconciler {
             "Discovered latest snapshot"
         );
 
-        // Step 2 — download
-        let archive_path = self.download_archive(&snapshot_ref).await?;
+        // Resolve a trusted digest before downloading; publication requires verification.
+        let expected_hex = self.resolve_checksum(&snapshot_ref).await?;
+        let archive_path = self.download_archive(&snapshot_ref, &expected_hex).await?;
         let downloaded_bytes = fs::metadata(&archive_path).await?.len();
         info!(
             path = %archive_path.display(),
@@ -215,11 +215,8 @@ impl SnapshotReconciler {
             "Download complete"
         );
 
-        // Step 3 — resolve checksum
-        let expected_hex = self.resolve_checksum(&snapshot_ref).await?;
-
         // Step 4 — verify
-        let vr = verify_file(&archive_path, &expected_hex).await?;
+        let vr = verify_file(&archive_path, &expected_hex).await?.into_result()?;
         info!(
             result = %vr,
             "SHA-256 verification passed"
@@ -326,65 +323,28 @@ impl SnapshotReconciler {
         })
     }
 
-    /// Download the archive to `staging_dir/<filename>` using streaming I/O.
-    ///
-    /// Uses [`aws_sdk_s3`]'s `GetObject` which returns a byte stream that is
-    /// piped directly to disk without buffering the full body in memory.
-    #[instrument(skip(self, snap), fields(key = %snap.key))]
-    async fn download_archive(&self, snap: &SnapshotRef) -> Result<PathBuf> {
-        fs::create_dir_all(&self.config.staging_dir).await?;
+    /// Fetch and verify ranges using the process-wide worker and egress budget.
+    #[instrument(skip(self, snap, expected_sha256), fields(key = %snap.key))]
+    async fn download_archive(&self, snap: &SnapshotRef, expected_sha256: &str) -> Result<PathBuf> {
+        use aws_sdk_s3::presigning::PresigningConfig;
+        use crate::catchup::{Archive, DownloadConfig, Downloader, WorkerPool};
 
-        let filename = snap
-            .key
-            .rsplit('/')
-            .next()
-            .unwrap_or("snapshot.tar.gz")
-            .to_string();
-        let dest = self.config.staging_dir.join(&filename);
-
-        info!(
-            src = %snap.display_name(),
-            dest = %dest.display(),
-            "Streaming snapshot download"
-        );
-
-        let resp = self
-            .s3
-            .get_object()
-            .bucket(&snap.bucket)
-            .key(&snap.key)
-            .send()
-            .await
-            .map_err(|e| {
-                Error::ConfigError(format!(
-                    "S3 GetObject failed for {}: {e}",
-                    snap.display_name()
-                ))
-            })?;
-
-        let mut outfile = fs::File::create(&dest).await?;
-        let mut stream = resp.body;
-        let mut total: u64 = 0;
-        let log_interval: u64 = 100 * 1024 * 1024; // log every 100 MiB
-
-        while let Some(chunk) = stream
-            .try_next()
-            .await
-            .map_err(|e| Error::ConfigError(format!("S3 streaming error: {e}")))?
-        {
-            outfile.write_all(&chunk).await?;
-            total += chunk.len() as u64;
-            if total % log_interval < chunk.len() as u64 {
-                debug!(bytes = total, "download progress");
-            }
-        }
-        outfile.flush().await?;
-        outfile.shutdown().await?;
-
-        info!(dest = %dest.display(), bytes = total, "download finished");
-        Ok(dest)
+        let filename = snap.key.rsplit('/').next().filter(|name| !name.is_empty() && *name != "." && *name != "..")
+            .ok_or_else(|| Error::ConfigError("Invalid snapshot filename".into()))?;
+        let dest = self.config.staging_dir.join(filename);
+        // A GET signature allows ranges without exposing permanent cloud credentials.
+        let signing = PresigningConfig::expires_in(Duration::from_secs(7 * 24 * 60 * 60))
+            .map_err(|_| Error::ConfigError("Invalid presigning duration".into()))?;
+        let signed = self.s3.get_object().bucket(&snap.bucket).key(&snap.key)
+            .presigned(signing).await
+            .map_err(|_| Error::ConfigError("Unable to presign snapshot download".into()))?;
+        let pool = WorkerPool::shared_from_env().map_err(|e| Error::ConfigError(e.to_string()))?;
+        let downloader = Downloader::new(pool, DownloadConfig::default())
+            .map_err(|e| Error::ConfigError(e.to_string()))?;
+        downloader.download(Archive {
+            url: signed.uri().to_string(), destination: dest, sha256: expected_sha256.to_owned(),
+        }).await.map_err(|e| Error::ConfigError(format!("Snapshot download failed: {e}")))
     }
-
     /// Resolve the expected SHA-256 checksum for `snap`.
     ///
     /// Priority:

@@ -68,20 +68,20 @@ if kubectl auth can-i patch stellarnodes.stellar.org --subresource=status -n "$M
 else
   fail_check "expected ALLOW: patch stellarnodes.stellar.org/status in $MANAGED_NAMESPACE"
 fi
-expect_yes_ns create deployments.apps "$MANAGED_NAMESPACE"
+expect_yes_ns patch deployments.apps "$MANAGED_NAMESPACE"
 expect_yes_ns delete statefulsets.apps "$MANAGED_NAMESPACE"
 expect_yes_ns get secrets "$MANAGED_NAMESPACE"
-expect_yes_ns create networkpolicies.networking.k8s.io "$MANAGED_NAMESPACE"
-expect_yes_ns create poddisruptionbudgets.policy "$MANAGED_NAMESPACE"
+expect_yes_ns patch networkpolicies.networking.k8s.io "$MANAGED_NAMESPACE"
+expect_yes_ns patch poddisruptionbudgets.policy "$MANAGED_NAMESPACE"
 expect_yes_ns create events "$MANAGED_NAMESPACE"
 
 echo "== Operator-namespace runtime permissions =="
 expect_yes_ns list deployments.apps "$OPERATOR_NAMESPACE"
 expect_yes_ns list configmaps "$OPERATOR_NAMESPACE"
-expect_yes_ns watch configmaps "$OPERATOR_NAMESPACE"
-expect_yes_ns patch configmaps "$OPERATOR_NAMESPACE"
+expect_yes_ns watch configmaps/stellar-operator-config "$OPERATOR_NAMESPACE"
+expect_yes_ns patch configmaps/stellar-peers "$OPERATOR_NAMESPACE"
 expect_yes_ns list leases.coordination.k8s.io "$OPERATOR_NAMESPACE"
-expect_yes_ns patch leases.coordination.k8s.io "$OPERATOR_NAMESPACE"
+expect_yes_ns patch leases.coordination.k8s.io/stellar-operator-leader "$OPERATOR_NAMESPACE"
 
 echo "== Stock-binary read-only cluster observation =="
 expect_yes_all list stellarnodes.stellar.org
@@ -90,6 +90,8 @@ expect_yes_all watch stellarbenchmarks.stellar.org
 expect_yes_all list pods
 expect_yes_all watch pods
 expect_yes_all get services
+expect_yes_all list nodes
+expect_yes_all watch nodes
 
 if kubectl auth can-i get namespaces/"$OPERATOR_NAMESPACE" --as="$AS" 2>/dev/null | grep -qx yes; then
   pass "get namespace/$OPERATOR_NAMESPACE"
@@ -110,16 +112,20 @@ fi
 echo "== High-risk permissions that must remain denied =="
 expect_no_ns delete secrets "$MANAGED_NAMESPACE"
 expect_no_ns create secrets "$MANAGED_NAMESPACE"
+expect_no_ns update secrets "$MANAGED_NAMESPACE"
+expect_no_ns patch secrets "$MANAGED_NAMESPACE"
 expect_no_ns create pods "$OPERATOR_NAMESPACE"
 expect_no_cluster create clusterroles.rbac.authorization.k8s.io
 expect_no_cluster create clusterrolebindings.rbac.authorization.k8s.io
 expect_no_cluster create namespaces
 expect_no_ns get secrets kube-system
 
-if kubectl auth can-i create pods --subresource=exec -n "$MANAGED_NAMESPACE" --as="$AS" 2>/dev/null | grep -qx no; then
-  pass "denied create pods/exec in $MANAGED_NAMESPACE"
+expected_exec=no
+if [[ "${EXPECT_DISK_EXEC:-no}" == "yes" ]]; then expected_exec=yes; fi
+if kubectl auth can-i create pods --subresource=exec -n "$MANAGED_NAMESPACE" --as="$AS" 2>/dev/null | grep -qx "$expected_exec"; then
+  pass "create pods/exec in $MANAGED_NAMESPACE matches expected $expected_exec"
 else
-  fail_check "expected DENY: create pods/exec in $MANAGED_NAMESPACE"
+  fail_check "create pods/exec must match expected $expected_exec in $MANAGED_NAMESPACE"
 fi
 if kubectl auth can-i create serviceaccounts --subresource=token -n "$MANAGED_NAMESPACE" --as="$AS" 2>/dev/null | grep -qx no; then
   pass "denied create serviceaccounts/token in $MANAGED_NAMESPACE"
@@ -193,14 +199,15 @@ fi
 
 echo "== Operator reconciliation log gate =="
 if kubectl get deployment -n "$OPERATOR_NAMESPACE" "$DEPLOYMENT_NAME" >/dev/null 2>&1; then
-  if kubectl logs -n "$OPERATOR_NAMESPACE" deployment/"$DEPLOYMENT_NAME" --since=5m 2>&1 \
-      | grep -Eqi 'forbidden|permission denied|cannot (get|list|watch|create|update|patch|delete)'; then
+  if ! operator_logs="$(kubectl logs -n "$OPERATOR_NAMESPACE" deployment/"$DEPLOYMENT_NAME" --all-containers=true --since=5m 2>&1)"; then
+    fail_check "could not retrieve operator logs"
+  elif grep -Eqi 'forbidden|permission denied|cannot (get|list|watch|create|update|patch|delete)' <<<"$operator_logs"; then
     fail_check "operator logs contain RBAC/permission errors in the last 5 minutes"
   else
     pass "no RBAC/permission errors in operator logs in the last 5 minutes"
   fi
 else
-  echo "SKIP  deployment/$DEPLOYMENT_NAME not found; set DEPLOYMENT_NAME for the log gate"
+  fail_check "deployment/$DEPLOYMENT_NAME not found; set DEPLOYMENT_NAME for the log gate"
 fi
 
 if [[ $fail -ne 0 ]]; then

@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:anomalies": "vite build --mode anomalies --outDir dist-anomalies",
+    "test:anomalies": "node --test anomalies/model.test.js anomalies/component.test.js",
     "preview": "vite preview",
 
     "stream:kafka": "node scripts/kafka-websocket-bridge.mjs"

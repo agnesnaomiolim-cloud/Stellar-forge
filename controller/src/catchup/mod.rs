@@ -1,0 +1,6 @@
+//! Bounded, verified history archive downloads shared with snapshot bootstrap.
+pub mod downloader;
+pub mod worker_pool;
+
+pub use downloader::{Archive, Downloader, DownloadConfig};
+pub use worker_pool::WorkerPool;

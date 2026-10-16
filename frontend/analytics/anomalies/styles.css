@@ -1,0 +1,31 @@
+:root { color-scheme: dark; font-family: system-ui, sans-serif; color: #e5edf7; background: #0c1420; }
+body { margin: 0; }
+.anomaly-workbench { max-width: 1440px; padding: 32px; margin: auto; }
+.anomaly-workbench a { color: #86caff; }
+.anomaly-workbench h1 { font-size: clamp(26px, 4vw, 40px); margin: 12px 0; }
+.anomaly-workbench p { color: #afc1d7; line-height: 1.5; }
+.anomaly-workbench .eyebrow { font-size: 12px; letter-spacing: 2px; }
+.anomaly-controls { display: flex; flex-wrap: wrap; gap: 18px; align-items: end; padding: 20px; border: 1px solid #33465d; border-radius: 12px; }
+.anomaly-controls label { display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.anomaly-controls label:has(input) { flex-direction: row; align-items: center; max-width: 240px; }
+.anomaly-controls select, .anomaly-controls button { color: #edf6ff; background: #203348; padding: 10px; border: 1px solid #617b99; border-radius: 6px; font: inherit; }
+.anomaly-controls button { cursor: pointer; }
+.anomaly-controls :focus-visible { outline: 3px solid #8acdff; outline-offset: 3px; }
+.anomaly-notice { padding: 12px; border-left: 3px solid #72bbff; background: #14263b; }
+.anomaly-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 20px; margin-top: 24px; }
+.anomaly-card { background: #142235; border: 2px solid #405a73; border-radius: 12px; padding: 20px; min-width: 0; }
+.anomaly-card.anomaly { border-color: #ff8e86; background: #2d202c; }
+.anomaly-card.insufficient { border-style: dashed; }
+.anomaly-card header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.anomaly-card h2 { font-size: 17px; margin: 0; }
+.anomaly-badge { font-size: 12px; color: #b8e3ca; }
+.anomaly .anomaly-badge { color: #ffaba5; font-weight: bold; }
+.insufficient .anomaly-badge { color: #e2cd99; }
+.anomaly-card .anomaly-value { color: #fff; font-size: 30px; margin: 20px 0 4px; }
+.anomaly-value small { font-size: 14px; color: #b8c8da; }
+.anomaly-card svg { width: 100%; margin: 12px 0; }
+.anomaly-card dl { margin-bottom: 0; font-size: 13px; }
+.anomaly-card dl div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.anomaly-card dt { color: #aebfd4; }
+.anomaly-card dd { margin: 0; }
+@media (max-width: 600px) { .anomaly-workbench { padding: 16px; } .anomaly-controls label, .anomaly-controls button { width: 100%; } }
