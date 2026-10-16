@@ -156,9 +156,6 @@ md5 = "0.8.0"
 # tar archive extraction for snapshot bootstrapping (#119)
 tar = "0.4"
 
-# Terminal UI for kubectl-stellar validator diagnostics
-color-eye = "0.3"
-
 [server-dependencies]
 chrono = "0.4"
 serde_json = "1"
@@ -195,6 +192,8 @@ proptest = "1.5"
 wat = "1.246"
 # Ensure dev builds that pull k8s-openapi 0.22 have an explicit API version feature.
 k8s-openapi = { version = "0.22", default-features = false, features = ["v1_30"] }
+# Snapshot controller integration tests (issue #243)
+controller = { path = "controller" }
 
 [[bin]]
 name = "stellar-operator"
@@ -237,4 +236,4 @@ name = "stellar-metrics-proxy"
 path = "src/bin/stellar-metrics-proxy.rs"
 
 [workspace]
-members = ["wasm-plugins", "telemetry", "security/p2p-firewall"]
+members = ["wasm-plugins", "telemetry", "security/p2p-firewall", "controller"]
