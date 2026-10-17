@@ -38,6 +38,18 @@ not need production-grade headroom.
 > operator's own [Prometheus metrics](#5-monitoring-checklist) over static
 > numbers once a node has been running for a few weeks.
 
+### 1.0 Unified Node Type Comparison Matrix (Testnet vs. Mainnet)
+
+| Node Role | Environment | CPU Cores | RAM (GiB) | Disk Baseline | Provisioned IOPS | Network Bandwidth (Mbps) |
+|---|---|---|---|---|---|---|
+| **Validator (`stellar-core`, Recent)** | Testnet | 2 vCPU | 4 GiB | 100 GiB SSD | 3,000 IOPS | 100 Mbps |
+| **Validator (`stellar-core`, Recent)** | Mainnet | 8 vCPU | 16 GiB | 100 GiB NVMe | 10,000 IOPS | 500 Mbps |
+| **Validator (`stellar-core`, Full Archive)** | Mainnet | 8 vCPU | 16 GiB | 1,500 GiB NVMe | 10,000 IOPS | 1,000 Mbps |
+| **Horizon API + Ingestion DB** | Testnet | 2 vCPU | 4 GiB | 250 GiB SSD | 3,000 IOPS | 150 Mbps |
+| **Horizon API + Ingestion DB (30d)** | Mainnet | 8 vCPU (4 API + 4 DB) | 48 GiB (16 API + 32 DB) | 2,100 GiB NVMe | 10,000 IOPS | 1,000 Mbps |
+| **Soroban RPC (Captive Core)** | Testnet | 4 vCPU | 8 GiB | 200 GiB SSD | 3,000 IOPS | 250 Mbps |
+| **Soroban RPC (Captive Core)** | Mainnet | 8 vCPU | 32 GiB | 350 GiB Local NVMe | 12,000 IOPS | 1,000 Mbps |
+
 ### 1.1 Validator (Stellar Core)
 
 | | CPU | Memory | Disk | IOPS | Cloud equivalent |
@@ -303,6 +315,43 @@ the capacity-planning-relevant summary.
   recommendation) — if you chose local SSD for RPC performance, size it for
   the full §3 projection up front, since there is no online-expansion safety
   net for that node.
+
+### 4.1 Complete `StorageClass` (`allowVolumeExpansion: true`) and `storage.autoScale` Manifest
+
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: stellar-fast-ssd
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+parameters:
+  type: gp3
+  iops: "10000"
+  throughput: "500"
+  encrypted: "true"
+---
+apiVersion: stellar.org/v1alpha1
+kind: StellarNode
+metadata:
+  name: mainnet-full-validator
+  namespace: stellar
+spec:
+  nodeType: Validator
+  network: Mainnet
+  historyMode: Full
+  storage:
+    storageClass: stellar-fast-ssd
+    size: 1500Gi
+    retentionPolicy: Retain
+    autoScale:
+      enabled: true
+      usageThresholdPercent: 80
+      expansionIncrementPercent: 50
+      cooldownMinutes: 60
+      maxExpansions: 10
+```
 
 ---
 
