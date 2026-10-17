@@ -216,6 +216,15 @@ path = "src/bin/completions.rs"
 name = "soroban-cache-proxy"
 path = "src/bin/soroban-cache-proxy.rs"
 
+# Multi-region Soroban RPC traffic router with automatic failover (#83).
+# Routes client JSON-RPC requests to the best available cluster based on
+# health, ledger alignment, and latency. Includes a circuit breaker that
+# isolates clusters with sync loss or database corruption.
+[[bin]]
+name = "soroban-gateway-proxy"
+path = "src/bin/soroban-gateway-proxy.rs"
+required-features = ["rest-api"]
+
 # Byzantine Monitoring Watcher — deployed as a sidecar in multiple cloud regions
 # to detect local vs. global consensus issues (Byzantine partition detection).
 [[bin]]
