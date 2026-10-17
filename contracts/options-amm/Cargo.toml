@@ -1,0 +1,27 @@
+[package]
+name = "options-amm"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Decentralized European-style Options AMM Liquidity Pool for Soroban."
+license = "Apache-2.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { version = "=27.0.6", features = ["alloc"] }
+
+[dev-dependencies]
+soroban-sdk = { version = "=27.0.6", features = ["testutils", "alloc"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug-assertions = false
+strip = "symbols"
+codegen-units = 1
+lto = true
+
+[workspace]
