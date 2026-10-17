@@ -24,6 +24,32 @@ env:
   STELLAR_CLI_VERSION: "28.1.0"
 
 jobs:
+  gov-registry:
+    name: gov-registry (test, wasm)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts/gov-registry
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: contracts/gov-registry
+          shared-key: ci-contracts-gov-registry
+      # This new standalone workspace has no generated lockfile yet.
+      # Resolve it once, then keep subsequent CI commands locked.
+      - name: Resolve contract dependencies
+        run: cargo generate-lockfile
+      - name: Run governance regression tests
+        run: cargo test --locked
+      - name: Build governance Wasm
+        run: cargo build --locked --release --target wasm32v1-none
+
   royalty-splitter:
     name: royalty-splitter (fmt, clippy, test, wasm)
     runs-on: ubuntu-latest
@@ -44,7 +70,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: contracts/royalty-splitter
-          shared-key: "contracts-royalty-splitter"
+          shared-key: "ci-contracts-royalty-splitter"
 
       - name: Install Stellar CLI
         run: |

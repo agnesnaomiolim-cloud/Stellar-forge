@@ -1,3 +1,5 @@
+// Copyright 2024 Stellar-K8s Contributors
+// SPDX-License-Identifier: Apache-2.0
 use std::{path::{Path, PathBuf}, sync::Arc, time::Duration};
 use anyhow::{bail, ensure, Context, Result};
 use reqwest::{header, Client, Response, StatusCode};
@@ -45,7 +47,10 @@ impl Downloader {
     pub fn new(pool: Arc<WorkerPool>, config: DownloadConfig) -> Result<Self> {
         ensure!(config.chunk_bytes > 0, "chunk size must be positive");
         ensure!(!config.request_timeout.is_zero(), "request timeout must be positive");
-        let client = Client::builder().timeout(config.request_timeout).build()?;
+        // Feature unification may enable compression through another reqwest
+        // user. Range offsets and the trusted digest refer to wire bytes.
+        let client = Client::builder().timeout(config.request_timeout)
+            .no_gzip().no_brotli().no_deflate().no_zstd().build()?;
         Ok(Self { client, pool, config })
     }
 
@@ -57,7 +62,10 @@ impl Downloader {
         ensure!(expected.len() == 32, "expected a 32-byte SHA-256 digest");
         let parent = archive.destination.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
         fs::create_dir_all(parent).await?;
-        let temporary = tempfile::NamedTempFile::new_in(parent)?.into_temp_path();
+        let staging_parent = parent.to_owned();
+        let temporary = tokio::task::spawn_blocking(move || {
+            tempfile::NamedTempFile::new_in(staging_parent).map(|file| file.into_temp_path())
+        }).await.context("temporary file creation task failed")??;
         let path = temporary.to_path_buf();
         // Probe with GET rather than HEAD: signed cloud GET URLs may reject HEAD.
         let _slot = self.pool.slots.acquire().await?;
@@ -115,7 +123,14 @@ impl Downloader {
                     let (worker, url, file, tag) = (self.clone(), archive.url.clone(), path.clone(), etag.clone());
                     tasks.spawn(async move { worker.chunk(&url, &file, start, end, total, tag.as_deref()).await });
                 }
-                if let Some(result) = tasks.join_next().await { result??; }
+                if let Some(result) = tasks.join_next().await {
+                    let result = result.map_err(anyhow::Error::from).and_then(|result| result);
+                    if let Err(error) = result {
+                        // Reap all workers before the staging path is dropped.
+                        tasks.shutdown().await;
+                        return Err(error);
+                    }
+                }
             }
         }
         let mut input = fs::File::open(&path).await?;
@@ -215,11 +230,20 @@ mod tests {
         let peak = Arc::new(AtomicUsize::new(0));
         let highest = peak.clone();
         let active = Arc::new(AtomicUsize::new(0));
+        let overlap = Arc::new(tokio::sync::Barrier::new(2));
         let handle = tokio::spawn(async move {
+            let mut connections = JoinSet::new();
             loop {
-                let (mut socket, _) = listener.accept().await.unwrap();
+                let (mut socket, _) = tokio::select! {
+                    completed = connections.join_next(), if !connections.is_empty() => {
+                        completed.unwrap().expect("HTTP test handler panicked");
+                        continue;
+                    }
+                    accepted = listener.accept() => accepted.unwrap(),
+                };
                 let (count, active, highest) = (count.clone(), active.clone(), highest.clone());
-                tokio::spawn(async move {
+                let overlap = overlap.clone();
+                connections.spawn(async move {
                 let mut request = Vec::new();
                 let mut byte = [0u8; 1];
                 while !request.ends_with(b"\r\n\r\n") {
@@ -238,20 +262,30 @@ mod tests {
                 let (start, end) = (start.parse::<usize>().unwrap(), end.parse::<usize>().unwrap());
                 let data = b"abcdefghijklmnop";
                 highest.fetch_max(active.fetch_add(1, Ordering::SeqCst) + 1, Ordering::SeqCst);
-                tokio::time::sleep(Duration::from_millis(10)).await;
-                let (status, header, body) = if mode == "fallback" {
+                if mode == "overlap" && (index == 1 || index == 2) {
+                    // Deterministically overlap the first pair of ranges; a
+                    // sequential downloader cannot satisfy this rendezvous.
+                    overlap.wait().await;
+                }
+                let (status, mut header, body) = if mode == "fallback" {
                     ("200 OK", String::new(), data.to_vec())
                 } else {
                     let actual_start = if mode == "wrong" && index > 0 { start + 1 } else { start };
                     ("206 Partial Content", format!("Content-Range: bytes {actual_start}-{end}/16\r\n"), data[start..=end].to_vec())
                 };
-                let response = format!("HTTP/1.1 {status}\r\n{header}Content-Length: {}\r\nConnection: close\r\n\r\n", body.len());
-                socket.write_all(response.as_bytes()).await.unwrap();
+                if mode == "encoded" { header.push_str("Content-Encoding: gzip\r\n"); }
+                let declared_length = if mode == "wrong-length" { body.len() + 1 } else { body.len() };
+                let response = format!("HTTP/1.1 {status}\r\n{header}Content-Length: {declared_length}\r\nConnection: close\r\n\r\n");
+                // Rejected responses may be closed before their body is sent.
+                if socket.write_all(response.as_bytes()).await.is_err() {
+                    active.fetch_sub(1, Ordering::SeqCst);
+                    return;
+                }
                 let truncate = (mode == "body-reset" && index == 1) || (mode == "probe-reset" && index == 0);
                 if truncate {
-                    socket.write_all(&body[..body.len() - 1]).await.unwrap();
+                    let _ = socket.write_all(&body[..body.len() - 1]).await;
                 } else {
-                    socket.write_all(&body).await.unwrap();
+                    let _ = socket.write_all(&body).await;
                 }
                 active.fetch_sub(1, Ordering::SeqCst);
                 });
@@ -267,14 +301,17 @@ mod tests {
         let config = DownloadConfig { chunk_bytes: 4, initial_backoff: Duration::from_millis(1), ..Default::default() };
         let downloader = Downloader::new(WorkerPool::new(2, 1_000_000).unwrap(), config).unwrap();
         let checksum = if checksum_valid { hex::encode(Sha256::digest(b"abcdefghijklmnop")) } else { "00".repeat(32) };
-        let result = downloader.download(Archive { url, destination: destination.clone(), sha256: checksum }).await;
+        let result = tokio::time::timeout(Duration::from_secs(10),
+            downloader.download(Archive { url, destination: destination.clone(), sha256: checksum }))
+            .await.expect("download timed out");
         let success = result.is_ok();
         if success {
             assert_eq!(fs::read(&destination).await.unwrap(), b"abcdefghijklmnop");
-            if mode != "fallback" { assert_eq!(peak.load(Ordering::SeqCst), 2, "requests overlap up to the configured bound"); }
+            if mode == "overlap" { assert_eq!(peak.load(Ordering::SeqCst), 2, "requests overlap up to the configured bound"); }
         }
         let published = destination.exists();
         server.abort();
+        assert!(server.await.unwrap_err().is_cancelled(), "HTTP test server panicked");
         (success, requests.load(Ordering::SeqCst), published)
     }
 
@@ -288,6 +325,11 @@ mod tests {
     #[tokio::test]
     async fn supports_servers_ignoring_initial_range() {
         assert_eq!(check("fallback", true).await, (true, 1, true));
+    }
+
+    #[tokio::test]
+    async fn range_requests_overlap_within_the_worker_bound() {
+        assert_eq!(check("overlap", true).await, (true, 5, true));
     }
 
     #[tokio::test]
@@ -309,6 +351,14 @@ mod tests {
     async fn rejects_corrupt_archives_and_does_not_publish() {
         let (success, _, published) = check("range", false).await;
         assert!(!success && !published);
+    }
+
+    #[tokio::test]
+    async fn rejects_transformed_or_misdeclared_wire_bytes() {
+        for mode in ["encoded", "wrong-length"] {
+            let (success, _, published) = check(mode, true).await;
+            assert!(!success && !published);
+        }
     }
 
     #[test]

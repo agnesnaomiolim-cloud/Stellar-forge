@@ -1,3 +1,5 @@
+// Copyright 2024 Stellar-K8s Contributors
+// SPDX-License-Identifier: Apache-2.0
 use super::*;
 use soroban_sdk::testutils::{Address as _, Ledger};
 
@@ -48,6 +50,7 @@ fn intra_ledger_writes_coalesce_and_snapshots_cannot_be_reused() {
     let (env, id, a, b, _) = setup();
     let client = GovernanceClient::new(&env, &id);
     client.mint(&a, &100);
+    client.register(&b);
     env.ledger().set_sequence_number(11);
     let proposal = client.propose(&a, &BytesN::from_array(&env, &[2; 32]));
     assert_eq!(client.try_vote(&proposal, &a, &Choice::For), Err(Ok(Error::NotActive)));
@@ -142,8 +145,26 @@ fn invalid_transfers_and_capacity_failure_do_not_mutate_state() {
     for _ in 1..MAX_ACCOUNTS {
         client.mint(&Address::generate(&env), &1);
     }
-    assert_eq!(client.try_transfer(&a, &b, &10), Err(Ok(Error::Capacity)));
+    assert_eq!(client.try_mint(&b, &10), Err(Ok(Error::Capacity)));
     env.ledger().set_sequence_number(11);
     assert_eq!(client.balance_at(&a, &10), 100);
     assert_eq!(client.supply_at(&10), 163);
+}
+
+#[test]
+fn outsiders_cannot_exhaust_membership_by_delegating_or_receiving_dust() {
+    let (env, id, a, b, c) = setup();
+    let client = GovernanceClient::new(&env, &id);
+    client.mint(&a, &100);
+    assert_eq!(client.try_delegate(&b, &Some(c.clone())), Err(Ok(Error::UnknownMember)));
+    assert_eq!(client.try_delegate(&a, &Some(b.clone())), Err(Ok(Error::UnknownMember)));
+    assert_eq!(client.try_transfer(&a, &b, &1), Err(Ok(Error::UnknownMember)));
+    client.register(&b);
+    client.transfer(&a, &b, &1);
+    client.delegate(&b, &Some(a.clone()));
+    env.ledger().set_sequence_number(11);
+    assert_eq!(client.votes_at(&a, &10), 100);
+    assert_eq!(client.balance_at(&b, &10), 1);
+    env.mock_auths(&[]);
+    assert!(client.try_register(&c).is_err());
 }

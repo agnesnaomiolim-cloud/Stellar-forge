@@ -1,3 +1,5 @@
+// Copyright 2024 Stellar-K8s Contributors
+// SPDX-License-Identifier: Apache-2.0
 //! Indexed checkpoints: same-ledger writes coalesce; historical reads use binary search.
 use soroban_sdk::{contracttype, Address, Env};
 use crate::{Error, Key};

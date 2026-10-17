@@ -20,6 +20,16 @@ size and trusted digest match. A checksum must come from a trusted manifest or
 archive metadata/sidecar obtained through an authenticated source. Snapshot
 extraction now explicitly rejects a failed second verifier result as well.
 
+Snapshot staging names hash the bucket and complete object key instead of
+interpreting cloud keys as local paths. This prevents Windows path separators,
+drive/stream syntax and reserved filenames from escaping the staging directory,
+and distinguishes objects with the same basename. Temporary-file creation runs
+on Tokio's blocking pool. Failed range workers abort and reap their sibling
+tasks before returning; cancellation cleanup is still best effort on Windows
+while a filesystem operation holds an open handle. Transparent HTTP
+decompression is disabled explicitly even when another dependency enables
+reqwest compression features.
+
 Requests retry transport connection/timeouts and HTTP 5xx/429 responses with
 250 ms exponential delays capped at eight seconds (four retries by default).
 Interrupted chunk bodies retry from the beginning of that range; deterministic
@@ -56,6 +66,10 @@ performance data is claimed. Test source covers real local HTTP requests,
 chunk reassembly, service-error retry, ignored-range fallback, incorrect ranges,
 checksum rejection, interrupted probe/chunk body retry, concurrent request bounds,
 capped backoff, and aggregate bandwidth accounting.
+Concurrency coverage uses a barrier between two HTTP handlers rather than
+timing assumptions; test-server handlers are owned and cancelled together.
+Regression source also covers safe staging names, encoded responses and
+incorrect declared response lengths.
 Additional failure-injection coverage for cancellation remains
 recommended before production rollout.
 

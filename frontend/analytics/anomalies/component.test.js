@@ -16,7 +16,8 @@ test('real TSX card renders calculated anomalies, bounds, recovery, and missing-
     resolve: { dedupe: ['react', 'react-dom'] },
   });
   try {
-    const { default: Card } = await server.ssrLoadModule(fileURLToPath(new URL('../../components/anomaly_card.tsx', import.meta.url)));
+    const componentPath = fileURLToPath(new URL('../../components/anomaly_card.tsx', import.meta.url)).replaceAll('\\', '/');
+    const { default: Card } = await server.ssrLoadModule(`/@fs/${componentPath}`);
     const end = 200000;
     const settings = { end, duration: 3600, baselineOffset: 3600, sigma: 3 };
     const results = analyzeAll(syntheticSeries(end), settings);

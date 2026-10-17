@@ -26,6 +26,8 @@ The drain worker may attempt operations outside `stellar`; those writes remain d
 
 The stock disk monitor also calls `disk_scaler::get_disk_usage`, which executes `df` using `pods/exec`. In a metrics-enabled build the metrics path invokes this even if automatic disk expansion is disabled. The baseline denies exec, so the probe can log an authorization warning while primary reconciliation continues and disk metrics/expansion are unavailable. There is no supported per-probe disable switch in that path. For healthy disk probes, explicitly apply [disk-probe-rbac.yaml](../../examples/security/disk-probe-rbac.yaml). It grants arbitrary command execution in every Pod in `stellar`; Kubernetes RBAC cannot restrict exec to `df`. A no-exec profile and a clean stock disk-probe audit are incompatible until the implementation changes.
 
+Exec and attach expose both GET/WebSocket and POST API transports. The optional disk extension grants `get,create` for exec to cover those authorization paths. The baseline audit requires **both** verbs denied for exec and attach; checking only POST `create` can miss a GET grant. See the [Pod exec API](https://kubernetes.io/docs/reference/kubernetes-api/core/pod-v1/#connect-get-exec).
+
 ## Exact baseline permission map
 
 `patch` includes server-side apply creation at a named URL; a separate `create` verb is required only for actual POST requests. The following tables describe every rule in the companion manifest; optional extensions are separate below.
@@ -79,7 +81,7 @@ Add rules only after identifying the enabled feature and namespace. Use a Role/R
 
 | Feature | Additional API rules | Scope / notes |
 | --- | --- | --- |
-| Disk probes | core `pods/exec: create` | `disk-probe-rbac.yaml`; arbitrary command execution tradeoff above. |
+| Disk probes | core `pods/exec: get,create` | `disk-probe-rbac.yaml`; GET/WebSocket and POST authorization differ by client/server version. Both verbs permit arbitrary commands; see the tradeoff above. |
 | ESO seeds | `external-secrets.io/externalsecrets: get,patch` | `eso-rbac.yaml`; ESO owns target Secret writes using its own identity. No SecretStore mutation needed by Stellar. |
 | VPA enabled | `autoscaling.k8s.io/verticalpodautoscalers: patch` | Baseline already permits delete; apply is sufficient. |
 | CloudNativePG | `postgresql.cnpg.io/clusters,poolers: patch,delete` | `resources.rs` applies/cleans up; CNPG has its own identity. |
@@ -239,7 +241,7 @@ kubectl get deploy,statefulset,svc,pvc,networkpolicy,pdb -n stellar
 bash examples/security/audit-rbac.sh
 ```
 
-The audit checks permissions, both PSS admission outcomes using server dry-runs, and current operator logs. A denied disk exec probe is a **failed clean-log gate**, not evidence of a complete security pass. Either retain that known degradation and record it explicitly, or apply the reviewed disk extension and run `EXPECT_DISK_EXEC=yes bash examples/security/audit-rbac.sh`. Neither choice authorizes writes in unrelated namespaces.
+The audit checks permissions, both PSS admission outcomes using server dry-runs, and current operator logs. Expected RBAC denials must produce `no`; API failures do not count as denial evidence. The negative admission test must report a restricted PodSecurity violation, so a different webhook or permission error does not count as PSS enforcement. A denied disk exec probe is a **failed clean-log gate**, not evidence of a complete security pass. Either retain that known degradation and record it explicitly, or apply the reviewed disk extension and run `EXPECT_DISK_EXEC=yes bash examples/security/audit-rbac.sh`. Neither choice authorizes writes in unrelated namespaces.
 
 For each enabled extension, exercise creation, update, steady-state health, child-resource recreation, and deletion/finalizer cleanup. Exercise leader acquisition and failover. Confirm workloads become Ready and status advances; an empty error search alone proves nothing. Confirm permitted/forbidden operations with impersonation (the auditing administrator needs impersonation rights). Save the rendered manifests, API/ESO/Vault versions, namespace labels, `auth can-i` outputs, PSS dry-run errors, reconcile logs and Ready status as review artifacts **without secret values**.
 

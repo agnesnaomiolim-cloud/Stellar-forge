@@ -9,7 +9,9 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: [pods/exec]
-    verbs: [create]
+    # WebSocket GET clients require get; POST and newer WebSocket authorization
+    # checks require create. Both authorize arbitrary exec commands.
+    verbs: [get, create]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

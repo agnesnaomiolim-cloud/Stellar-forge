@@ -1,3 +1,5 @@
+// Copyright 2024 Stellar-K8s Contributors
+// SPDX-License-Identifier: Apache-2.0
 //! Governance-only token ledger with transitive delegation and immutable voting snapshots.
 #![no_std]
 
@@ -19,6 +21,7 @@ pub enum Error {
     Overflow = 4, Capacity = 5, DelegationCycle = 6, UnclosedLedger = 7,
     MissingHistory = 8, Threshold = 9, UnknownProposal = 10,
     NotActive = 11, AlreadyVoted = 12, NoVotingPower = 13, NotFinished = 14,
+    UnknownMember = 15,
 }
 
 #[contracttype]
@@ -151,6 +154,14 @@ impl Governance {
         checkpoints::write(&env, Series::Supply, 0)
     }
 
+    /// Admit a committee member without minting tokens. Only the mint authority
+    /// may allocate the registry's bounded membership slots.
+    pub fn register(env: Env, member: Address) -> Result<(), Error> {
+        config(&env).admin.require_auth();
+        let value = account(&env, &member)?;
+        save(&env, &member, &value)
+    }
+
     /// Admin-controlled issuance for the governance ledger; no external token claims.
     pub fn mint(env: Env, to: Address, amount: i128) -> Result<(), Error> {
         config(&env).admin.require_auth();
@@ -172,6 +183,7 @@ impl Governance {
         let mut sender = account(&env, &from)?;
         if sender.balance < amount { return Err(Error::InsufficientBalance); }
         if from == to { return Ok(()); }
+        if !members(&env).contains(&to) { return Err(Error::UnknownMember); }
         sender.balance -= amount;
         save(&env, &from, &sender)?;
         propagate(&env, &from, -amount)?;
@@ -184,6 +196,10 @@ impl Governance {
     /// Move the caller's entire incoming delegation subtree; None reclaims voting power.
     pub fn delegate(env: Env, from: Address, to: Option<Address>) -> Result<(), Error> {
         from.require_auth();
+        let list = members(&env);
+        if !list.contains(&from) || to.as_ref().map_or(false, |who| !list.contains(who)) {
+            return Err(Error::UnknownMember);
+        }
         let mut value = account(&env, &from)?;
         let mut next = to.clone();
         let mut seen = Vec::new(&env);

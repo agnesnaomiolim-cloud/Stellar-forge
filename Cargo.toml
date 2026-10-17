@@ -156,14 +156,8 @@ md5 = "0.8.0"
 # tar archive extraction for snapshot bootstrapping (#119)
 tar = "0.4"
 
-# Terminal UI for kubectl-stellar validator diagnostics
-color-eye = "0.3"
-
-[server-dependencies]
-chrono = "0.4"
-serde_json = "1"
+# Stale-documentation checker traverses source trees.
 walkdir = "2"
-serde = { version = "1", features = ["derive"] }
 
 [features]
 default = ["rest-api", "metrics", "admission-webhook", "k8s-v1-30", "kafka"]
@@ -211,6 +205,10 @@ path = "src/kubectl_plugin.rs"
 [[bin]]
 name = "stellar-completions"
 path = "src/bin/completions.rs"
+
+[[bin]]
+name = "doc-check"
+path = "src/bin/doc_check.rs"
 
 [[bin]]
 name = "soroban-cache-proxy"

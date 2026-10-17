@@ -469,7 +469,7 @@ otel:
 #
 # The operator polls the primary cluster's health endpoints every 500ms, and
 # once the anti-flapping threshold is met, promotes the Patroni replica and
-  remaps the global DNS record to the passive cluster.
+# remaps the global DNS record to the passive cluster.
 #
 # Quick start:
 #   1. Set failover.enabled=true
@@ -514,7 +514,6 @@ failover:
     # Health endpoints that the global watcher polls.
     healthEndpoints:
       - "https://primary.stellar.org/health"
-      -https://primary.stellar.org/health
     # Patroni REST API endpoint for the primary PostgreSQL cluster.
     patroniEndpoint: "https://patroni-primary.stellar.org"
 

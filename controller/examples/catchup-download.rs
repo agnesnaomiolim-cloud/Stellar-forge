@@ -1,3 +1,5 @@
+// Copyright 2024 Stellar-K8s Contributors
+// SPDX-License-Identifier: Apache-2.0
 //! Source-only benchmark driver. See docs/development/catchup-downloader.md.
 use controller::catchup::{Archive, DownloadConfig, Downloader, WorkerPool};
 use std::{path::PathBuf, time::Instant};

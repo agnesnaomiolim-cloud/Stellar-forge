@@ -20,12 +20,20 @@ need() {
 }
 need kubectl
 
-can_ns() {
-  kubectl auth can-i "$1" "$2" -n "$3" --as="$AS" 2>/dev/null
+# A valid DENY prints "no" and exits 1. Do not pipe it through grep under
+# pipefail: that would turn every expected denial into an audit failure.
+# API/transport errors must still fail, even if kubectl exits nonzero.
+authorization_matches() {
+  local expected="$1"
+  shift
+  local answer rc=0
+  answer="$(kubectl auth can-i "$@" --as="$AS" 2>/dev/null)" || rc=$?
+  [[ "$answer" == "$expected" ]] &&
+    { [[ $rc -eq 0 ]] || [[ "$expected" == no && $rc -eq 1 ]]; }
 }
 
 expect_yes_ns() {
-  if [[ "$(can_ns "$1" "$2" "$3")" == "yes" ]]; then
+  if authorization_matches yes "$1" "$2" -n "$3"; then
     pass "$1 $2 in $3"
   else
     fail_check "expected ALLOW: $1 $2 in $3"
@@ -33,7 +41,7 @@ expect_yes_ns() {
 }
 
 expect_no_ns() {
-  if [[ "$(can_ns "$1" "$2" "$3")" == "no" ]]; then
+  if authorization_matches no "$1" "$2" -n "$3"; then
     pass "denied $1 $2 in $3"
   else
     fail_check "expected DENY: $1 $2 in $3"
@@ -41,7 +49,7 @@ expect_no_ns() {
 }
 
 expect_yes_all() {
-  if kubectl auth can-i "$1" "$2" --all-namespaces --as="$AS" 2>/dev/null | grep -qx yes; then
+  if authorization_matches yes "$1" "$2" --all-namespaces; then
     pass "$1 $2 across all namespaces"
   else
     fail_check "expected ALLOW: $1 $2 across all namespaces"
@@ -49,7 +57,7 @@ expect_yes_all() {
 }
 
 expect_no_cluster() {
-  if kubectl auth can-i "$1" "$2" --as="$AS" 2>/dev/null | grep -qx no; then
+  if authorization_matches no "$1" "$2"; then
     pass "denied cluster-scope $1 $2"
   else
     fail_check "expected DENY: cluster-scope $1 $2"
@@ -63,7 +71,7 @@ pass "strict RBAC manifest accepted by API server"
 echo "== Managed-namespace reconciliation permissions =="
 expect_yes_ns get stellarnodes.stellar.org "$MANAGED_NAMESPACE"
 expect_yes_ns list stellarnodes.stellar.org "$MANAGED_NAMESPACE"
-if kubectl auth can-i patch stellarnodes.stellar.org --subresource=status -n "$MANAGED_NAMESPACE" --as="$AS" 2>/dev/null | grep -qx yes; then
+if authorization_matches yes patch stellarnodes.stellar.org --subresource=status -n "$MANAGED_NAMESPACE"; then
   pass "patch stellarnodes.stellar.org/status in $MANAGED_NAMESPACE"
 else
   fail_check "expected ALLOW: patch stellarnodes.stellar.org/status in $MANAGED_NAMESPACE"
@@ -93,17 +101,17 @@ expect_yes_all get services
 expect_yes_all list nodes
 expect_yes_all watch nodes
 
-if kubectl auth can-i get namespaces/"$OPERATOR_NAMESPACE" --as="$AS" 2>/dev/null | grep -qx yes; then
+if authorization_matches yes get namespaces/"$OPERATOR_NAMESPACE"; then
   pass "get namespace/$OPERATOR_NAMESPACE"
 else
   fail_check "expected ALLOW: get namespace/$OPERATOR_NAMESPACE"
 fi
-if kubectl auth can-i get namespaces/"$MANAGED_NAMESPACE" --as="$AS" 2>/dev/null | grep -qx yes; then
+if authorization_matches yes get namespaces/"$MANAGED_NAMESPACE"; then
   pass "get namespace/$MANAGED_NAMESPACE"
 else
   fail_check "expected ALLOW: get namespace/$MANAGED_NAMESPACE"
 fi
-if kubectl auth can-i patch namespaces/"$MANAGED_NAMESPACE" --as="$AS" 2>/dev/null | grep -qx yes; then
+if authorization_matches yes patch namespaces/"$MANAGED_NAMESPACE"; then
   pass "patch namespace/$MANAGED_NAMESPACE"
 else
   fail_check "expected ALLOW: patch namespace/$MANAGED_NAMESPACE"
@@ -120,31 +128,45 @@ expect_no_cluster create clusterrolebindings.rbac.authorization.k8s.io
 expect_no_cluster create namespaces
 expect_no_ns get secrets kube-system
 
-expected_exec=no
-if [[ "${EXPECT_DISK_EXEC:-no}" == "yes" ]]; then expected_exec=yes; fi
-if kubectl auth can-i create pods --subresource=exec -n "$MANAGED_NAMESPACE" --as="$AS" 2>/dev/null | grep -qx "$expected_exec"; then
-  pass "create pods/exec in $MANAGED_NAMESPACE matches expected $expected_exec"
-else
-  fail_check "create pods/exec must match expected $expected_exec in $MANAGED_NAMESPACE"
-fi
-if kubectl auth can-i create serviceaccounts --subresource=token -n "$MANAGED_NAMESPACE" --as="$AS" 2>/dev/null | grep -qx no; then
+expected_exec="${EXPECT_DISK_EXEC:-no}"
+case "$expected_exec" in
+  yes|no) ;;
+  *) echo "EXPECT_DISK_EXEC must be yes or no" >&2; exit 2 ;;
+esac
+# Exec supports GET/WebSocket and POST transports; denying only create can leave
+# arbitrary command execution available through a get grant.
+for exec_verb in get create; do
+  if authorization_matches "$expected_exec" "$exec_verb" pods --subresource=exec -n "$MANAGED_NAMESPACE"; then
+    pass "$exec_verb pods/exec in $MANAGED_NAMESPACE matches expected $expected_exec"
+  else
+    fail_check "$exec_verb pods/exec must match expected $expected_exec in $MANAGED_NAMESPACE"
+  fi
+done
+for attach_verb in get create; do
+  if authorization_matches no "$attach_verb" pods --subresource=attach -n "$MANAGED_NAMESPACE"; then
+    pass "denied $attach_verb pods/attach in $MANAGED_NAMESPACE"
+  else
+    fail_check "expected DENY: $attach_verb pods/attach in $MANAGED_NAMESPACE"
+  fi
+done
+if authorization_matches no create serviceaccounts --subresource=token -n "$MANAGED_NAMESPACE"; then
   pass "denied create serviceaccounts/token in $MANAGED_NAMESPACE"
 else
   fail_check "expected DENY: create serviceaccounts/token in $MANAGED_NAMESPACE"
 fi
-if kubectl auth can-i patch namespaces/kube-system --as="$AS" 2>/dev/null | grep -qx no; then
+if authorization_matches no patch namespaces/kube-system; then
   pass "denied patch namespaces/kube-system"
 else
   fail_check "expected DENY: patch namespaces/kube-system"
 fi
 
 # The always-spawned benchmark watcher must remain read-only in the strict profile.
-if kubectl auth can-i create pods --all-namespaces --as="$AS" 2>/dev/null | grep -qx no; then
+if authorization_matches no create pods --all-namespaces; then
   pass "denied cluster-wide Pod creation"
 else
   fail_check "expected DENY: cluster-wide Pod creation"
 fi
-if kubectl auth can-i patch stellarbenchmarks.stellar.org --subresource=status --all-namespaces --as="$AS" 2>/dev/null | grep -qx no; then
+if authorization_matches no patch stellarbenchmarks.stellar.org --subresource=status --all-namespaces; then
   pass "denied cluster-wide StellarBenchmark status mutation"
 else
   fail_check "expected DENY: cluster-wide StellarBenchmark status mutation"
@@ -191,7 +213,7 @@ YAML
 } | kubectl apply --dry-run=server -n "$MANAGED_NAMESPACE" -f - 2>&1)"
 pss_bad_rc=$?
 set -e
-if [[ $pss_bad_rc -ne 0 ]] && grep -qiE 'podsecurity|restricted|privileged' <<<"$pss_bad_output"; then
+if [[ $pss_bad_rc -ne 0 ]] && grep -qiE 'violates PodSecurity.*restricted' <<<"$pss_bad_output"; then
   pass "privileged pod rejected by Pod Security Admission"
 else
   fail_check "privileged pod was not rejected by restricted Pod Security Admission"

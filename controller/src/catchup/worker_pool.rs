@@ -1,3 +1,5 @@
+// Copyright 2024 Stellar-K8s Contributors
+// SPDX-License-Identifier: Apache-2.0
 use std::{sync::{Arc, OnceLock}, time::Duration};
 use tokio::{sync::{Mutex, Semaphore}, time::{sleep_until, Instant}};
 

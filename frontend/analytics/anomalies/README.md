@@ -47,11 +47,11 @@ npm run dev
 Capture real screenshots at `/anomalies.html` with injection on and off, and
 with the historical comparison switched to yesterday. Confirm worker requests
 are cancelled when changing controls rapidly. Check live data and error states
-against a Prometheus instance with matching exporters. A complete analytics
-production build also requires repairing the pre-existing malformed
-`src/main.jsx` topology entry (duplicate `initialView` and incomplete JSX), which
-is outside this workbench change. `build:anomalies` selects only the workbench
-entry and writes to `dist-anomalies` independently of that topology entry.
+against a Prometheus instance with matching exporters. The analytics topology
+entry has also been repaired to remove its duplicate declaration, restore its
+dashboard JSX and imports, and select an actual connected view on startup.
+Validate the complete application with `npm run build`; `build:anomalies`
+selects only the workbench entry and writes to `dist-anomalies`.
 
 Model tests cover numerical stability, threshold boundaries, flat baselines,
 positive/negative spikes, recovered series, empty/nonfinite samples, independent

@@ -15,7 +15,12 @@ all three balances; A and B have zero voting power. `delegate(B, None)` reclaims
 B's and A's weight. Transfers move only the sender's own tokens, updating both
 delegation paths. Cycles and self-delegation are rejected before writes.
 
-Membership is capped at 64 distinct accounts for this initial registry. Accounts
+Membership is capped at 64 distinct accounts for this initial registry. The admin
+admits accounts through `register` or `mint`; transfers and delegation accept only
+admitted recipients. Unfunded outsiders cannot reserve slots through delegation,
+and token holders cannot fill the registry by sending dust to arbitrary addresses.
+Membership admission is therefore permissioned, even though members control their
+own delegation and transfers. Accounts
 cannot be removed or slots recycled. This bounds every graph walk to 64 entries,
 including when a subtree moves beneath a longer chain. This is an explicit small
 committee deployment limit; larger DAOs need a different graph representation.

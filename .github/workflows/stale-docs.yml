@@ -75,13 +75,10 @@ jobs:
       # a Makefile wrapper.  The Makefile target check-stale-docs invokes it via
       # `cargo run --bin doc-check`.
       - name: Build doc-check
+        id: build
         run: |
-          set -e
-          # Allow build failures in this job to avoid blocking CI while still
-          # attempting to produce the doc-check binary for diagnostics.
-          cargo build --locked --bin doc-check || {
-            echo "Warning: cargo build failed for doc-check — continuing (non-fatal)"
-          }
+          set -euo pipefail
+          cargo build --locked --bin doc-check
         env:
           CARGO_TERM_COLOR: always
 
@@ -112,8 +109,6 @@ jobs:
           # Pass each changed file as a separate --changed-files argument.
           # The binary accepts newline-separated values via the positional
           # value_delimiter configured in clap.
-          CHANGED_FILES="${{ steps.changed.outputs.files }}"
-
           if [[ -z "$CHANGED_FILES" ]]; then
             echo "No relevant files changed in this PR."
             exit 0
@@ -129,6 +124,7 @@ jobs:
           ./target/debug/doc-check $WARN_FLAG "${ARGS[@]}"
         env:
           CARGO_TERM_COLOR: always
+          CHANGED_FILES: ${{ steps.changed.outputs.files }}
 
       # ── Run doc-check (push / manual: full check) ────────────────────────────
       - name: Check for stale docs (full repo scan)
@@ -144,7 +140,7 @@ jobs:
 
       # ── Annotate PR with stale-doc file paths ────────────────────────────────
       - name: Annotate PR with stale doc warnings
-        if: failure() && github.event_name == 'pull_request'
+        if: failure() && steps.build.outcome == 'success' && github.event_name == 'pull_request'
         run: |
           echo "::error title=Stale Documentation Detected::One or more documentation files are out of date with their linked source files. Please update the docs listed above, or run 'make check-stale-docs' locally for details."
 
@@ -156,6 +152,8 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           if [[ "${{ job.status }}" == "success" ]]; then
             echo "✅ All tracked documentation files are up-to-date." >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "${{ steps.build.outcome }}" != "success" ]]; then
+            echo "❌ Documentation checker could not be built; see the build log." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "❌ One or more documentation files are stale." >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"

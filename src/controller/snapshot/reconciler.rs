@@ -329,8 +329,7 @@ impl SnapshotReconciler {
         use aws_sdk_s3::presigning::PresigningConfig;
         use crate::catchup::{Archive, DownloadConfig, Downloader, WorkerPool};
 
-        let filename = snap.key.rsplit('/').next().filter(|name| !name.is_empty() && *name != "." && *name != "..")
-            .ok_or_else(|| Error::ConfigError("Invalid snapshot filename".into()))?;
+        let filename = snapshot_staging_filename(&snap.bucket, &snap.key);
         let dest = self.config.staging_dir.join(filename);
         // A GET signature allows ranges without exposing permanent cloud credentials.
         let signing = PresigningConfig::expires_in(Duration::from_secs(7 * 24 * 60 * 60))
@@ -444,6 +443,18 @@ impl SnapshotReconciler {
     }
 }
 
+/// Object keys are opaque cloud identifiers, not safe local filenames. Hash
+/// both bucket and key so Windows separators, drive prefixes, ADS colons and
+/// reserved device names cannot escape or alias the configured staging folder.
+fn snapshot_staging_filename(bucket: &str, key: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut digest = Sha256::new();
+    digest.update(bucket.as_bytes());
+    digest.update([0]);
+    digest.update(key.as_bytes());
+    format!("snapshot-{}.tar.gz", hex::encode(digest.finalize()))
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Blocking extraction helper (runs inside spawn_blocking)
 // ──────────────────────────────────────────────────────────────────────────────
@@ -501,6 +512,19 @@ mod tests {
     use super::*;
     use std::io::Write;
     use tempfile::TempDir;
+
+    #[test]
+    fn cloud_keys_cannot_escape_or_alias_staging_paths() {
+        let directory = Path::new("staging");
+        for key in [r"..\..\outside.tar.gz", r"C:\outside.tar.gz", "CON", "name:stream", "..", "prefix/file.tar.gz"] {
+            let filename = snapshot_staging_filename("bucket", key);
+            assert!(filename.starts_with("snapshot-") && filename.ends_with(".tar.gz"));
+            assert_eq!(directory.join(&filename).parent(), Some(directory));
+            assert!(filename.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'.'));
+        }
+        assert_ne!(snapshot_staging_filename("a", "prefix/file.tar.gz"), snapshot_staging_filename("b", "prefix/file.tar.gz"));
+        assert_ne!(snapshot_staging_filename("a", "one/file.tar.gz"), snapshot_staging_filename("a", "two/file.tar.gz"));
+    }
 
     /// Build a minimal in-memory `.tar.gz` containing a single test file.
     fn make_test_tar_gz(filename: &str, content: &[u8]) -> Vec<u8> {
