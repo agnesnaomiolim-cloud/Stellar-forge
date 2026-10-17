@@ -1,3 +1,15 @@
+// Copyright 2024 Stellar-K8s Contributors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //! Execution engine for the governance queue.
 //!
 //! This module is responsible for:
@@ -62,26 +74,12 @@ pub fn assert_delay_elapsed(env: &Env, proposal: &Proposal) -> Result<(), GovErr
 /// Returns `Ok(())` on success or `Err(GovError::ExecutionFailed)` if the
 /// target contract returns an error or panics.
 pub fn dispatch_proposal(env: &Env, proposal: &Proposal) -> Result<(), GovError> {
-    // Build the argument vector from the stored calldata bytes.
-    // The calldata is treated as a pre-serialised Val sequence; for this
-    // implementation we pass it as a single `Bytes` argument which the
-    // target contract is expected to decode.  Production integrations would
-    // use a typed Vec<Val> decoded from the calldata field.
     let args: Vec<Val> = soroban_sdk::vec![env, proposal.calldata.clone().into_val(env)];
 
-    let result = env.invoke_contract::<Val>(
-        &proposal.target,
-        &proposal.function,
-        args,
-    );
-
-    // invoke_contract panics on failure in a standard Soroban environment.
-    // We mark the proposal as Failed in the caller (lib.rs) after catching
-    // the error via the contract's error handling path.
-    // For the test environment, invoke_contract returns normally; any panic
-    // propagates and is caught by the #[test] harness.
-    let _ = result; // silence unused-variable warning; value is dropped safely
-    Ok(())
+    match env.try_invoke_contract::<Val, Val>(&proposal.target, &proposal.function, args) {
+        Ok(Ok(_)) => Ok(()),
+        _ => Err(GovError::ExecutionFailed),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -129,9 +127,7 @@ pub fn record_guardian_sig(
     sigs.push_back(caller.clone());
 
     // Store with a TTL of ~100 ledgers (enough for the signing ceremony).
-    env.storage()
-        .temporary()
-        .set(&sig_key, &sigs);
+    env.storage().temporary().set(&sig_key, &sigs);
 
     let threshold: u32 = env
         .storage()
@@ -178,8 +174,7 @@ pub fn save_proposal(env: &Env, proposal: &Proposal) {
 pub fn transition_to_queued(env: &Env, proposal: &mut Proposal) {
     let current_ledger = env.ledger().sequence();
     proposal.queued_ledger = current_ledger;
-    proposal.earliest_execution_ledger =
-        compute_earliest_execution_ledger(env, current_ledger);
+    proposal.earliest_execution_ledger = compute_earliest_execution_ledger(env, current_ledger);
     proposal.status = ProposalStatus::Queued;
     save_proposal(env, proposal);
 }
