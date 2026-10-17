@@ -1,3 +1,15 @@
+// Copyright 2024 Stellar-K8s Contributors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //! # groth16.rs
 //!
 //! Dedicated Groth16 zero-knowledge proof verifier module.
@@ -71,10 +83,8 @@ use crate::types::{G1Point, G2Point, Groth16Proof, Groth16VerifyingKey};
 /// Any field element used in a proof MUST be strictly less than this value and
 /// non-zero.  The check is performed byte-by-byte in big-endian order.
 const BN254_FR_ORDER: [u8; 32] = [
-    0x30, 0x64, 0x4e, 0x72, 0xe1, 0x31, 0xa0, 0x29,
-    0xb8, 0x50, 0x45, 0xb6, 0x81, 0x81, 0x58, 0x5d,
-    0x28, 0x33, 0xe8, 0x48, 0x79, 0xb9, 0x70, 0x91,
-    0x43, 0xe1, 0xf5, 0x93, 0xf0, 0x00, 0x00, 0x01,
+    0x30, 0x64, 0x4e, 0x72, 0xe1, 0x31, 0xa0, 0x29, 0xb8, 0x50, 0x45, 0xb6, 0x81, 0x81, 0x58, 0x5d,
+    0x28, 0x33, 0xe8, 0x48, 0x79, 0xb9, 0x70, 0x91, 0x43, 0xe1, 0xf5, 0x93, 0xf0, 0x00, 0x00, 0x01,
 ];
 
 // ─── Field / Point Validation ──────────────────────────────────────────────
@@ -115,24 +125,12 @@ fn validate_field_elem(env: &Env, elem: &BytesN<32>) -> Result<(), ZkError> {
 /// function pairing layer (BN254 pairing precompile).  We only reject the
 /// identity element here, which is serialised as (0, 0).
 fn validate_g1_point(_env: &Env, p: &G1Point) -> Result<(), ZkError> {
-    let zero = [0u8; 32];
-    if p.x.to_array() == zero && p.y.to_array() == zero {
-        return Err(ZkError::InvalidCurvePoint);
-    }
-    Ok(())
+    crate::pairing::verify_g1_in_fp(p)
 }
 
-/// Validate that a G2 point is not the point at infinity.
+/// Validate that a G2 point is not the point at infinity and has valid Fp2 limbs.
 fn validate_g2_point(_env: &Env, p: &G2Point) -> Result<(), ZkError> {
-    let zero = [0u8; 32];
-    if p.x.0.to_array() == zero
-        && p.x.1.to_array() == zero
-        && p.y.0.to_array() == zero
-        && p.y.1.to_array() == zero
-    {
-        return Err(ZkError::InvalidCurvePoint);
-    }
-    Ok(())
+    crate::pairing::verify_g2_in_fp2(p)
 }
 
 // ─── Pairing Check ─────────────────────────────────────────────────────────
@@ -161,10 +159,14 @@ fn validate_g2_point(_env: &Env, p: &G2Point) -> Result<(), ZkError> {
 fn pairing_check_4(
     env: &Env,
     tracker: &mut BudgetTracker,
-    p1: &G1Point, q1: &G2Point,
-    p2: &G1Point, q2: &G2Point,
-    p3: &G1Point, q3: &G2Point,
-    p4: &G1Point, q4: &G2Point,
+    p1: &G1Point,
+    q1: &G2Point,
+    p2: &G1Point,
+    q2: &G2Point,
+    p3: &G1Point,
+    q3: &G2Point,
+    p4: &G1Point,
+    q4: &G2Point,
 ) -> Result<bool, ZkError> {
     // Structural validation of all eight points
     validate_g1_point(env, p1)?;
@@ -275,13 +277,18 @@ pub fn verify_groth16(
     // Check: e(−A, B) · e(α, β) · e(acc, γ) · e(C, δ) == 1_{GT}
     //
     // We use ic0 as the accumulator placeholder (the MSM result).
+    let neg_a = crate::pairing::negate_g1(env, &proof.a)?;
     let ok = pairing_check_4(
         env,
         tracker,
-        &proof.a,       &proof.b,          // e(A, B) contribution
-        &vk.alpha_g1,   &vk.beta_g2,       // e(α, β) from VK
-        &ic0,           &vk.gamma_g2,      // e(acc, γ) – acc from MSM
-        &proof.c,       &vk.delta_g2,      // e(C, δ)
+        &neg_a,
+        &proof.b, // e(-A, B) contribution
+        &vk.alpha_g1,
+        &vk.beta_g2, // e(α, β) from VK
+        &ic0,
+        &vk.gamma_g2, // e(acc, γ) – acc from MSM
+        &proof.c,
+        &vk.delta_g2, // e(C, δ)
     )?;
 
     if !ok {
