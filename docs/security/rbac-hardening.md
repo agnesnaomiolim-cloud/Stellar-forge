@@ -99,13 +99,91 @@ The **node workload namespace** `stellar` is labelled `restricted` for enforce/a
 
 Before switching an existing workload namespace to enforcement, first run audit/warn and fix violations. Pod Security Admission validates new/updated pods; it does not rewrite existing pods.
 
-Managed StellarNode pods already receive non-root execution, `RuntimeDefault` seccomp, `allowPrivilegeEscalation: false`, and `capabilities.drop: [ALL]` from the controller builders.
+Managed StellarNode pods already receive non-root execution, `RuntimeDefault` seccomp, `allowPrivilegeEscalation: false`, `readOnlyRootFilesystem: true`, and `capabilities.drop: [ALL]` from the controller builders:
+
+```yaml
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+containers:
+  - name: stellar-core
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+```
 
 The forensic snapshot ephemeral container is a deliberate exception: it may request `NET_RAW`/`SYS_PTRACE`, which a `restricted` namespace can reject. Treat it as break-glass. Keep it disabled in the strict production profile or use a separately governed diagnostic path; do not weaken production PSS just to make diagnostics convenient.
 
-## HashiCorp Vault validator seeds
+## Zero-trust NetworkPolicy templates (Validator P2P 11625 & Horizon/Soroban 8000/8080)
 
-For `seedSecretSource.vaultRef`, Stellar-K8s adds Vault Agent Injector annotations; it does not retrieve the seed value itself. Give the Vault policy only the validator path, for example KV-v2:
+Apply strict default-deny and workload-specific `NetworkPolicy` manifests so Validator pods accept ingress exclusively on the Stellar P2P Overlay port (`11625/TCP`), while Horizon (`8000/TCP`) and Soroban RPC (`8080/TCP`) accept ingress only from internal load balancer / ingress controller pods:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: stellar-validator-p2p-isolation
+  namespace: stellar
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: validator
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 11625
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 11625
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: stellar-horizon-soroban-rpc-ingress
+  namespace: stellar
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - horizon
+          - soroban-rpc
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/role: internal-load-balancer
+      ports:
+        - protocol: TCP
+          port: 8000
+        - protocol: TCP
+          port: 8080
+```
+
+## HashiCorp Vault & CSI Secrets Store Driver validator seeds
+
+For `seedSecretSource.vaultRef` or the Kubernetes CSI Secrets Store Driver (`secrets-store.csi.x-k8s.io/v1`), Stellar-K8s mounts the validator `NODE_SEED` directly into an in-memory `tmpfs` projection without persisting plaintext secrets to etcd. Give the Vault policy only the validator path, for example KV-v2:
 
 ```hcl
 path "kv/data/stellar/validators/validator-0" {
