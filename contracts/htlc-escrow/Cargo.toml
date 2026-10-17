@@ -2,6 +2,8 @@
 name = "htlc-escrow"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
+publish = false
 
 [workspace]
 
@@ -9,4 +11,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-soroban-sdk = "20.0.0"
+soroban-sdk = { version = "=27.0.6", features = ["alloc"] }
+
+[dev-dependencies]
+soroban-sdk = { version = "=27.0.6", features = ["alloc", "testutils"] }
