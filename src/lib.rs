@@ -134,6 +134,7 @@ pub mod simulation_cache;
 #[path = "telemetry.rs"]
 pub mod telemetry;
 pub mod version_check;
+pub mod wasm;
 pub mod websocket_streaming;
 
 #[cfg(feature = "rest-api")]
