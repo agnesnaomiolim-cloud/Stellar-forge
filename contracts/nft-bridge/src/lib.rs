@@ -1,3 +1,15 @@
+// Copyright 2024 Stellar-K8s Contributors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //! # NFT Bridge Vault (ERC-721 ⇄ Soroban)
 //!
 //! Moves NFTs between Soroban and Ethereum. Native Soroban NFTs are escrowed
@@ -135,6 +147,36 @@ impl NftBridge {
         }
         .publish(&env);
         nonce
+    }
+
+    /// Mints a synthetic bridged NFT on Soroban backed by an escrowed EVM ERC-721 token.
+    pub fn mint_synthetic(env: Env, to: Address, token_id: U256) {
+        Self::admin(env.clone()).require_auth();
+        bump_instance(&env);
+        vault::create(&env, &token_id, &to, vault::Origin::Synthetic);
+    }
+
+    /// Burns a synthetic NFT on Soroban and returns a bridge nonce to release the underlying EVM NFT.
+    pub fn burn_synthetic(
+        env: Env,
+        owner: Address,
+        token_id: U256,
+        dest_chain_id: u64,
+        dest_address: BytesN<20>,
+    ) -> u64 {
+        owner.require_auth();
+        bump_instance(&env);
+        if dest_chain_id == 0 || dest_address.to_array() == [0u8; 20] {
+            panic_with_error!(&env, BridgeError::InvalidDestination);
+        }
+        vault::burn_synthetic(&env, &owner, &token_id)
+    }
+
+    /// Unlocks a previously escrowed native Soroban NFT back to `recipient`.
+    pub fn unlock_native(env: Env, recipient: Address, token_id: U256) {
+        Self::admin(env.clone()).require_auth();
+        bump_instance(&env);
+        vault::unlock(&env, &recipient, &token_id);
     }
 
     // -----------------------------------------------------------------------
