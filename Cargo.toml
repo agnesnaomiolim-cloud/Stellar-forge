@@ -117,6 +117,8 @@ wasmtime-wasi = { version = "24.0.7", features = ["preview1"], optional = true }
 tokio-rustls = { version = "0.26", optional = true }
 
 # Base64 for Wasm plugin loading
+base64 = "0.21"
+
 # HMAC-SHA256 for webhook payload signing
 hmac = "0.12"
 http = "1"
@@ -156,10 +158,10 @@ md5 = "0.8.0"
 # tar archive extraction for snapshot bootstrapping (#119)
 tar = "0.4"
 
-# Terminal UI for kubectl-stellar validator diagnostics
-color-eye = "0.3"
+# Directory traversal for stale-documentation checks (bins + build script)
+walkdir = "2"
 
-[server-dependencies]
+[build-dependencies]
 chrono = "0.4"
 serde_json = "1"
 walkdir = "2"
@@ -235,6 +237,11 @@ required-features = ["rest-api", "metrics"]
 [[bin]]
 name = "stellar-metrics-proxy"
 path = "src/bin/stellar-metrics-proxy.rs"
+
+# Internal tool: detects documentation that has fallen behind its source files.
+[[bin]]
+name = "doc-check"
+path = "src/bin/doc_check.rs"
 
 [workspace]
 members = ["wasm-plugins", "telemetry", "security/p2p-firewall"]
