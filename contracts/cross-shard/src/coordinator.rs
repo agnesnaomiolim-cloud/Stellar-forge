@@ -82,14 +82,21 @@ pub const MIN_TRANSITIONS: u32 = 2;
 /// prevent abuse.
 pub const MAX_TRANSITIONS: u32 = 16;
 
-/// Symbol used for the `amount_in` argument forwarded to each AMM's function.
-const SYM_AMOUNT_IN: Symbol = symbol_short!("amount_in");
-/// Symbol used for the `min_out` argument forwarded to each AMM's function.
-const SYM_MIN_OUT:   Symbol = symbol_short!("min_out");
-/// Symbol used for the `token_in` argument forwarded to each AMM's function.
-const SYM_TOKEN_IN:  Symbol = symbol_short!("token_in");
-/// Symbol used for the `token_out` argument forwarded to each AMM's function.
-const SYM_TOKEN_OUT: Symbol = symbol_short!("token_out");
+/// Verifies that the final leg output of a multi-shard swap meets the caller's aggregate route minimum.
+pub fn verify_route_minimum_out(
+    amounts_out: &Vec<i128>,
+    min_final_out: i128,
+) -> Result<i128, CrossShardError> {
+    let len = amounts_out.len();
+    if len == 0 {
+        return Err(CrossShardError::TooFewTransitions);
+    }
+    let final_out = amounts_out.get(len - 1).unwrap_or(0);
+    if final_out < min_final_out {
+        return Err(CrossShardError::SlippageExceeded);
+    }
+    Ok(final_out)
+}
 
 // ── Initialisation ────────────────────────────────────────────────────────────
 
@@ -142,8 +149,8 @@ pub fn initialize(env: &Env, admin: &Address) -> Result<(), CrossShardError> {
 /// | `PoolAlreadyLocked` | A pool is locked by another in-flight swap |
 /// | `NotInitialized` | `initialize` was never called |
 pub fn execute_atomic_swap(
-    env:         &Env,
-    initiator:   &Address,
+    env: &Env,
+    initiator: &Address,
     transitions: &Vec<ShardTransition>,
 ) -> Result<Vec<i128>, CrossShardError> {
     // ── 1. Guards ───────────────────────────────────────────────────────────
@@ -192,11 +199,11 @@ pub fn execute_atomic_swap(
 
     // ── 7. Build initial snapshot ───────────────────────────────────────────
     let mut snapshot = SwapSnapshot {
-        id:           swap_id,
-        initiator:    initiator.clone(),
-        legs:         Vec::new(env),
+        id: swap_id,
+        initiator: initiator.clone(),
+        legs: Vec::new(env),
         start_ledger: env.ledger().sequence(),
-        status:       SwapStatus::InFlight,
+        status: SwapStatus::InFlight,
     };
 
     // ── 8. Execute each leg ─────────────────────────────────────────────────
@@ -211,30 +218,30 @@ pub fn execute_atomic_swap(
                 if leg.min_out > 0 && amount_out < leg.min_out {
                     // Slippage exceeded — record failure and break.
                     snapshot.legs.push_back(TransitionResult {
-                        pool:       leg.pool.clone(),
+                        pool: leg.pool.clone(),
                         amount_out: 0,
-                        succeeded:  false,
+                        succeeded: false,
                     });
-                    failed_at   = Some(idx as u32);
+                    failed_at = Some(idx as u32);
                     failure_err = CrossShardError::SlippageExceeded;
                     break;
                 }
 
                 amounts_out.push_back(amount_out);
                 snapshot.legs.push_back(TransitionResult {
-                    pool:       leg.pool.clone(),
+                    pool: leg.pool.clone(),
                     amount_out,
-                    succeeded:  true,
+                    succeeded: true,
                 });
             }
             Err(e) => {
                 // AMM invocation failed — record failure and break.
                 snapshot.legs.push_back(TransitionResult {
-                    pool:       leg.pool.clone(),
+                    pool: leg.pool.clone(),
                     amount_out: 0,
-                    succeeded:  false,
+                    succeeded: false,
                 });
-                failed_at   = Some(idx as u32);
+                failed_at = Some(idx as u32);
                 failure_err = e;
                 break;
             }
@@ -280,16 +287,12 @@ pub fn execute_atomic_swap(
         .set(&DataKey::SwapSnapshot(swap_id), &snapshot);
 
     // Extend snapshot TTL so callers can inspect it for a reasonable window.
-    env.storage().persistent().extend_ttl(
-        &DataKey::SwapSnapshot(swap_id),
-        1000,
-        10_000,
-    );
+    env.storage()
+        .persistent()
+        .extend_ttl(&DataKey::SwapSnapshot(swap_id), 1000, 10_000);
 
-    env.events().publish(
-        (symbol_short!("swap_ok"), initiator.clone()),
-        (swap_id, n),
-    );
+    env.events()
+        .publish((symbol_short!("swap_ok"), initiator.clone()), (swap_id, n));
 
     Ok(amounts_out)
 }
@@ -311,11 +314,7 @@ pub fn execute_atomic_swap(
 ///   the entire call tree.
 /// * The AMM cannot call back into the coordinator while the `InFlight` guard
 ///   is set — any re-entrant call returns `ReentrantCall`.
-fn execute_leg(
-    env:    &Env,
-    leg:    &ShardTransition,
-    swap_id: u64,
-) -> Result<i128, CrossShardError> {
+fn execute_leg(env: &Env, leg: &ShardTransition, swap_id: u64) -> Result<i128, CrossShardError> {
     // Build the argument vector for the cross-contract call.
     //
     // We pass named arguments compatible with the standard Soroban AMM
@@ -364,11 +363,16 @@ pub fn set_paused(env: &Env, caller: &Address, paused: bool) -> Result<(), Cross
 }
 
 /// Transfer admin authority to a new address.
-pub fn transfer_admin(env: &Env, caller: &Address, new_admin: &Address) -> Result<(), CrossShardError> {
+pub fn transfer_admin(
+    env: &Env,
+    caller: &Address,
+    new_admin: &Address,
+) -> Result<(), CrossShardError> {
     require_admin(env, caller)?;
     new_admin.require_auth();
     env.storage().instance().set(&DataKey::Admin, new_admin);
-    env.events().publish((symbol_short!("adm_chg"),), new_admin.clone());
+    env.events()
+        .publish((symbol_short!("adm_chg"),), new_admin.clone());
     Ok(())
 }
 
