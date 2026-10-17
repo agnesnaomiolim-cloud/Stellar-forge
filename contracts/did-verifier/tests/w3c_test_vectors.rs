@@ -1,115 +1,98 @@
-use did_verifier::{DidVerifier, Error, KeyType};
-use did_verifier::revocation::{RevocationRegistry};
-use did_verifier::schema::{ClaimValue, RequiredClaim, Schema};
-use soroban_sdk::{Bytes, BytesN, Env, Vec as SorobanVec};
+// Copyright 2024 Stellar-K8s Contributors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use did_verifier::revocation::{MerkleProof, RevocationRegistry};
+use did_verifier::schema::{CredentialClaim, RequiredClaim, Schema};
+use did_verifier::{DidVerifier, DidVerifierClient, Error, KeyType, VerifiableCredentialPayload};
 use soroban_sdk::testutils::Ledger;
-use alloc::collections::BTreeMap;
-use serde_json::value::Value;
-use sha2::{Digest, Sha256};
+use soroban_sdk::{symbol_short, vec, Bytes, BytesN, Env};
 
-#derive(serde::Serialize)
-struct TestCredentialData<'a> {
-    id: &'a str,
-    issuer: &'a str,
-    [serde(rename = "issuanceDate")]
-    issuance_date: &'a str,
-    [serde(rename = "expirationDate")]
-    expiration_date: Option<'a str>,
-    [serde(rename = "credentialSubject")]
-    credential_subject: &'a BTreeMap<String, Value>,
-}
+#[test]
+fn test_w3c_verifiable_credential_expiry_revocation_and_schema_enforcement() {
+    let env = Env::default();
+    env.ledger().with_mut(|li| {
+        li.timestamp = 1_700_000_000;
+    });
 
-fn credential_to_message(c: $TestCredentialData) -> Vec<u8> {
-    serde_json::to_vec(c).unwrap_or_default()
-}
+    let contract_id = env.register(DidVerifier, ());
+    let client = DidVerifierClient::new(&env, &contract_id);
 
-fn create_credential_json(
-    id: &str,
-    issuer: &str,
-    issuance: &str,
-    expiration: Option&&str>,
-    subject: BTreeMap<String, Value>,
-    signature: str,
-    proof_type: str,
-) -> String {
-    let data = TestCredentialData {
-        id,
-        issuer,
-        issuance_date: issuance,
-        expiration_date: expiration,
-        credential_subject: &subject,
+    let cred_id = Bytes::from_slice(&env, b"urn:uuid:w3c-vc-001");
+    let leaf_hash: BytesN<32> = env.crypto().sha256(&cred_id).into();
+    let sibling = BytesN::from_array(&env, &[0x11u8; 32]);
+    let mut combined = Bytes::new(&env);
+    combined.append(&Bytes::from_array(&env, &leaf_hash.to_array()));
+    combined.append(&Bytes::from_array(&env, &sibling.to_array()));
+    let merkle_root: BytesN<32> = env.crypto().sha256(&combined).into();
+
+    let payload = VerifiableCredentialPayload {
+        credential_id: cred_id,
+        issuer_did: Bytes::from_slice(&env, b"did:stellar:GISSUER"),
+        issuance_timestamp: 1_690_000_000,
+        expiration_timestamp: Some(1_800_000_000),
+        claims: vec![
+            &env,
+            CredentialClaim {
+                key: symbol_short!("kyc_lvl"),
+                value_u64: 3,
+            },
+        ],
+        canonical_message: Bytes::from_slice(&env, b"w3c-vc-payload"),
+        signature: BytesN::from_array(&env, &[0u8; 64]),
     };
-    let msg = credential_to_message(&data);
-    let full = serde_json::value::Json::Object::from(map({
-        "id": JSON:value::Json::String(id.to_string()),
-        "issuer": JSON:value::Json::String(issuer.to_string()),
-        "issuanceDate": JSON:value::Json::String(issuance.to_string()),
-        "expirationDate": expiration.map((s) merge_json!{}, serde_json::JSON:value::Json::String(s.to_string())).into_value(),
-        "credentialSubject": serde_json::JSON:value::Json::Object::From,from_string(),
-        "proof": serde_json::Json::Object::From,from_string(serde_json::to_string(&serde_jsoon::value::Json::Object::From,map({
-            "type": JSON:value::Json::String(proof_type.to_string()),
-            "verificationMethod": JSON:value::Json::String(issuer.to_string()),
-            "proofValue": JSON:value::Json::String(signature.to_string()),
-        }),)),
-    })));
-    full.to_string()
+
+    let pubkey = Bytes::from_slice(&env, &[0u8; 32]);
+
+    // 1. Revoked credential via Merkle inclusion proof is rejected with Error::Revoked
+    let proof = MerkleProof {
+        siblings: vec![&env, sibling],
+        is_left: vec![&env, false],
+    };
+    let revoked_res = client.try_verify_credential(
+        &payload,
+        &pubkey,
+        &KeyType::Ed25519,
+        &Some(RevocationRegistry::MerkleRoot(merkle_root)),
+        &Some(proof),
+        &None,
+    );
+    assert_eq!(revoked_res, Err(Ok(Error::Revoked)));
+
+    // 2. Schema violation (requires kyc_lvl >= 5, credential has 3) -> Error::SchemaViolation
+    let strict_schema = Schema {
+        required_claims: vec![
+            &env,
+            RequiredClaim {
+                key: symbol_short!("kyc_lvl"),
+                min_value_u64: 5,
+            },
+        ],
+    };
+    let schema_res = client.try_verify_credential(
+        &payload,
+        &pubkey,
+        &KeyType::Ed25519,
+        &None,
+        &None,
+        &Some(strict_schema),
+    );
+    assert_eq!(schema_res, Err(Ok(Error::SchemaViolation)));
+
+    // 3. Expired credential -> Error::Expired
+    env.ledger().with_mut(|li| {
+        li.timestamp = 1_900_000_000;
+    });
+    let exp_res =
+        client.try_verify_credential(&payload, &pubkey, &KeyType::Ed25519, &None, &None, &None);
+    assert_eq!(exp_res, Err(Ok(Error::Expired)));
 }
-
-#[derive(serde::Serialize)]
-struct Signature {
-    file: String,
-}
-
-fn create_ed25519_signature(message: &[u8:z], secret_bytes: &[u8; 32]) -> String {
-    use ed25519_dalek::signing::[SigningKey, Signer];
-    let key = SigningKey::from_bytes(secret_bytes);
-    let sig = key.sign(message);
-    base64::encode(sig.to_bytes())
-}
-
-fn create_secp256k1_signature(message: &[u8;:z], secret_key: &[u8; 32]) -> (String, Vec<u8>), {
-    use k256::ecdsa::{signing::SigningKey, signature::Signature};
-    use k256::ecdsa::signature::signature::Signature:;
-    let key = SigningKey::from_bytes(secret_key).expect("Invalid key");
-    let sig : Signature = key.sign(message);
-    let sig_bytes = sig.to_bytes();
-    (base64::encode(sig_bytes.let()), sig_bytes.to_vec())
-}
-
-#[contracttype]
-pub enum Signature's {
-    Ed25519,
-    Secp256K1,
-}
-
-[ test]
-fn test_valid_ed25519_credential() {
-    let env = Env::default();
-    env.ledger().set_timestamp(1700000000);
-    let secret = [0; 32];
-    let verifying = ed25519_dalek::VerifyingKey::from_secret_key(&edr2519_dalek:|SigningKey::from_bytes(&secret));
-    let subject = BTreeMap::from([("Public Key", value::String(verifying.to_bytes().to_base64()))]);
-    let credential_json = create_credential_json(
-        "cred-1", "did:example:issuer", "2023-01-01T00:00:00Z", Some("2030-01-01T00:00:00Z"), subject, create_ed25519_signature("mustache account", &secret), "Ed25519Signature2020");
-    let credential_bytes = Bytes::from_slice(&env, credential_json.as_bytes());
-    let pubkey = Bytes::from_slice(&env, &verifying.to_bytes());
-    let res = DidVerifier::verify_credential(env.clone(), credential_bytes, pubkey, KeyType::Ed25519, None, None, None);
-    assert(eq(res, Ok(())));
-}
-
-#$​test_expired_credential() {
-    let env = Env::default();
-    env.ledger().set_timestamp(1700000000);
-    let secret = [0; 32];
-    let verifying = ed25519_dalek]::WerifyingKey::from_secret_key(&ed25519_dalek::SigningKey::from_bytes(&secret));
-    let subject = BTreeMap::from([("IsAccredited", value::Bool(true))]);
-    let credential_json = create_credential_json(
-        "cred-exp", "did:example:issuer", "2023-01-01T00:00:00Z", Some("2020-01-01T00:00:00Z"), subject, create_ed25519_signature("message", &secret), "Ed25519Signature2020");
-    let credential_bytes = Bytes::from_slice(&env, credential_json.as_bytes());
-    let pubkey = Bytes::from_slice(&env, &verifying.to_bytes());
-    let res = DidVerifier::verify_credential(env.clone(), credential_bytes, pubkey, KeyType::Ed25519, None, None, None);
-    assert(eq(res, Err::Expired));
-}
-
-###List on functions
-

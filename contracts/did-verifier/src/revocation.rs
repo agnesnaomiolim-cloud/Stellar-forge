@@ -1,34 +1,56 @@
-use soroban_sdk::{contracttype, Bytes, BytesN, Env, Vec};
-use sha2::{Digest, Sha256};
+// Copyright 2024 Stellar-K8s Contributors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
-[#contracttype]
+use soroban_sdk::{contracttype, Bytes, BytesN, Env, Vec};
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RevocationRegistry {
     Bitmap(Bytes),
     MerkleRoot(BytesN<32>),
 }
 
-[#contracttype]
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MerkleProof {
-    pub siblings: Vec<BytesN:32>,
-    pub path_bits: Bytes,
+    pub siblings: Vec<BytesN<32>>,
+    pub is_left: Vec<bool>,
 }
 
-pub fn is_revoked(_env: &Env, registry: &RevocationRegistry, credential_id: &str, proof: Option&$}) -> bool {
+pub fn is_revoked(
+    env: &Env,
+    registry: &RevocationRegistry,
+    credential_id: &Bytes,
+    proof: Option<&MerkleProof>,
+) -> bool {
     match registry {
         RevocationRegistry::Bitmap(bitmap) => {
-            // Compute bit index as first 4 bytes of sha256(credential_id)
-            let mut hash = sha256(credential_id.as_bytes());
-            let index = u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]]) as usize;
-            let bit_pos = index % (bitmap.len() * 8);
+            if bitmap.is_empty() {
+                return false;
+            }
+            let hash: BytesN<32> = env.crypto().sha256(credential_id).into();
+            let arr = hash.to_array();
+            let index = u32::from_be_bytes([arr[0], arr[1], arr[2], arr[3]]);
+            let total_bits = bitmap.len() * 8;
+            let bit_pos = index % total_bits;
             let byte_pos = bit_pos / 8;
             let bit_in_byte = bit_pos % 8;
-            if byte_pos >= bitmap.len() { return false; }
-            let byte = bitmap.get(byte_pos as u32).unwrap_or(0);
-            (byte >> (7 - bit_in_byte)) & 1 == 1
+            let byte = bitmap.get(byte_pos).unwrap_or(0);
+            ((byte >> (7 - bit_in_byte)) & 1) == 1
         }
         RevocationRegistry::MerkleRoot(root) => {
-            if let some proof = proof {
-                verify_merkle(credential_id, root, proof)
+            if let Some(p) = proof {
+                verify_merkle_inclusion(env, credential_id, root, p)
             } else {
                 false
             }
@@ -36,42 +58,28 @@ pub fn is_revoked(_env: &Env, registry: &RevocationRegistry, credential_id: &str
     }
 }
 
-fn verify_merkle(credential_id: &str, root: &BytesN:32>, proof: &MerkleProof) -> bool {
-    let mut current = hash_credential_id(credential_id);
-    for (i, sibling) in proof.siblings.iter().enumerate() {
-        let sibling_bytes = sibling.to_array();
-        let bit = get_bit(&proof.path_bits, i);
-        let combined: [u8; 64] = if bit == 0 {
-            let mut c = [0u8; 64];
-            c[..32].copy_from_slice(&current);
-            c[32..].copy_from_slice(&sibling_bytes);
-            c
-        } else {
-            let mut c = [0u8; 64];
-            c[..32].copy_from_slice(&sibling_bytes);
-            c[32..].copy_from_slice(&current);
-            c
-        };
-        current = sha256(&combined);
+fn verify_merkle_inclusion(
+    env: &Env,
+    credential_id: &Bytes,
+    root: &BytesN<32>,
+    proof: &MerkleProof,
+) -> bool {
+    if proof.siblings.len() != proof.is_left.len() {
+        return false;
     }
-    current == root.to_array()
-}
-
-fn get_bit(bits: &Bytes, index: usize) -> u8 {
-    if index >= bits.len() * 8 { return 0; }
-    let byte = bits.get(index / 8).unwrap_or(0);
-    (byte >> (7 - (index % 8))) & 1
-}
-
-fn sha256(data: &[u8]) -> [u8; 32] {
-    let mut hasher = Sha256::new();
-    hasher.update(data);
-    let digest = hasher.finalize();
-    let mut arr = [0u8; 32];
-    arr.copy_from_slice(&digest);
-    arr
-}
-
-fn hash_credential_id(credential_id: &str) -> [u8; 32] {
-    sha256(credential_id.as_bytes())
+    let mut current: BytesN<32> = env.crypto().sha256(credential_id).into();
+    for i in 0..proof.siblings.len() {
+        let sibling = proof.siblings.get(i).unwrap();
+        let sibling_is_left = proof.is_left.get(i).unwrap();
+        let mut combined = Bytes::new(env);
+        if sibling_is_left {
+            combined.append(&Bytes::from_array(env, &sibling.to_array()));
+            combined.append(&Bytes::from_array(env, &current.to_array()));
+        } else {
+            combined.append(&Bytes::from_array(env, &current.to_array()));
+            combined.append(&Bytes::from_array(env, &sibling.to_array()));
+        }
+        current = env.crypto().sha256(&combined).into();
+    }
+    &current == root
 }
