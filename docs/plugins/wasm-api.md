@@ -174,6 +174,88 @@ pub extern "C" fn validate() -> i32 {
 }
 ```
 
+### Ledger-Close Event Plugin ABI (`on_ledger_close`, `log_msg`, `alloc`, `dealloc`)
+
+In addition to Kubernetes admission webhook plugins (`validate()`), the operator supports high-frequency **Ledger-Close Event Plugins** that inspect raw XDR `LedgerHeader` payloads on every ledger close under a strict **10ms execution timeout** and **16MB linear memory cap**:
+
+| Symbol | Direction | Signature | Description |
+|---|---|---|---|
+| `alloc` | Guest export | `(size: i32) -> *mut u8` | Allocates `size` bytes in guest linear memory for the host to write the raw XDR `LedgerHeader` payload |
+| `dealloc` | Guest export | `(ptr: *mut u8, size: i32)` | Releases the guest buffer after `on_ledger_close` completes |
+| `on_ledger_close` | Guest export | `(ptr: i32, len: i32) -> i32` | Invoked on every closed ledger with pointer/length of the XDR-encoded `LedgerHeader`; returns `0` on success |
+| `log_msg` | Host import (`env`) | `(ptr: *const u8, len: i32)` | Emits structured UTF-8 telemetry from the guest plugin to the operator tracing sink |
+
+#### Copy-Pasteable `Hello World` LedgerHeader XDR Plugin (`Cargo.toml` + `src/lib.rs`)
+
+```toml
+# Cargo.toml
+[package]
+name = "stellar-wasm-ledger-hello"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = "z"
+lto = true
+panic = "abort"
+strip = true
+```
+
+```rust
+// src/lib.rs
+use std::alloc::{alloc as sys_alloc, dealloc as sys_dealloc, Layout};
+use std::slice;
+
+extern "C" {
+    fn log_msg(ptr: *const u8, len: i32);
+}
+
+fn emit_log(message: &str) {
+    unsafe {
+        log_msg(message.as_ptr(), message.len() as i32);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn alloc(size: i32) -> *mut u8 {
+    if size <= 0 {
+        return core::ptr::null_mut();
+    }
+    let layout = Layout::from_size_align(size as usize, 1).unwrap();
+    unsafe { sys_alloc(layout) }
+}
+
+#[no_mangle]
+pub extern "C" fn dealloc(ptr: *mut u8, size: i32) {
+    if !ptr.is_null() && size > 0 {
+        let layout = Layout::from_size_align(size as usize, 1).unwrap();
+        unsafe { sys_dealloc(ptr, layout) };
+    }
+}
+
+/// Parses the XDR-encoded Stellar LedgerHeader (protocolVersion: u32, previousLedgerHash: [u8; 32], ledgerSeq: u32).
+#[no_mangle]
+pub extern "C" fn on_ledger_close(ptr: i32, len: i32) -> i32 {
+    if ptr <= 0 || len < 40 {
+        emit_log("invalid LedgerHeader XDR buffer: expected >= 40 bytes");
+        return 1;
+    }
+    let bytes = unsafe { slice::from_raw_parts(ptr as *const u8, len as usize) };
+    let protocol_version = u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+    let ledger_seq = u32::from_be_bytes([bytes[36], bytes[37], bytes[38], bytes[39]]);
+
+    let msg = format!(
+        "hello-world plugin processed ledger_seq={} (protocol_v={})",
+        ledger_seq, protocol_version
+    );
+    emit_log(&msg);
+    0
+}
+```
+
 ---
 
 ## Host Functions
