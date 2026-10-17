@@ -52,8 +52,8 @@
 //! at 100 % it is 3.0×.  All arithmetic uses checked operations and
 //! returns [`Error::ArithmeticOverflow`] on any overflow.
 
-use soroban_sdk::{Address, Bytes, Env, IntoVal, Symbol};
 use soroban_sdk::token::Client as TokenClient;
+use soroban_sdk::{Address, Bytes, Env, Symbol};
 
 use crate::{DataKey, Error, FlashLoanPool};
 
@@ -119,18 +119,6 @@ pub(crate) fn execute_flash_loan(
     // 4. Snapshot real on-chain balance BEFORE the transfer.
     let balance_before: i128 = tc.balance(&contract_addr);
 
-    // Compute repayment floor.
-    //
-    // Timeline:
-    //   balance_before              (snapshot)
-    //   → transfer `amount` out → balance drops to (balance_before - amount)
-    //   → receiver callback returns `amount + fee` → balance rises to ≥ balance_before + fee
-    //
-    // So:  repayment_floor = balance_before + fee
-    let repayment_floor = balance_before
-        .checked_add(fee)
-        .ok_or(Error::ArithmeticOverflow)?;
-
     // 5. Engage reentrancy lock.
     env.storage()
         .instance()
@@ -139,20 +127,8 @@ pub(crate) fn execute_flash_loan(
     // 6. Transfer funds to receiver.
     tc.transfer(&contract_addr, &receiver, &amount);
 
-    // 7. Invoke receiver callback.
-    //    Expected function: execute_operation(token: Address, amount: i128, fee: i128, data: Bytes)
-    let args = soroban_sdk::vec![
-        env,
-        token.clone().into_val(env),
-        amount.into_val(env),
-        fee.into_val(env),
-        user_data.into_val(env),
-    ];
-    env.invoke_contract::<()>(
-        &receiver,
-        &Symbol::new(env, "execute_operation"),
-        args,
-    );
+    // 7. Invoke receiver callback via receiver module.
+    crate::receiver::invoke_flash_loan_receiver(env, &receiver, &token, amount, fee, &user_data);
 
     // 8. Release reentrancy lock immediately after the external call returns.
     env.storage()
@@ -162,17 +138,9 @@ pub(crate) fn execute_flash_loan(
     // 9. Read on-chain balance AFTER callback.
     let balance_after: i128 = tc.balance(&contract_addr);
 
-    // 10. Repayment invariant: balance must be at least balance_before + fee.
-    if balance_after < repayment_floor {
-        return Err(Error::RepaymentDeficit);
-    }
-
-    // 11. Actual fee = net gain = balance_after - balance_before.
-    //     (receiver returned amount + at_least_fee, we sent amount out, so
-    //      net change = at_least_fee)
-    let actual_fee = balance_after
-        .checked_sub(balance_before)
-        .ok_or(Error::ArithmeticOverflow)?;
+    // 10 & 11. Verify repayment invariant and compute actual fee collected.
+    let actual_fee =
+        crate::receiver::verify_repayment_invariant(balance_before, balance_after, fee)?;
 
     // Update tracked pool balance (add the fee gain).
     let new_pool_balance = pool_balance

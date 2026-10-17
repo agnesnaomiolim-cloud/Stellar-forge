@@ -29,13 +29,13 @@
 #![no_std]
 
 pub mod execution;
+pub mod receiver;
 #[cfg(test)]
 mod test;
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype,
-    token::Client as TokenClient,
-    Address, Env, Symbol,
+    contract, contracterror, contractimpl, contracttype, token::Client as TokenClient, Address,
+    Env, Symbol,
 };
 
 // ---------------------------------------------------------------------------
@@ -130,16 +130,12 @@ impl FlashLoanPool {
         }
         admin.require_auth();
         env.storage().instance().set(&DataKey::Admin, &admin);
-        env.storage()
-            .instance()
-            .set(&DataKey::Initialized, &true);
+        env.storage().instance().set(&DataKey::Initialized, &true);
         env.storage()
             .instance()
             .set(&DataKey::BaseFeeBps, &base_fee_bps);
-        env.events().publish(
-            (Symbol::new(&env, "initialized"),),
-            (admin, base_fee_bps),
-        );
+        env.events()
+            .publish((Symbol::new(&env, "initialized"),), (admin, base_fee_bps));
         Ok(())
     }
 
@@ -151,7 +147,12 @@ impl FlashLoanPool {
     ///
     /// Anyone may deposit; this increases available liquidity and reduces the
     /// dynamic fee charged to future borrowers.
-    pub fn deposit(env: Env, depositor: Address, token: Address, amount: i128) -> Result<(), Error> {
+    pub fn deposit(
+        env: Env,
+        depositor: Address,
+        token: Address,
+        amount: i128,
+    ) -> Result<(), Error> {
         Self::require_initialized(&env)?;
         if amount <= 0 {
             return Err(Error::InvalidDeposit);
@@ -167,17 +168,13 @@ impl FlashLoanPool {
 
         // Update tracked pool balance.
         let prev = Self::pool_balance(&env, &token);
-        let next = prev
-            .checked_add(amount)
-            .ok_or(Error::ArithmeticOverflow)?;
+        let next = prev.checked_add(amount).ok_or(Error::ArithmeticOverflow)?;
         env.storage()
             .persistent()
             .set(&DataKey::PoolBalance(token.clone()), &next);
 
-        env.events().publish(
-            (Symbol::new(&env, "deposited"), token),
-            (depositor, amount),
-        );
+        env.events()
+            .publish((Symbol::new(&env, "deposited"), token), (depositor, amount));
         Ok(())
     }
 
@@ -215,10 +212,8 @@ impl FlashLoanPool {
             &amount,
         );
 
-        env.events().publish(
-            (Symbol::new(&env, "withdrawn"), token),
-            (recipient, amount),
-        );
+        env.events()
+            .publish((Symbol::new(&env, "withdrawn"), token), (recipient, amount));
         Ok(())
     }
 
