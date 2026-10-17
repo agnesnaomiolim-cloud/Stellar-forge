@@ -122,6 +122,7 @@ nav:
     - OpenTelemetry Tracing: observability/tracing.md
     - Distributed Rate Limiting: distributed-rate-limiting.md
     - Feature Flag Rollouts: feature-flag-rollouts.md
+    - Kafka Event Streaming Bridge: event-bridge.md
   - Troubleshooting:
     - troubleshooting/index.md
     - Common Issues: troubleshooting/common-issues.md
