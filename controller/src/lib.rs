@@ -15,6 +15,7 @@
 //! - [`webhook`] — Admission webhook handlers, including the
 //!   [`webhook::wasm_mutator`] MutatingAdmissionWebhook for WASM optimization.
 
+pub mod autoscaling;
 pub mod deployment;
 pub mod quorum;
 pub mod webhook;
