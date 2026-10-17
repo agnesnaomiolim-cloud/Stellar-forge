@@ -57,7 +57,7 @@ mtls:
 certManagement:
   enabled: false
 
-horizon-hpa:
+horizonHpa:
   enabled: false
 
 rateLimiting:
@@ -388,7 +388,7 @@ networkIsolation:
 #   4. Import the Grafana dashboard: monitoring/byzantine-dashboard.json
 #
 # See docs/byzantine-monitoring.md for full setup instructions.
-bzzantineWatcher:
+byzantineWatcher:
   # Master switch. Set to true to deploy watcher Deployments.
   enabled: false
 

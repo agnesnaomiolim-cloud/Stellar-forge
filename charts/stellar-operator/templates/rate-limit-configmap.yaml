@@ -35,24 +35,25 @@ data:
     {{- range $path, $tier := .Values.rateLimiting.endpointTiers }}
       {{ $path }}: {{ $tier }}
     {{- end }}
-    {{- if .Values.rateLimiting.egressSaping.enabled }}
+    {{- if and .Values.rateLimiting.egressShaping .Values.rateLimiting.egressShaping.enabled }}
+    {{- $dynamicScaling := .Values.rateLimiting.egressShaping.dynamicScaling | default dict }}
     egressShaping:
       enabled: true
-      internalPriority: {{ .Values.rateLimiting.egressSaping.internalPriority | default "prio_3" }}
-      externalPriority: {{ .Values.rateLimiting.egressSaping.externalPriority | default "prio_6" }}
+      internalPriority: {{ .Values.rateLimiting.egressShaping.internalPriority | default "prio_3" }}
+      externalPriority: {{ .Values.rateLimiting.egressShaping.externalPriority | default "prio_6" }}
       internalCidrs:
-      {{- range .Values.rateLimiting.egressSaping.internalCidrs }}
+      {{- range .Values.rateLimiting.egressShaping.internalCidrs }}
         - {{ . | quote }}
       {{- end }}
-      cni: {{ .Values.rateLimiting.egressSaping.cni | default "calico" }}
+      cni: {{ .Values.rateLimiting.egressShaping.cni | default "calico" }}
       dynamicScaling:
-        enabled: {{ .Values.rateLimiting.egressSaping.dynamicScaling.enabled | default true }}
-        minEgressBpps: {{ .Values.rateLimiting.egressSaping.dynamicScaling.minEgressBpps | default 100000000 }}
-        maxEgressBpps: {{ .Values.rateLimiting.egressSaping.dynamicScaling.maxEgressBpps | default 10000000000 }}
-        scaleUpThresholdPercent: {{ .Values.rateLimiting.egressSaping.dynamicScaling.scaleUpThresholdPercent | default 80 }}
-        scaleDownThresholdPercent: {{ .Values.rateLimiting.egressSaping.dynamicScaling.scaleDownThresholdPercent | default 30 }}
-        adjustIntervalSeconds: {{ .Values.rateLimiting.egressSaping.dynamicScaling.adjustIntervalSeconds | default 30 }}
+        enabled: {{ dig "enabled" true $dynamicScaling }}
+        minEgressBpps: {{ $dynamicScaling.minEgressBpps | default 100000000 }}
+        maxEgressBpps: {{ $dynamicScaling.maxEgressBpps | default 10000000000 }}
+        scaleUpThresholdPercent: {{ $dynamicScaling.scaleUpThresholdPercent | default 80 }}
+        scaleDownThresholdPercent: {{ $dynamicScaling.scaleDownThresholdPercent | default 30 }}
+        adjustIntervalSeconds: {{ $dynamicScaling.adjustIntervalSeconds | default 30 }}
       podSelector:
-        {{- toYAml .Values.rateLimiting.egressSaping.podSelector | nIndent 8 }}
+        {{- toYaml .Values.rateLimiting.egressShaping.podSelector | nindent 8 }}
     {{- end }}
 {{- end }}

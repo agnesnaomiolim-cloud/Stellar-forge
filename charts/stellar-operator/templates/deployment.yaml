@@ -58,7 +58,7 @@ spec:
         - name: profiling-tmp
           emptyDir: {}
         {{- end }}
-        {{- if .Values.gitopsSecrets.enabled }}
+        {{- if and .Values.gitopsSecrets .Values.gitopsSecrets.enabled }}
         # Ephemeral RAM-backed volume for GitOps-decrypted validator keys.
         # medium: Memory ensures the decrypted payload never touches physical disks.
         - name: gitops-secrets-tmpfs
@@ -101,7 +101,7 @@ spec:
             - name: MALLOC_CONF
               value: "prof:true,prof_active:true,lg_prof_sample:19"
             {{- end }}
-            {{- if .Values.gitopsSecrets.enabled }}
+            {{- if and .Values.gitopsSecrets .Values.gitopsSecrets.enabled }}
             - name: GITOPS_SECRETS_ENABLED
               value: "true"
             - name: GITOPS_SECRETS_MOUNT_PATH
@@ -130,7 +130,7 @@ spec:
             - name: profiling-tmp
               mountPath: /tmp
             {{- end }}
-            {{- if .Values.gitopsSecrets.enabled }}
+            {{- if and .Values.gitopsSecrets .Values.gitopsSecrets.enabled }}
             - name: gitops-secrets-tmpfs
               mountPath: {{ .Values.gitopsSecrets.mountPath | default "/var/run/stellar/gitops-secrets" }}
               readOnly: false
