@@ -2,12 +2,16 @@
 name = "rate-limiter"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
+publish = false
 
-[dependencies]
-soroban-sdk = "20.0.0"
-
-[dev-dependencies]
-soroban-sdk = { version = "20.0.0", features = ["testutils"] }
+[workspace]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = { version = "=27.0.6", features = ["alloc"] }
+
+[dev-dependencies]
+soroban-sdk = { version = "=27.0.6", features = ["alloc", "testutils"] }
