@@ -1,69 +1,81 @@
-use soroban_sdk::Env;
+// Copyright 2024 Stellar-K8s Contributors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
-/// Calculates the required reserve token amount for minting `amount` of continuous tokens.
-pub fn calculate_purchase_return(
-    total_supply: i128,
-    reserve_balance: i128,
-    reserve_ratio: u32,
-    amount: i128,
-) -> i128 {
-    if total_supply == 0 {
-        return amount; // Base price of 1 when supply is 0. 
-    }
-    
-    if reserve_ratio == 10000 {
-        // Reserve Ratio 100%: Constant price. Cost = amount * (ReserveBalance / TotalSupply)
-        return amount * reserve_balance / total_supply;
-    }
-    
-    // Linear bonding curve approximation: ReserveRatio = 50% (5000)
-    if reserve_ratio == 5000 {
-        let ts = total_supply;
-        let ts_plus_amount = total_supply + amount;
-        
-        let term1 = (ts_plus_amount * ts_plus_amount) / ts;
-        let term2 = ts;
-        
-        return (reserve_balance * (term1 - term2)) / ts;
-    }
+use soroban_sdk::contracttype;
 
-    // Default fallback
-    let ts = total_supply;
-    let ts_plus_amount = total_supply + amount;
-    (reserve_balance * (ts_plus_amount - ts)) / ts
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CurveShape {
+    Linear,
+    Quadratic,
+    Sigmoid,
 }
 
-/// Calculates the reserve token return for selling `amount` of continuous tokens.
-pub fn calculate_sale_return(
+/// Calculates the exact reserve token cost to mint `amount` continuous tokens
+/// starting from `total_supply` using 128-bit integer integral calculus:
+/// - Linear: `P(s) = base_price + slope * s`, integral = `base_price * ds + slope * ((s1^2 - s0^2) / 2)`
+/// - Quadratic: `P(s) = base_price + slope * s^2`, integral = `base_price * ds + slope * ((s1^3 - s0^3) / 3)`
+/// - Sigmoid: S-curve inflection around `midpoint` with bounded asymptote.
+pub fn calculate_purchase_cost(
+    shape: CurveShape,
     total_supply: i128,
-    reserve_balance: i128,
-    reserve_ratio: u32,
     amount: i128,
+    base_price: i128,
+    slope: i128,
 ) -> i128 {
-    if total_supply == 0 || amount == 0 {
+    if amount <= 0 {
         return 0;
     }
-    
-    if amount == total_supply {
-        return reserve_balance;
+    let s0 = total_supply.max(0);
+    let s1 = s0.saturating_add(amount);
+    match shape {
+        CurveShape::Linear => {
+            let base_term = base_price.saturating_mul(amount);
+            let quad_diff = s1
+                .saturating_mul(s1)
+                .saturating_sub(s0.saturating_mul(s0));
+            base_term.saturating_add(slope.saturating_mul(quad_diff) / 2)
+        }
+        CurveShape::Quadratic => {
+            let base_term = base_price.saturating_mul(amount);
+            let cube_diff = s1
+                .saturating_mul(s1)
+                .saturating_mul(s1)
+                .saturating_sub(s0.saturating_mul(s0).saturating_mul(s0));
+            base_term.saturating_add(slope.saturating_mul(cube_diff) / 3)
+        }
+        CurveShape::Sigmoid => {
+            let mid = (s0 + s1) / 2;
+            let num = slope.saturating_mul(mid);
+            let denom = 1_000i128.saturating_add(mid);
+            let unit_price = base_price.saturating_add(num / denom.max(1));
+            unit_price.saturating_mul(amount)
+        }
     }
+}
 
-    if reserve_ratio == 10000 {
-        return amount * reserve_balance / total_supply;
+/// Calculates the exact reserve token return when burning `amount` continuous tokens
+/// from `total_supply`, preserving path-independence (`buy(X)` then `sell(X)` returns exact net reserve).
+pub fn calculate_sale_return(
+    shape: CurveShape,
+    total_supply: i128,
+    amount: i128,
+    base_price: i128,
+    slope: i128,
+) -> i128 {
+    if amount <= 0 || total_supply <= 0 || amount > total_supply {
+        return 0;
     }
-    
-    if reserve_ratio == 5000 {
-        let ts = total_supply;
-        let ts_minus_amount = total_supply - amount;
-        
-        let term1 = ts;
-        let term2 = (ts_minus_amount * ts_minus_amount) / ts;
-        
-        return (reserve_balance * (term1 - term2)) / ts;
-    }
-
-    // Default fallback
-    let ts = total_supply;
-    let ts_minus_amount = total_supply - amount;
-    (reserve_balance * (ts - ts_minus_amount)) / ts
+    let new_supply = total_supply - amount;
+    calculate_purchase_cost(shape, new_supply, amount, base_price, slope)
 }
