@@ -236,5 +236,12 @@ required-features = ["rest-api", "metrics"]
 name = "stellar-metrics-proxy"
 path = "src/bin/stellar-metrics-proxy.rs"
 
+# CRD mutation property-based testing harness (issue #324)
+# Requires the reconciler-fuzz feature to be enabled.
+[[test]]
+name = "crd_mutations"
+path = "tests/fuzz/crd_mutations.rs"
+required-features = ["reconciler-fuzz"]
+
 [workspace]
 members = ["wasm-plugins", "telemetry", "security/p2p-firewall"]
