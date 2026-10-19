@@ -1,3 +1,15 @@
+// Copyright 2024 Stellar-K8s Contributors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //! Multi-Cluster Snapshot Synchronization Reconciler.
 //!
 //! Automates the full lifecycle of bringing a secondary cluster node up from a
@@ -158,9 +170,10 @@ impl SnapshotReconciler {
     /// `AWS_*` env vars, or `~/.aws/credentials`).
     pub async fn new(config: SnapshotReconcilerConfig) -> Result<Self> {
         let sdk_config = aws_config::from_env()
-            .region(aws_config::meta::region::RegionProviderChain::default_provider().or_else(
-                config.aws_region.as_str(),
-            ))
+            .region(
+                aws_config::meta::region::RegionProviderChain::default_provider()
+                    .or_else(config.aws_region.as_str()),
+            )
             .load()
             .await;
         let s3 = S3Client::new(&sdk_config);
@@ -216,14 +229,17 @@ impl SnapshotReconciler {
         );
 
         // Step 4 — verify
-        let vr = verify_file(&archive_path, &expected_hex).await?.into_result()?;
+        let vr = verify_file(&archive_path, &expected_hex)
+            .await?
+            .into_result()?;
         info!(
             result = %vr,
             "SHA-256 verification passed"
         );
 
         // Step 5 — extract
-        self.extract_archive(&archive_path, &self.config.data_dir).await?;
+        self.extract_archive(&archive_path, &self.config.data_dir)
+            .await?;
         info!(
             data_dir = %self.config.data_dir.display(),
             "Archive extracted"
@@ -299,14 +315,11 @@ impl SnapshotReconciler {
 
         // Attempt to extract ledger sequence from key name
         // Convention: `<prefix>/stellar-<network>-<ledger>.tar.gz`
-        let ledger_sequence = key
-            .rsplit('/')
-            .next()
-            .and_then(|name| {
-                name.strip_suffix(".tar.gz")
-                    .and_then(|s| s.rsplit('-').next())
-                    .and_then(|seq| seq.parse::<u64>().ok())
-            });
+        let ledger_sequence = key.rsplit('/').next().and_then(|name| {
+            name.strip_suffix(".tar.gz")
+                .and_then(|s| s.rsplit('-').next())
+                .and_then(|seq| seq.parse::<u64>().ok())
+        });
 
         debug!(key = %key, ledger = ?ledger_sequence, "resolved snapshot");
 
@@ -315,10 +328,7 @@ impl SnapshotReconciler {
             key,
             expected_sha256: None,
             size_bytes,
-            created_at: latest
-                .last_modified
-                .as_ref()
-                .map(|t| t.to_string()),
+            created_at: latest.last_modified.as_ref().map(|t| t.to_string()),
             ledger_sequence,
         })
     }
@@ -326,23 +336,33 @@ impl SnapshotReconciler {
     /// Fetch and verify ranges using the process-wide worker and egress budget.
     #[instrument(skip(self, snap, expected_sha256), fields(key = %snap.key))]
     async fn download_archive(&self, snap: &SnapshotRef, expected_sha256: &str) -> Result<PathBuf> {
-        use aws_sdk_s3::presigning::PresigningConfig;
         use crate::catchup::{Archive, DownloadConfig, Downloader, WorkerPool};
+        use aws_sdk_s3::presigning::PresigningConfig;
 
         let filename = snapshot_staging_filename(&snap.bucket, &snap.key);
         let dest = self.config.staging_dir.join(filename);
         // A GET signature allows ranges without exposing permanent cloud credentials.
         let signing = PresigningConfig::expires_in(Duration::from_secs(7 * 24 * 60 * 60))
             .map_err(|_| Error::ConfigError("Invalid presigning duration".into()))?;
-        let signed = self.s3.get_object().bucket(&snap.bucket).key(&snap.key)
-            .presigned(signing).await
+        let signed = self
+            .s3
+            .get_object()
+            .bucket(&snap.bucket)
+            .key(&snap.key)
+            .presigned(signing)
+            .await
             .map_err(|_| Error::ConfigError("Unable to presign snapshot download".into()))?;
         let pool = WorkerPool::shared_from_env().map_err(|e| Error::ConfigError(e.to_string()))?;
         let downloader = Downloader::new(pool, DownloadConfig::default())
             .map_err(|e| Error::ConfigError(e.to_string()))?;
-        downloader.download(Archive {
-            url: signed.uri().to_string(), destination: dest, sha256: expected_sha256.to_owned(),
-        }).await.map_err(|e| Error::ConfigError(format!("Snapshot download failed: {e}")))
+        downloader
+            .download(Archive {
+                url: signed.uri().to_string(),
+                destination: dest,
+                sha256: expected_sha256.to_owned(),
+            })
+            .await
+            .map_err(|e| Error::ConfigError(format!("Snapshot download failed: {e}")))
     }
     /// Resolve the expected SHA-256 checksum for `snap`.
     ///
@@ -462,15 +482,13 @@ fn snapshot_staging_filename(bucket: &str, key: &str) -> String {
 /// Decompress and extract a `.tar.gz` file into `dest_dir` using an atomic
 /// rename strategy to ensure `dest_dir` is never left partially extracted.
 fn extract_tar_gz(archive_path: &Path, dest_dir: &Path) -> Result<()> {
-    let tmp_dir = dest_dir.with_extension(
-        format!(
-            "tmp.{}",
-            archive_path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("snap")
-        )
-    );
+    let tmp_dir = dest_dir.with_extension(format!(
+        "tmp.{}",
+        archive_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("snap")
+    ));
 
     if tmp_dir.exists() {
         std::fs::remove_dir_all(&tmp_dir)?;
@@ -516,14 +534,29 @@ mod tests {
     #[test]
     fn cloud_keys_cannot_escape_or_alias_staging_paths() {
         let directory = Path::new("staging");
-        for key in [r"..\..\outside.tar.gz", r"C:\outside.tar.gz", "CON", "name:stream", "..", "prefix/file.tar.gz"] {
+        for key in [
+            r"..\..\outside.tar.gz",
+            r"C:\outside.tar.gz",
+            "CON",
+            "name:stream",
+            "..",
+            "prefix/file.tar.gz",
+        ] {
             let filename = snapshot_staging_filename("bucket", key);
             assert!(filename.starts_with("snapshot-") && filename.ends_with(".tar.gz"));
             assert_eq!(directory.join(&filename).parent(), Some(directory));
-            assert!(filename.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'.'));
+            assert!(filename
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'.'));
         }
-        assert_ne!(snapshot_staging_filename("a", "prefix/file.tar.gz"), snapshot_staging_filename("b", "prefix/file.tar.gz"));
-        assert_ne!(snapshot_staging_filename("a", "one/file.tar.gz"), snapshot_staging_filename("a", "two/file.tar.gz"));
+        assert_ne!(
+            snapshot_staging_filename("a", "prefix/file.tar.gz"),
+            snapshot_staging_filename("b", "prefix/file.tar.gz")
+        );
+        assert_ne!(
+            snapshot_staging_filename("a", "one/file.tar.gz"),
+            snapshot_staging_filename("a", "two/file.tar.gz")
+        );
     }
 
     /// Build a minimal in-memory `.tar.gz` containing a single test file.

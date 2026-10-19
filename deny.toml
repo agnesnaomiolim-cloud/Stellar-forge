@@ -36,6 +36,9 @@ exceptions = [
     # unicode-ident uses Unicode-DFS-2016 which is not a standard SPDX ID in
     # older cargo-deny versions; treat it as allowed.
     { allow = ["Unicode-DFS-2016"], crate = "unicode-ident" },
+    # Permissive licenses for bundled bzip2 and Mozilla's public CA root data.
+    { allow = ["bzip2-1.0.6"], crate = "libbz2-rs-sys" },
+    { allow = ["CDLA-Permissive-2.0"], crate = "webpki-roots" },
 ]
 
 # ── Bans — forbidden and duplicate crates ─────────────────────────────────────
@@ -46,9 +49,10 @@ multiple-versions = "warn"
 # Completely deny these crates — they must not appear anywhere in the dependency tree
 # unless pulled exclusively through an approved wrapper.
 deny = [
-    # openssl — prefer rustls; still appears transitively via reqwest's native-tls feature.
-    { crate = "openssl", wrappers = ["native-tls"], reason = "reqwest enables native-tls alongside rustls-tls-manual-roots" },
-    { crate = "openssl-sys", wrappers = ["openssl", "native-tls"], reason = "sys crate for openssl/native-tls via reqwest" },
+    # HTTP uses Rustls. Only librdkafka's native TLS binding requires OpenSSL;
+    # removing it would disable certificate-protected Kafka connections.
+    { crate = "openssl", reason = "HTTP clients must use Rustls" },
+    { crate = "openssl-sys", wrappers = ["rdkafka-sys"], reason = "librdkafka TLS requires the system OpenSSL C library; no native-tls HTTP exception" },
 ]
 
 # Allow specific version duplicates that are unavoidable due to ecosystem lag.
@@ -71,52 +75,9 @@ db-path = "~/.cargo/advisory-db"
 unmaintained = "workspace"
 unsound = "workspace"
 
-# Ignored advisories — all entries MUST have a documented reason and a
-# re-evaluation target date or upstream issue link.
-# Keep this list in sync with .cargo/audit.toml.
+# Revisit https://github.com/RustCrypto/RSA/issues/626 when patched.
 ignore = [
-    # backoff 0.4.0 — unmaintained, transitive via kube-runtime 0.94.x
-    # Re-evaluate when kube-rs upgrades its backoff dependency.
-    { id = "RUSTSEC-2025-0012", reason = "transitive via kube-runtime; no fix available" },
-
-    # derivative — unmaintained, transitive via kube-runtime
-    { id = "RUSTSEC-2024-0388", reason = "transitive via kube-runtime; no fix available" },
-
-    # instant 0.1.x — unmaintained, transitive via backoff → kube-runtime
-    { id = "RUSTSEC-2024-0384", reason = "transitive via kube-runtime; no fix available" },
-
-    # fxhash — unmaintained, transitive via wasmtime 24.x
-    { id = "RUSTSEC-2025-0057", reason = "transitive via wasmtime 24.x; fix requires wasmtime 36+" },
-
-    # paste — unmaintained, transitive via wasmtime 24.x
-    { id = "RUSTSEC-2024-0436", reason = "transitive via wasmtime 24.x; fix requires wasmtime 36+" },
-
-    # rustls-pemfile — unmaintained, transitive via kube-client / axum-server
-    { id = "RUSTSEC-2025-0134", reason = "transitive; upstream migration to rustls-pki-types in progress" },
-
-    # rsa Marvin Attack — transitive via sqlx-mysql (only postgres driver used)
-    { id = "RUSTSEC-2023-0071", reason = "sqlx-mysql only; postgres driver used in production" },
-
-    # rand unsound — transitive via rand_distr, quinn-proto, proptest
-    { id = "RUSTSEC-2026-0097", reason = "no patched rand 0.9.x release available" },
-
-    # wasmtime Winch backend — only affects Winch compiler, we use Cranelift
-    { id = "RUSTSEC-2026-0094", reason = "Winch backend only; we use Cranelift" },
-    { id = "RUSTSEC-2026-0086", reason = "Winch backend only; we use Cranelift" },
-    { id = "RUSTSEC-2026-0095", reason = "Winch backend only; we use Cranelift" },
-    { id = "RUSTSEC-2026-0096", reason = "Winch aarch64 only; we use Cranelift" },
-    { id = "RUSTSEC-2026-0088", reason = "Winch backend only; we use Cranelift" },
-    { id = "RUSTSEC-2026-0089", reason = "Winch backend only; we use Cranelift" },
-
-    # pqcrypto — experimental KMS path only, behind a feature flag
-    { id = "RUSTSEC-2024-0380", reason = "experimental pqcrypto KMS path, not in production" },
-    { id = "RUSTSEC-2024-0381", reason = "experimental pqcrypto KMS path, not in production" },
-
-    # Keep in sync with .github/workflows cargo-audit --ignore lists
-    { id = "RUSTSEC-2026-0098", reason = "rustls-webpki name constraints; awaiting coordinated upgrade" },
-    { id = "RUSTSEC-2026-0099", reason = "rustls-webpki wildcard name constraints; awaiting coordinated upgrade" },
-    { id = "RUSTSEC-2026-0104", reason = "rustls-webpki CRL parsing panic; awaiting coordinated upgrade" },
-    { id = "RUSTSEC-2026-0187", reason = "lopdf stack overflow; transitive, not on operator hot path" },
+    { id = "RUSTSEC-2023-0071", reason = "sqlx-mysql lockfile dependency; only Postgres is enabled" },
 ]
 
 # ── Sources — only allow crates from trusted registries ───────────────────────

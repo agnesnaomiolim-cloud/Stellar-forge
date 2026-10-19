@@ -50,7 +50,7 @@ time = "0.3.47"
 bytes = "1.11.1"
 
 # Zip compression for incident reports
-zip = "2"
+zip = "9"
 tempfile = "3"
 
 # Hostname for leader election
@@ -62,21 +62,20 @@ regex = "1"
 # Logging and tracing
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "registry"] }
-tracing-opentelemetry = "0.22"
+tracing-opentelemetry = "0.25"
 
 # OpenTelemetry for distributed tracing
-opentelemetry = "0.21"
-opentelemetry_sdk = { version = "0.21", features = ["rt-tokio", "trace"] }
-opentelemetry-otlp = { version = "0.14", features = [
+opentelemetry = "0.24"
+opentelemetry_sdk = { version = "0.24", features = ["rt-tokio", "trace"] }
+opentelemetry-otlp = { version = "0.17", features = [
     "grpc-tonic",
     "http-proto",
 ] }
 
 # HTTP client for health checks
-reqwest = { version = "0.12", features = [
+reqwest = { version = "0.12", default-features = false, features = [
     "json",
-    "rustls-tls-manual-roots",
-    "native-tls",
+    "rustls-tls",
     "multipart",
 ] }
 
@@ -110,8 +109,8 @@ stellar-wasm-cache = { path = "wasm-plugins" }
 stellar-telemetry = { path = "telemetry" }
 
 # Wasm runtime for custom validation plugins
-wasmtime = { version = "24.0.7", optional = true }
-wasmtime-wasi = { version = "24.0.7", features = ["preview1"], optional = true }
+wasmtime = { version = "36.0.18", optional = true }
+wasmtime-wasi = { version = "36.0.18", features = ["preview1"], optional = true }
 
 # Additional crypto for webhook TLS
 tokio-rustls = { version = "0.26", optional = true }
@@ -121,7 +120,7 @@ tokio-rustls = { version = "0.26", optional = true }
 hmac = "0.12"
 http = "1"
 jsonwebtoken = "9"
-lru = "0.12"
+lru = "0.18.2"
 
 # SHA256 for plugin integrity verification
 sha2 = "0.10"
@@ -140,15 +139,12 @@ sqlx = { version = "0.8.6", default-features = false, features = [
     "postgres",
     "chrono",
 ] }
-pqcrypto-dilithium = "0.5.0"
-pqcrypto-kyber = "0.8.1"
-pqcrypto-traits = "0.3.5"
 comfy-table = "7.2.2"
 csv = "1.4.0"
 url = "2.5"
 urlencoding = "2.1"
-aws-sdk-s3 = "1.131.0"
-aws-sdk-secretsmanager = "1"
+aws-sdk-s3 = { version = "1.152.0", default-features = false, features = ["rt-tokio", "default-https-client", "http-1x", "sigv4a"] }
+aws-sdk-secretsmanager = { version = "1.120.0", default-features = false, features = ["rt-tokio", "default-https-client"] }
 aws-config = "1.8.16"
 serde_json_diff = "0.2.0"
 json-patch = "4.1.0"
@@ -157,6 +153,12 @@ md5 = "0.8.0"
 tar = "0.4"
 
 # Stale-documentation checker traverses source trees.
+walkdir = "2"
+
+[build-dependencies]
+chrono = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 walkdir = "2"
 
 [features]

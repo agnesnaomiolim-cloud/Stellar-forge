@@ -40,7 +40,7 @@ data:
       graceful_shutdown_timeout_seconds: 60
       preemption_strategy: GracefulDrain
     fallback_to_ondemand: true
-    
+
     # Workloads eligible for spot instances
     eligible_workloads:
       - name: stellar-indexer
@@ -52,7 +52,7 @@ data:
       - name: stellar-testing
         priority: low
         max_iterations: 0
-    
+
     # Workloads NOT eligible for spot instances
     excluded_workloads:
       - name: stellar-validator

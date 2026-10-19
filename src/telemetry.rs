@@ -79,11 +79,17 @@ impl SpanProcessor for ScrubbingProcessor {
         }
     }
 
-    fn shutdown(&mut self) -> TraceResult<()> {
-        if let Ok(mut inner) = self.inner.lock() {
+    fn shutdown(&self) -> TraceResult<()> {
+        if let Ok(inner) = self.inner.lock() {
             inner.shutdown()
         } else {
             Ok(())
+        }
+    }
+
+    fn set_resource(&mut self, resource: &Resource) {
+        if let Ok(inner) = self.inner.get_mut() {
+            inner.set_resource(resource);
         }
     }
 }
@@ -390,7 +396,7 @@ impl SpanProcessor for CapturingProcessor {
         Ok(())
     }
 
-    fn shutdown(&mut self) -> TraceResult<()> {
+    fn shutdown(&self) -> TraceResult<()> {
         Ok(())
     }
 }
@@ -441,12 +447,16 @@ mod tests {
     #[derive(Debug, Clone)]
     struct MockProcessor {
         pub spans: Arc<Mutex<Vec<SpanData>>>,
+        resource: Arc<Mutex<Option<Resource>>>,
+        shutdown: Arc<std::sync::atomic::AtomicBool>,
     }
 
     impl MockProcessor {
         fn new() -> Self {
             Self {
                 spans: Arc::new(Mutex::new(Vec::new())),
+                resource: Arc::new(Mutex::new(None)),
+                shutdown: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             }
         }
     }
@@ -462,9 +472,63 @@ mod tests {
             Ok(())
         }
 
-        fn shutdown(&mut self) -> TraceResult<()> {
+        fn shutdown(&self) -> TraceResult<()> {
+            self.shutdown
+                .store(true, std::sync::atomic::Ordering::SeqCst);
             Ok(())
         }
+
+        fn set_resource(&mut self, resource: &Resource) {
+            *self.resource.lock().unwrap() = Some(resource.clone());
+        }
+    }
+
+    #[test]
+    fn scrubbing_processor_preserves_sdk_lifecycle_and_resource() {
+        use opentelemetry::trace::{Span as _, Tracer as _, TracerProvider as _};
+
+        let captured = MockProcessor::new();
+        let provider = opentelemetry_sdk::trace::TracerProvider::builder()
+            .with_config(
+                Config::default()
+                    .with_sampler(Sampler::AlwaysOn)
+                    .with_resource(Resource::new(vec![KeyValue::new(
+                        "service.name",
+                        "sdk-compatibility",
+                    )])),
+            )
+            .with_span_processor(ScrubbingProcessor::new(Box::new(captured.clone())))
+            .build();
+        let tracer = provider.tracer("sdk-upgrade");
+        let mut span = tracer.start("safe-export");
+        span.set_attribute(KeyValue::new("authorization", "sensitive attribute"));
+        span.set_attribute(KeyValue::new("http.method", "GET"));
+        span.end();
+
+        let spans = captured.spans.lock().unwrap();
+        assert_eq!(spans.len(), 1);
+        assert!(spans[0]
+            .attributes
+            .contains(&KeyValue::new("authorization", "[REDACTED]")));
+        assert!(spans[0]
+            .attributes
+            .contains(&KeyValue::new("http.method", "GET")));
+        drop(spans);
+        let resource = captured.resource.lock().unwrap();
+        assert_eq!(
+            resource
+                .as_ref()
+                .unwrap()
+                .get(opentelemetry::Key::from("service.name")),
+            Some(opentelemetry::Value::String("sdk-compatibility".into()))
+        );
+        drop(resource);
+        assert!(provider
+            .force_flush()
+            .into_iter()
+            .all(|result| result.is_ok()));
+        provider.shutdown().unwrap();
+        assert!(captured.shutdown.load(std::sync::atomic::Ordering::SeqCst));
     }
 
     #[test]

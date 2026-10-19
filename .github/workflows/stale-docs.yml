@@ -142,8 +142,9 @@ jobs:
       - name: Annotate PR with stale doc warnings
         if: failure() && steps.build.outcome == 'success' && github.event_name == 'pull_request'
         run: |
-          echo "::error title=Stale Documentation Detected::One or more documentation files are out of date with their linked source files. Please update the docs listed above, or run 'make check-stale-docs' locally for details."
-
+          printf "%s" "::error title=Stale Documentation Detected::One or more documentation "
+          printf "%s" "files are out of date with their linked source files. Please update the docs listed above, "
+          echo "or run 'make check-stale-docs' locally for details."
       # ── Summary ──────────────────────────────────────────────────────────────
       - name: Write job summary
         if: always()

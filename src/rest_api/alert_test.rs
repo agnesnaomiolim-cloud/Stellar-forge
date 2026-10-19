@@ -1,3 +1,15 @@
+// Copyright 2024 Stellar-K8s Contributors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //! Prometheus alert expression validation endpoint
 //!
 //! Backs the frontend Alert Rule Builder's "Test against Prometheus" button.
@@ -5,7 +17,12 @@
 //! the configured Prometheus instance, and reports back whether the syntax
 //! is valid and whether the condition currently evaluates true.
 
-use axum::{extract::State, http::StatusCode, response::{IntoResponse, Response}, Json};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
@@ -146,7 +163,9 @@ pub async fn test_alert_expr(
         let reason = body
             .error
             .unwrap_or_else(|| "Unknown error from Prometheus".to_string());
-        let error_type = body.error_type.unwrap_or_else(|| "invalid_query".to_string());
+        let error_type = body
+            .error_type
+            .unwrap_or_else(|| "invalid_query".to_string());
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(AlertTestError {

@@ -218,12 +218,7 @@ async fn stats_handler(State(state): State<SharedState>) -> impl IntoResponse {
     });
 
     match serde_json::to_string(&body) {
-        Ok(json) => (
-            StatusCode::OK,
-            [("content-type", "application/json")],
-            json,
-        )
-            .into_response(),
+        Ok(json) => (StatusCode::OK, [("content-type", "application/json")], json).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             [("content-type", "text/plain")],
@@ -237,10 +232,7 @@ async fn stats_handler(State(state): State<SharedState>) -> impl IntoResponse {
 // Helper: upstream HTTP fetch
 // ---------------------------------------------------------------------------
 
-async fn fetch_upstream(
-    client: &reqwest::Client,
-    url: &str,
-) -> Result<String, reqwest::Error> {
+async fn fetch_upstream(client: &reqwest::Client, url: &str) -> Result<String, reqwest::Error> {
     let response = client.get(url).send().await?;
     response.text().await
 }
@@ -382,7 +374,10 @@ mod tests {
             .get("content-type")
             .and_then(|v| v.to_str().ok())
             .unwrap_or("");
-        assert!(ct.contains("application/json"), "unexpected content-type: {ct}");
+        assert!(
+            ct.contains("application/json"),
+            "unexpected content-type: {ct}"
+        );
     }
 
     #[tokio::test]
@@ -420,10 +415,7 @@ mod tests {
             ..Default::default()
         };
         let state = make_state(config);
-        state
-            .limiter
-            .store_full_response("up 1\n".to_owned())
-            .await;
+        state.limiter.store_full_response("up 1\n".to_owned()).await;
 
         let app = build_router(state);
         let req = Request::builder()

@@ -141,11 +141,7 @@ fn make_malformed_payload() -> Vec<u8> {
 }
 
 /// Build a flood burst: many valid packets from a single IP.
-async fn send_flood_burst(
-    tx: &mpsc::Sender<RawPacket>,
-    rogue_ip: IpAddr,
-    count: usize,
-) {
+async fn send_flood_burst(tx: &mpsc::Sender<RawPacket>, rogue_ip: IpAddr, count: usize) {
     for _ in 0..count {
         let pkt = RawPacket {
             src_ip: rogue_ip,
@@ -263,13 +259,10 @@ mod tests {
         let interceptor = PacketInterceptor::new(cfg);
         let mut rx = interceptor.start();
         // Wait for at least one packet within 500 ms.
-        let pkt = tokio::time::timeout(
-            tokio::time::Duration::from_millis(500),
-            rx.recv(),
-        )
-        .await
-        .expect("timeout waiting for first packet")
-        .expect("channel closed unexpectedly");
+        let pkt = tokio::time::timeout(tokio::time::Duration::from_millis(500), rx.recv())
+            .await
+            .expect("timeout waiting for first packet")
+            .expect("channel closed unexpectedly");
         assert!(!pkt.payload.is_empty());
     }
 }

@@ -101,8 +101,8 @@ impl MetricsFilter {
         // whether to emit it only when at least one data line for that family
         // makes it through the filter.
         let mut pending_header: Option<(&str, &str)> = None; // (family_name, full_header_block)
-        // We buffer the header block because TYPE always follows HELP in the
-        // Prometheus format; we need both before deciding to emit.
+                                                             // We buffer the header block because TYPE always follows HELP in the
+                                                             // Prometheus format; we need both before deciding to emit.
         let mut header_buf = String::new();
         // Name of the metric family whose header we are buffering.
         let mut header_family: Option<String> = None;
@@ -227,9 +227,7 @@ impl MetricsFilter {
 fn compile_label_drops(rules: &[LabelDropRule]) -> Result<Vec<CompiledLabelDrop>, regex::Error> {
     rules
         .iter()
-        .map(|r| {
-            Regex::new(&r.pattern).map(|re| CompiledLabelDrop { re })
-        })
+        .map(|r| Regex::new(&r.pattern).map(|re| CompiledLabelDrop { re }))
         .collect()
 }
 
@@ -340,7 +338,10 @@ mod tests {
     use super::*;
     use crate::proxy::config::{FilterAction, LabelDropRule, ProxyConfig, SeriesFilterRule};
 
-    fn make_filter(label_patterns: &[&str], series_rules: &[(&str, FilterAction)]) -> MetricsFilter {
+    fn make_filter(
+        label_patterns: &[&str],
+        series_rules: &[(&str, FilterAction)],
+    ) -> MetricsFilter {
         let label_drop_rules: Vec<LabelDropRule> = label_patterns
             .iter()
             .map(|p| LabelDropRule {
@@ -371,7 +372,10 @@ mod tests {
 
     #[test]
     fn parse_name_with_labels() {
-        assert_eq!(parse_metric_name(r#"http_requests_total{method="GET"} 42"#), "http_requests_total");
+        assert_eq!(
+            parse_metric_name(r#"http_requests_total{method="GET"} 42"#),
+            "http_requests_total"
+        );
     }
 
     #[test]
@@ -381,7 +385,10 @@ mod tests {
 
     #[test]
     fn parse_name_with_space_no_labels() {
-        assert_eq!(parse_metric_name("process_cpu_seconds_total 0.5"), "process_cpu_seconds_total");
+        assert_eq!(
+            parse_metric_name("process_cpu_seconds_total 0.5"),
+            "process_cpu_seconds_total"
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -390,7 +397,10 @@ mod tests {
 
     #[test]
     fn drop_single_label() {
-        let drops = compile_label_drops(&[LabelDropRule { pattern: "^job$".to_string() }]).unwrap();
+        let drops = compile_label_drops(&[LabelDropRule {
+            pattern: "^job$".to_string(),
+        }])
+        .unwrap();
         let result = filter_label_pairs(r#"method="GET",job="stellar",le="0.5""#, &drops);
         assert_eq!(result, r#"method="GET",le="0.5""#);
     }
@@ -398,23 +408,37 @@ mod tests {
     #[test]
     fn drop_multiple_labels() {
         let drops = compile_label_drops(&[
-            LabelDropRule { pattern: "^job$".to_string() },
-            LabelDropRule { pattern: "^instance$".to_string() },
-        ]).unwrap();
-        let result = filter_label_pairs(r#"method="GET",job="stellar",instance="pod-1",le="0.5""#, &drops);
+            LabelDropRule {
+                pattern: "^job$".to_string(),
+            },
+            LabelDropRule {
+                pattern: "^instance$".to_string(),
+            },
+        ])
+        .unwrap();
+        let result = filter_label_pairs(
+            r#"method="GET",job="stellar",instance="pod-1",le="0.5""#,
+            &drops,
+        );
         assert_eq!(result, r#"method="GET",le="0.5""#);
     }
 
     #[test]
     fn drop_no_match_preserves_all() {
-        let drops = compile_label_drops(&[LabelDropRule { pattern: "^job$".to_string() }]).unwrap();
+        let drops = compile_label_drops(&[LabelDropRule {
+            pattern: "^job$".to_string(),
+        }])
+        .unwrap();
         let result = filter_label_pairs(r#"method="GET",status="200""#, &drops);
         assert_eq!(result, r#"method="GET",status="200""#);
     }
 
     #[test]
     fn empty_label_section() {
-        let drops = compile_label_drops(&[LabelDropRule { pattern: "^job$".to_string() }]).unwrap();
+        let drops = compile_label_drops(&[LabelDropRule {
+            pattern: "^job$".to_string(),
+        }])
+        .unwrap();
         let result = filter_label_pairs("", &drops);
         assert_eq!(result, "");
     }
@@ -467,20 +491,26 @@ mod tests {
     #[test]
     fn keep_rule_overrides_later_drop() {
         // First-match wins: keep rule before drop-all overrides it.
-        let filter = make_filter(&[], &[
-            ("^stellar_scp_.*", FilterAction::Keep),
-            ("^stellar_.*", FilterAction::Drop),
-        ]);
+        let filter = make_filter(
+            &[],
+            &[
+                ("^stellar_scp_.*", FilterAction::Keep),
+                ("^stellar_.*", FilterAction::Drop),
+            ],
+        );
         assert!(filter.should_keep("stellar_scp_rounds_total"));
         assert!(!filter.should_keep("stellar_node_uptime_seconds"));
     }
 
     #[test]
     fn drop_all_then_keep_specific() {
-        let filter = make_filter(&[], &[
-            ("^stellar_scp_.*", FilterAction::Keep),
-            ("^.*", FilterAction::Drop),
-        ]);
+        let filter = make_filter(
+            &[],
+            &[
+                ("^stellar_scp_.*", FilterAction::Keep),
+                ("^.*", FilterAction::Drop),
+            ],
+        );
         assert!(filter.should_keep("stellar_scp_rounds_total"));
         assert!(!filter.should_keep("go_gc_duration_seconds"));
     }
@@ -565,11 +595,29 @@ stellar_node_uptime_seconds_total{instance="pod-0"} 12345.0
 
     #[test]
     fn metric_name_belongs_to_family_suffixes() {
-        assert!(metric_name_belongs_to_family("http_requests_total", "http_requests"));
-        assert!(metric_name_belongs_to_family("http_requests_bucket", "http_requests"));
-        assert!(metric_name_belongs_to_family("http_requests_sum", "http_requests"));
-        assert!(metric_name_belongs_to_family("http_requests_count", "http_requests"));
-        assert!(metric_name_belongs_to_family("http_requests", "http_requests"));
-        assert!(!metric_name_belongs_to_family("other_metric", "http_requests"));
+        assert!(metric_name_belongs_to_family(
+            "http_requests_total",
+            "http_requests"
+        ));
+        assert!(metric_name_belongs_to_family(
+            "http_requests_bucket",
+            "http_requests"
+        ));
+        assert!(metric_name_belongs_to_family(
+            "http_requests_sum",
+            "http_requests"
+        ));
+        assert!(metric_name_belongs_to_family(
+            "http_requests_count",
+            "http_requests"
+        ));
+        assert!(metric_name_belongs_to_family(
+            "http_requests",
+            "http_requests"
+        ));
+        assert!(!metric_name_belongs_to_family(
+            "other_metric",
+            "http_requests"
+        ));
     }
 }

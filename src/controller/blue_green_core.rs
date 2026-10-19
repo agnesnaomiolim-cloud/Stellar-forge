@@ -2234,7 +2234,7 @@ mod tests {
     /// A: while blue is still active, executor must block publish/switch steps.
     #[test]
     fn executor_blocks_publish_and_switch_while_blue_still_active() {
-        let token = "rollout-2026";
+        let rollout_id = "rollout-2026";
         for bad_step in [
             CutoverStep::EnableGreenPublish,
             CutoverStep::WaitGreenHealthy,
@@ -2244,8 +2244,8 @@ mod tests {
                 bad_step,
                 false, // blue NOT fully down
                 true,  // health would otherwise pass
-                Some(token),
-                Some(token),
+                Some(rollout_id),
+                Some(rollout_id),
             );
             assert_eq!(
                 step,
@@ -2259,8 +2259,8 @@ mod tests {
             assert!(!green_ready_for_service_switch(
                 false,
                 true,
-                Some(token),
-                Some(token)
+                Some(rollout_id),
+                Some(rollout_id)
             ));
         }
     }
@@ -2312,15 +2312,15 @@ mod tests {
     /// D: Ready+Synced with the current rollout token may proceed to Service switch.
     #[test]
     fn service_switch_allowed_for_healthy_green_with_current_rollout() {
-        let token = "rollout-current";
-        assert!(green_publish_rollout_observed(Some(token), Some(token)));
+        let rollout_id = "rollout-current";
+        assert!(green_publish_rollout_observed(Some(rollout_id), Some(rollout_id)));
 
         let (step, eligible) = enforce_cutover_safety(
             CutoverStep::WaitGreenHealthy,
             true,
             true,
-            Some(token),
-            Some(token),
+            Some(rollout_id),
+            Some(rollout_id),
         );
         assert_eq!(step, CutoverStep::WaitGreenHealthy);
         assert!(eligible);
@@ -2330,8 +2330,8 @@ mod tests {
         assert!(green_ready_for_service_switch(
             true,
             true,
-            Some(token),
-            Some(token)
+            Some(rollout_id),
+            Some(rollout_id)
         ));
     }
 

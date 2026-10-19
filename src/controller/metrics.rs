@@ -133,7 +133,6 @@ pub fn set_leader_status(is_leader: bool) {
     LEADER_STATUS_GAUGE.set(if is_leader { 1 } else { 0 });
 }
 
-
 /// Gauge tracking number of critical nodes in the quorum
 pub static QUORUM_CRITICAL_NODES: Lazy<Family<NodeLabels, Gauge<i64, AtomicI64>>> =
     Lazy::new(Family::default);

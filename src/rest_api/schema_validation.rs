@@ -192,8 +192,7 @@ fn validate_array(json: &Value, schema: &Value) -> Result<(), String> {
     if let Some(items_schema) = schema.get("items") {
         if let Some(arr) = json.as_array() {
             for (i, item) in arr.iter().enumerate() {
-                validate_value(item, items_schema)
-                    .map_err(|e| format!("Array item {i}: {e}"))?;
+                validate_value(item, items_schema).map_err(|e| format!("Array item {i}: {e}"))?;
             }
         }
     }

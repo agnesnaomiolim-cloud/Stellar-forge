@@ -1,3 +1,15 @@
+// Copyright 2024 Stellar-K8s Contributors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //! Pending-queue-depth autoscaling for Soroban RPC nodes (issue #18).
 //!
 //! Standard HPA over CPU/memory is too slow for Soroban RPC's bursty load: by
@@ -234,12 +246,9 @@ impl QueueAutoscaler {
             }
             // Only scale down once the window has fully elapsed and the desired
             // count has stayed at or below `current` the entire time.
-            if let Some(stabilized_desired) = stabilized_desired_in_window(
-                &state.desired_history,
-                now,
-                window,
-                current as u32,
-            ) {
+            if let Some(stabilized_desired) =
+                stabilized_desired_in_window(&state.desired_history, now, window, current as u32)
+            {
                 if let Ok(cooldown) = parse_duration(&self.config.scale_down_cooldown) {
                     if let Some(last_down) = state.last_scale_down_at {
                         if now.duration_since(last_down) < cooldown {
@@ -278,9 +287,7 @@ impl QueueAutoscaler {
         decision: &ScalingDecision,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let (from, to, reason) = match decision {
-            ScalingDecision::ScaleUp { from, to, .. } => {
-                (*from, *to, "pending queue above target")
-            }
+            ScalingDecision::ScaleUp { from, to, .. } => (*from, *to, "pending queue above target"),
             ScalingDecision::ScaleDown { from, to, .. } => {
                 (*from, *to, "pending queue below target (stabilized)")
             }
@@ -298,7 +305,8 @@ impl QueueAutoscaler {
             return Ok(());
         };
 
-        let deployments: Api<Deployment> = Api::namespaced(client.clone(), &self.node_ref.namespace);
+        let deployments: Api<Deployment> =
+            Api::namespaced(client.clone(), &self.node_ref.namespace);
         let patch = serde_json::json!({ "spec": { "replicas": to } });
         deployments
             .patch(
@@ -357,7 +365,10 @@ fn stabilized_desired_in_window(
     current: u32,
 ) -> Option<u32> {
     let window_start = now.checked_sub(window)?;
-    let within: Vec<&(Instant, u32)> = history.iter().filter(|(ts, _)| *ts >= window_start).collect();
+    let within: Vec<&(Instant, u32)> = history
+        .iter()
+        .filter(|(ts, _)| *ts >= window_start)
+        .collect();
     if within.is_empty() {
         return None;
     }
@@ -484,11 +495,11 @@ pub fn parse_prometheus_gauge(body: &str, metric_name: &str) -> Result<u64, Queu
             }
             // Value is the last whitespace-delimited token (after any label set).
             let value_token = line.split_whitespace().last().unwrap_or("");
-            let value: f64 = value_token
-                .parse()
-                .map_err(|_| QueueCollectionError::ParseError(format!(
+            let value: f64 = value_token.parse().map_err(|_| {
+                QueueCollectionError::ParseError(format!(
                     "cannot parse gauge value from line: {line}"
-                )))?;
+                ))
+            })?;
             if value < 0.0 {
                 return Ok(0);
             }
@@ -583,9 +594,8 @@ pub fn ensure_queue_autoscaler_running(client: kube::Client, node: &StellarNode)
     let mut rx_col = rx.clone();
     let col_autoscaler = autoscaler.clone_handle();
     tokio::spawn(async move {
-        let mut ticker = tokio::time::interval(Duration::from_secs(
-            config.poll_interval_seconds as u64,
-        ));
+        let mut ticker =
+            tokio::time::interval(Duration::from_secs(config.poll_interval_seconds as u64));
         loop {
             tokio::select! {
                 _ = ticker.tick() => {
@@ -872,14 +882,20 @@ mod tests {
     #[test]
     fn parses_prometheus_gauge_line_with_labels() {
         let body = "# HELP soroban_rpc_pending_requests pending queue\n# TYPE soroban_rpc_pending_requests gauge\nsoroban_rpc_pending_requests{instance=\"soroban-rpc\"} 523\n";
-        assert_eq!(parse_prometheus_gauge(body, "soroban_rpc_pending_requests").unwrap(), 523);
+        assert_eq!(
+            parse_prometheus_gauge(body, "soroban_rpc_pending_requests").unwrap(),
+            523
+        );
     }
 
     #[test]
     fn parses_bare_gauge_line() {
         assert_eq!(
-            parse_prometheus_gauge("soroban_rpc_pending_requests 77\n", "soroban_rpc_pending_requests")
-                .unwrap(),
+            parse_prometheus_gauge(
+                "soroban_rpc_pending_requests 77\n",
+                "soroban_rpc_pending_requests"
+            )
+            .unwrap(),
             77
         );
     }

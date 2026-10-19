@@ -32,7 +32,27 @@ detect_os() {
 install_rust() {
   if command -v cargo >/dev/null 2>&1; then info "Rust already installed: $(cargo --version)"; return; fi
   info "Installing Rust via rustup..."
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+  local rustup_target rustup_tmp rustup_url
+  case "$(uname -m)" in
+    x86_64) rustup_target=x86_64-unknown-linux-gnu ;;
+    aarch64|arm64) rustup_target=aarch64-unknown-linux-gnu ;;
+    *) fail "Unsupported architecture for rustup; install Rust manually"; return 1 ;;
+  esac
+  rustup_tmp="$(mktemp -d)"
+  rustup_url="https://static.rust-lang.org/rustup/dist/${rustup_target}/rustup-init"
+  if ! curl --proto '=https' --tlsv1.2 -fsSL "$rustup_url" -o "$rustup_tmp/rustup-init" ||
+     ! curl --proto '=https' --tlsv1.2 -fsSL "${rustup_url}.sha256" -o "$rustup_tmp/rustup-init.sha256" ||
+     ! (cd "$rustup_tmp" && sha256sum --check rustup-init.sha256); then
+    rm -rf "${rustup_tmp:?}"
+    fail "rustup download or checksum verification failed"
+    return 1
+  fi
+  chmod +x "$rustup_tmp/rustup-init"
+  if ! "$rustup_tmp/rustup-init" -y --default-toolchain "$RUST_TOOLCHAIN"; then
+    rm -rf "${rustup_tmp:?}"
+    return 1
+  fi
+  rm -rf "${rustup_tmp:?}"
   # shellcheck source=/dev/null
   source "$HOME/.cargo/env" || true
   rustup component add clippy rustfmt || true

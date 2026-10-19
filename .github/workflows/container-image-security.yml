@@ -78,7 +78,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
-      image-ref: ${{ steps.meta.outputs.image-ref }}
+      image-ref: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
+      image-name: ${{ steps.name.outputs.image }}
       digest: ${{ steps.push.outputs.digest }}
     steps:
       - uses: actions/checkout@v7
@@ -94,13 +95,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve lowercase registry name
+        id: name
+        run: echo "image=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
       - name: Generate image metadata
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ steps.name.outputs.image }}
           tags: |
-            type=sha,prefix=sha-
+            type=sha,prefix=sha-,format=long
             type=ref,event=branch
             type=ref,event=pr
 
@@ -123,7 +128,7 @@ jobs:
       - name: Export image tar
         if: github.event_name == 'pull_request'
         run: |
-          docker save "${{ steps.meta.outputs.tags }}" \
+          docker save "${{ fromJSON(steps.meta.outputs.json).tags[0] }}" \
             | gzip > image.tar.gz
 
       - name: Upload image tar
@@ -163,7 +168,7 @@ jobs:
             TAG=$(docker images --format "{{.Repository}}:{{.Tag}}" | head -1)
             echo "ref=${TAG}" >> "$GITHUB_OUTPUT"
           else
-            echo "ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}" \
+            echo "ref=${{ needs.build-image.outputs.image-ref }}" \
               >> "$GITHUB_OUTPUT"
           fi
 
@@ -228,7 +233,7 @@ jobs:
             TAG=$(docker images --format "{{.Repository}}:{{.Tag}}" | head -1)
             echo "ref=${TAG}" >> "$GITHUB_OUTPUT"
           else
-            echo "ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}" \
+            echo "ref=${{ needs.build-image.outputs.image-ref }}" \
               >> "$GITHUB_OUTPUT"
           fi
 
@@ -277,7 +282,7 @@ jobs:
             TAG=$(docker images --format "{{.Repository}}:{{.Tag}}" | head -1)
             echo "ref=${TAG}" >> "$GITHUB_OUTPUT"
           else
-            echo "ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}" \
+            echo "ref=${{ needs.build-image.outputs.image-ref }}" \
               >> "$GITHUB_OUTPUT"
           fi
 
@@ -294,7 +299,7 @@ jobs:
     name: Sign Container Image (Cosign)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [trivy-scan, grype-scan, sbom]
+    needs: [build-image, trivy-scan, grype-scan, sbom]
     if: >
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
@@ -305,7 +310,7 @@ jobs:
       - name: Sign image
         uses: ./.github/actions/sign-image
         with:
-          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          image: ${{ needs.build-image.outputs.image-name }}
           digest: ${{ needs.build-image.outputs.digest }}
 
   # ── 6. Verify signature ──────────────────────────────────────────────────────
@@ -313,7 +318,7 @@ jobs:
     name: Verify Cosign Signature
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: sign-image
+    needs: [build-image, sign-image]
     if: needs.sign-image.result == 'success'
     steps:
       - name: Install Cosign
@@ -322,9 +327,9 @@ jobs:
       - name: Verify image signature
         run: |
           cosign verify \
-            --certificate-identity-regexp \
-              "^https://github.com/OtowoOrg/Stellar-K8s/" \
+            --certificate-identity \
+              "https://github.com/${{ github.workflow_ref }}" \
             --certificate-oidc-issuer \
               "https://token.actions.githubusercontent.com" \
-            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build-image.outputs.digest }}"
+            "${{ needs.build-image.outputs.image-name }}@${{ needs.build-image.outputs.digest }}"
           echo "✅ Signature verified"

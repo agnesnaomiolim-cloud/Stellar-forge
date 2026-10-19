@@ -4,5 +4,5 @@
 pub mod downloader;
 pub mod worker_pool;
 
-pub use downloader::{Archive, Downloader, DownloadConfig};
+pub use downloader::{Archive, DownloadConfig, Downloader};
 pub use worker_pool::WorkerPool;

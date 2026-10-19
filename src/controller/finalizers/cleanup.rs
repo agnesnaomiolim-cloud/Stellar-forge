@@ -1,4 +1,16 @@
 // Copyright 2024 Stellar-K8s Contributors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// Copyright 2024 Stellar-K8s Contributors
 // Licensed under the Apache License, Version 2.0 (the "License")
 //! Kubernetes Finalizer Cleanup Recovery Controller for Orphaned Volumes.
 //!
@@ -43,8 +55,8 @@ use kube::{
 use serde_json::json;
 use tracing::{error, info, warn};
 
-use crate::controller::finalizers::STELLAR_NODE_FINALIZER;
 use crate::controller::finalizers::cloud_verify::{CloudVerifier, VolumeAttachmentState};
+use crate::controller::finalizers::STELLAR_NODE_FINALIZER;
 use crate::crd::StellarNode;
 use crate::error::{Error, Result};
 
@@ -142,13 +154,21 @@ pub async fn scan_and_recover(client: &Client, verifier: &CloudVerifier) -> Resu
                 info!(name, ns, "stuck finalizer removed — resource unblocked");
             }
             Ok(CleanupOutcome::NoPvcsFound) => {
-                info!(name, ns, "no PVCs found — finalizer removed unconditionally");
+                info!(
+                    name,
+                    ns, "no PVCs found — finalizer removed unconditionally"
+                );
             }
             Ok(CleanupOutcome::VolumeStillAttached) => {
                 warn!(name, ns, "volume still attached — will retry next scan");
             }
             Ok(CleanupOutcome::CloudApiError(ref e)) => {
-                warn!(name, ns, error = e, "cloud API error — will retry next scan");
+                warn!(
+                    name,
+                    ns,
+                    error = e,
+                    "cloud API error — will retry next scan"
+                );
             }
             Ok(CleanupOutcome::NotStuck) => {}
             Err(e) => {
@@ -188,12 +208,17 @@ pub async fn attempt_recovery(
         // No PVCs to verify — strip the finalizer so the resource can be GC'd.
         warn!(
             name,
-            namespace,
-            "no PVCs found for stuck StellarNode — removing finalizer"
+            namespace, "no PVCs found for stuck StellarNode — removing finalizer"
         );
         strip_finalizer(client, node).await?;
-        emit_event(client, node, "FinalizerRecovered",
-            "No PVCs found; finalizer removed by cleanup controller", "Normal").await;
+        emit_event(
+            client,
+            node,
+            "FinalizerRecovered",
+            "No PVCs found; finalizer removed by cleanup controller",
+            "Normal",
+        )
+        .await;
         return Ok(CleanupOutcome::NoPvcsFound);
     }
 
@@ -212,9 +237,14 @@ pub async fn attempt_recovery(
                     volume_id = result.volume_id,
                     "PVC volume still attached — blocking finalizer removal"
                 );
-                emit_event(client, node, "FinalizerBlocked",
+                emit_event(
+                    client,
+                    node,
+                    "FinalizerBlocked",
                     &format!("PVC {pvc_name} volume still attached; finalizer not removed"),
-                    "Warning").await;
+                    "Warning",
+                )
+                .await;
                 return Ok(CleanupOutcome::VolumeStillAttached);
             }
             Err(Error::KubeError(_)) | Err(Error::FinalizerError(_)) => {
@@ -229,10 +259,17 @@ pub async fn attempt_recovery(
 
     // All PVCs confirmed detached — safe to strip the finalizer.
     strip_finalizer(client, node).await?;
-    emit_event(client, node, "FinalizerRecovered",
-        &format!("All {} PVC(s) confirmed detached; finalizer removed by cleanup controller",
-            pvcs.len()),
-        "Normal").await;
+    emit_event(
+        client,
+        node,
+        "FinalizerRecovered",
+        &format!(
+            "All {} PVC(s) confirmed detached; finalizer removed by cleanup controller",
+            pvcs.len()
+        ),
+        "Normal",
+    )
+    .await;
 
     Ok(CleanupOutcome::FinalizerRemoved)
 }
@@ -256,7 +293,10 @@ pub fn is_stuck_terminating(node: &StellarNode) -> bool {
 /// A PVC is considered owned if it carries an `ownerReference` to this
 /// StellarNode, or if its name matches the canonical PVC naming pattern:
 /// `<node-name>-data` (as used by `resources.rs`).
-async fn find_owned_pvcs(client: &Client, node: &StellarNode) -> Result<Vec<PersistentVolumeClaim>> {
+async fn find_owned_pvcs(
+    client: &Client,
+    node: &StellarNode,
+) -> Result<Vec<PersistentVolumeClaim>> {
     let namespace = node.namespace().unwrap_or_else(|| "default".to_string());
     let pvc_api: Api<PersistentVolumeClaim> = Api::namespaced(client.clone(), &namespace);
     let all_pvcs = pvc_api
@@ -273,7 +313,10 @@ async fn find_owned_pvcs(client: &Client, node: &StellarNode) -> Result<Vec<Pers
         .filter(|pvc| {
             // Check ownerReferences
             if let Some(refs) = &pvc.metadata.owner_references {
-                if refs.iter().any(|r| r.uid == node_uid && r.kind == "StellarNode") {
+                if refs
+                    .iter()
+                    .any(|r| r.uid == node_uid && r.kind == "StellarNode")
+                {
                     return true;
                 }
             }
@@ -316,7 +359,13 @@ async fn strip_finalizer(client: &Client, node: &StellarNode) -> Result<()> {
 }
 
 /// Emit a Kubernetes Event on the StellarNode for audit and observability.
-async fn emit_event(client: &Client, node: &StellarNode, reason: &str, message: &str, event_type: &str) {
+async fn emit_event(
+    client: &Client,
+    node: &StellarNode,
+    reason: &str,
+    message: &str,
+    event_type: &str,
+) {
     let namespace = node.namespace().unwrap_or_else(|| "default".to_string());
     let events: Api<Event> = Api::namespaced(client.clone(), &namespace);
     let now = chrono::Utc::now();
@@ -349,8 +398,7 @@ async fn emit_event(client: &Client, node: &StellarNode, reason: &str, message: 
         if let Err(e) = events.create(&PostParams::default(), &ev).await {
             warn!(
                 node_name = node.name_any(),
-                namespace,
-                "failed to emit cleanup event: {e}"
+                namespace, "failed to emit cleanup event: {e}"
             );
         }
     }
@@ -365,7 +413,8 @@ mod tests {
     use super::*;
     use crate::controller::finalizers::cloud_verify::{MockChecker, VolumeAttachmentState};
     use crate::crd::{
-        NodeType, ResourceRequirements, ResourceSpec, StellarNetwork, StellarNodeSpec, StorageConfig,
+        NodeType, ResourceRequirements, ResourceSpec, StellarNetwork, StellarNodeSpec,
+        StorageConfig,
     };
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
     use kube::api::ObjectMeta;
@@ -380,8 +429,14 @@ mod tests {
             network: StellarNetwork::Testnet,
             version: "v21.0.0".to_string(),
             resources: ResourceRequirements {
-                requests: ResourceSpec { cpu: "500m".into(), memory: "1Gi".into() },
-                limits:   ResourceSpec { cpu: "2".into(),    memory: "4Gi".into() },
+                requests: ResourceSpec {
+                    cpu: "500m".into(),
+                    memory: "1Gi".into(),
+                },
+                limits: ResourceSpec {
+                    cpu: "2".into(),
+                    memory: "4Gi".into(),
+                },
             },
             storage: StorageConfig {
                 storage_class: "standard".into(),
@@ -471,14 +526,23 @@ mod tests {
 
     #[test]
     fn cleanup_outcome_equality() {
-        assert_eq!(CleanupOutcome::FinalizerRemoved, CleanupOutcome::FinalizerRemoved);
+        assert_eq!(
+            CleanupOutcome::FinalizerRemoved,
+            CleanupOutcome::FinalizerRemoved
+        );
         assert_eq!(CleanupOutcome::NoPvcsFound, CleanupOutcome::NoPvcsFound);
-        assert_eq!(CleanupOutcome::VolumeStillAttached, CleanupOutcome::VolumeStillAttached);
+        assert_eq!(
+            CleanupOutcome::VolumeStillAttached,
+            CleanupOutcome::VolumeStillAttached
+        );
         assert_eq!(
             CleanupOutcome::CloudApiError("err".into()),
             CleanupOutcome::CloudApiError("err".into())
         );
-        assert_ne!(CleanupOutcome::FinalizerRemoved, CleanupOutcome::NoPvcsFound);
+        assert_ne!(
+            CleanupOutcome::FinalizerRemoved,
+            CleanupOutcome::NoPvcsFound
+        );
     }
 
     // ── StuckResource ────────────────────────────────────────────────────────
@@ -534,7 +598,9 @@ mod tests {
             namespace: "stellar".into(),
             volume_id: "vol-abc".into(),
             provider: crate::controller::finalizers::cloud_verify::CloudProvider::AwsEbs,
-            state: VolumeAttachmentState::Attached { instance_ids: vec!["i-x".into()] },
+            state: VolumeAttachmentState::Attached {
+                instance_ids: vec!["i-x".into()],
+            },
             safe_to_release: false,
         };
         assert!(!result.safe_to_release);
@@ -561,21 +627,32 @@ mod tests {
     /// state is `Detached` or `NotFound`.  All other states must produce `false`.
     #[test]
     fn only_detached_and_not_found_are_safe() {
-        let safe_states = [VolumeAttachmentState::Detached, VolumeAttachmentState::NotFound];
+        let safe_states = [
+            VolumeAttachmentState::Detached,
+            VolumeAttachmentState::NotFound,
+        ];
         let unsafe_states = [
-            VolumeAttachmentState::Attached { instance_ids: vec!["i-x".into()] },
+            VolumeAttachmentState::Attached {
+                instance_ids: vec!["i-x".into()],
+            },
             VolumeAttachmentState::ApiError("timeout".into()),
         ];
 
         for state in &safe_states {
             assert!(
-                matches!(state, VolumeAttachmentState::Detached | VolumeAttachmentState::NotFound),
+                matches!(
+                    state,
+                    VolumeAttachmentState::Detached | VolumeAttachmentState::NotFound
+                ),
                 "state {state:?} should be safe"
             );
         }
         for state in &unsafe_states {
             assert!(
-                !matches!(state, VolumeAttachmentState::Detached | VolumeAttachmentState::NotFound),
+                !matches!(
+                    state,
+                    VolumeAttachmentState::Detached | VolumeAttachmentState::NotFound
+                ),
                 "state {state:?} should NOT be safe"
             );
         }

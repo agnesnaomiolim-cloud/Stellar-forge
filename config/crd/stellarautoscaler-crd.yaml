@@ -38,7 +38,11 @@ spec:
                       type: integer
                     strategy:
                       type: string
-                      enum: [Aggressive, Balanced, Conservative, Custom]
+                      enum:
+                        - Aggressive
+                        - Balanced
+                        - Conservative
+                        - Custom
                 customMetrics:
                   type: array
                   items:
@@ -48,7 +52,12 @@ spec:
                         type: string
                       metricType:
                         type: string
-                        enum: [TransactionThroughput, LedgerLag, RpcQueueDepth, ContractInvocations, HistoryArchiveBacklog]
+                        enum:
+                          - TransactionThroughput
+                          - LedgerLag
+                          - RpcQueueDepth
+                          - ContractInvocations
+                          - HistoryArchiveBacklog
                       threshold:
                         type: number
                 predictiveScaling:
@@ -60,7 +69,10 @@ spec:
                       type: integer
                     modelType:
                       type: string
-                      enum: [Prophet, LinearRegression, Arima]
+                      enum:
+                        - Prophet
+                        - LinearRegression
+                        - Arima
                 costAware:
                   type: object
                   properties:

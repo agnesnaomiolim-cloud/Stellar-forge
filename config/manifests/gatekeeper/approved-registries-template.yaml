@@ -35,7 +35,10 @@ spec:
         violation[{"msg": msg}] {
           count(input.parameters.allowed_registries) == 0
           name := input.review.object.metadata.name
-          msg := sprintf("StellarNode '%s' image registry '%s' is not in the approved list: %v", [name, input.review.object.spec.version, input.parameters.allowed_registries])
+          msg := sprintf(
+            "StellarNode '%s' image registry '%s' is not in the approved list: %v",
+            [name, input.review.object.spec.version, input.parameters.allowed_registries],
+          )
         }
 
         violation[{"msg": msg}] {
@@ -43,7 +46,10 @@ spec:
           version := input.review.object.spec.version
           name := input.review.object.metadata.name
           not any_registry_matches(version, input.parameters.allowed_registries)
-          msg := sprintf("StellarNode '%s' image registry '%s' is not in the approved list: %v", [name, version, input.parameters.allowed_registries])
+          msg := sprintf(
+            "StellarNode '%s' image registry '%s' is not in the approved list: %v",
+            [name, version, input.parameters.allowed_registries],
+          )
         }
 
         any_registry_matches(version, registries) {

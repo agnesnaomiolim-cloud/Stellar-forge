@@ -1,5 +1,7 @@
 # Demo bundle for `stellar-operator simulator up`.
-# Replace seed values before any real network use (development only).
+# Generate fresh keypairs and export SIM_VALIDATOR_A_SEED, SIM_VALIDATOR_B_SEED,
+# and SIM_VALIDATOR_C_SEED. Render before passing this file to the simulator:
+# envsubst '${SIM_VALIDATOR_A_SEED} ${SIM_VALIDATOR_B_SEED} ${SIM_VALIDATOR_C_SEED}' < three-validators.yaml
 ---
 apiVersion: v1
 kind: Secret
@@ -8,7 +10,7 @@ metadata:
   namespace: stellar-system
 type: Opaque
 stringData:
-  STELLAR_CORE_SEED: "SB3OIHVQNBKPYIHQIYRQLYKUAUC7DZOUBM7KEMPIJGPYEWKB7P3E7ENW"
+  STELLAR_CORE_SEED: "${SIM_VALIDATOR_A_SEED}"
 ---
 apiVersion: v1
 kind: Secret
@@ -17,7 +19,7 @@ metadata:
   namespace: stellar-system
 type: Opaque
 stringData:
-  STELLAR_CORE_SEED: "SCV6MXXYYFYA3M26CBBBLCRFHF6BTZ7T2BFRSV45TPRGYIZWXUI7TQHW"
+  STELLAR_CORE_SEED: "${SIM_VALIDATOR_B_SEED}"
 ---
 apiVersion: v1
 kind: Secret
@@ -26,7 +28,7 @@ metadata:
   namespace: stellar-system
 type: Opaque
 stringData:
-  STELLAR_CORE_SEED: "SDHOHHQ6UVIEBTI4WYSNOXL64RZHLXQJ7Z5F2H7CFRQY3FR2EBI4ZU3F"
+  STELLAR_CORE_SEED: "${SIM_VALIDATOR_C_SEED}"
 ---
 apiVersion: stellar.org/v1alpha1
 kind: StellarNode

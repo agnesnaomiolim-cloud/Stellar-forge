@@ -13,7 +13,6 @@
 //! Maintenance Window controller for Horizon DB maintenance tasks.
 //!
 
-
 pub mod bloat;
 pub mod compactor;
 pub mod controller;
@@ -36,6 +35,6 @@ pub use db::{
     FragmentationMetrics, IntegrityReport, LedgerPruner, PruningReport,
 };
 pub use node_drain::NodeDrainOrchestrator;
-pub use pruner::{Pruner, PrunerConfig, PruningResult, run_pruner_controller};
+pub use pruner::{run_pruner_controller, Pruner, PrunerConfig, PruningResult};
 pub use query_profiler::{IndexSuggestion, QueryProfiler, SlowQuery};
 pub use vacuum::{run_vacuum_controller, DefragResult, VacuumConfig, VacuumDefrag};

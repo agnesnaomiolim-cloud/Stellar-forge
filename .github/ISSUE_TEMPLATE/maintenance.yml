@@ -34,7 +34,9 @@ body:
     attributes:
       label: Problem
       description: What is broken, outdated, or missing? Be specific and factual.
-      placeholder: "e.g. kube-rs 0.94 requires k8s-openapi 0.22 but Cargo.toml pins 0.26, causing 594 compilation errors."
+      placeholder: >-
+        e.g. kube-rs 0.94 requires k8s-openapi 0.22 but Cargo.toml pins 0.26, causing 594 compilation
+        errors.
     validations:
       required: true
 
@@ -53,7 +55,9 @@ body:
     id: packages
     attributes:
       label: Package(s) Affected (dependencies only)
-      description: For dependency updates, list crate(s) or tool(s) with current → target versions. Leave blank otherwise.
+      description: >-
+        For dependency updates, list crate(s) or tool(s) with current → target versions. Leave blank
+        otherwise.
       placeholder: |
         - `kube` 0.89 → 0.91
         - `tokio` 1.36 → 1.38

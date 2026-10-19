@@ -1,7 +1,13 @@
 // Copyright 2024 Stellar-K8s Contributors
 // SPDX-License-Identifier: Apache-2.0
-use std::{sync::{Arc, OnceLock}, time::Duration};
-use tokio::{sync::{Mutex, Semaphore}, time::{sleep_until, Instant}};
+use std::{
+    sync::{Arc, OnceLock},
+    time::Duration,
+};
+use tokio::{
+    sync::{Mutex, Semaphore},
+    time::{sleep_until, Instant},
+};
 
 /// Share one instance among every downloader using the same egress allocation.
 /// For separate pods, divide the node allocation between replicas or enforce a
@@ -15,27 +21,37 @@ pub struct WorkerPool {
 
 impl WorkerPool {
     pub fn new(workers: usize, bytes_per_second: u64) -> anyhow::Result<Arc<Self>> {
-        anyhow::ensure!(workers > 0 && workers <= Semaphore::MAX_PERMITS && bytes_per_second > 0,
-            "workers and egress limit must be positive and workers must fit semaphore capacity");
+        anyhow::ensure!(
+            workers > 0 && workers <= Semaphore::MAX_PERMITS && bytes_per_second > 0,
+            "workers and egress limit must be positive and workers must fit semaphore capacity"
+        );
         Ok(Arc::new(Self {
             slots: Arc::new(Semaphore::new(workers)),
-            next_byte: Mutex::new(Instant::now()), bytes_per_second, workers,
+            next_byte: Mutex::new(Instant::now()),
+            bytes_per_second,
+            workers,
         }))
     }
 
     /// Process-wide default: eight requests and 32 MiB/s across all bootstraps.
     pub fn shared_default() -> Arc<Self> {
         static POOL: OnceLock<Arc<WorkerPool>> = OnceLock::new();
-        POOL.get_or_init(|| Self::new(8, 32 * 1024 * 1024).expect("valid defaults")).clone()
+        POOL.get_or_init(|| Self::new(8, 32 * 1024 * 1024).expect("valid defaults"))
+            .clone()
     }
 
     /// Read the allocation once per process. Every snapshot reconciler shares it.
     pub fn shared_from_env() -> anyhow::Result<Arc<Self>> {
         static POOL: OnceLock<Arc<WorkerPool>> = OnceLock::new();
-        if let Some(pool) = POOL.get() { return Ok(pool.clone()); }
-        let workers = std::env::var("STELLAR_CATCHUP_WORKERS").unwrap_or_else(|_| "8".into()).parse()?;
+        if let Some(pool) = POOL.get() {
+            return Ok(pool.clone());
+        }
+        let workers = std::env::var("STELLAR_CATCHUP_WORKERS")
+            .unwrap_or_else(|_| "8".into())
+            .parse()?;
         let rate = std::env::var("STELLAR_CATCHUP_BYTES_PER_SECOND")
-            .unwrap_or_else(|_| "33554432".into()).parse()?;
+            .unwrap_or_else(|_| "33554432".into())
+            .parse()?;
         let pool = Self::new(workers, rate)?;
         Ok(POOL.get_or_init(|| pool).clone())
     }
@@ -67,6 +83,9 @@ mod tests {
     fn invalid_limits_are_rejected() {
         assert!(WorkerPool::new(0, 1).is_err());
         assert!(WorkerPool::new(1, 0).is_err());
-        assert!(Arc::ptr_eq(&WorkerPool::shared_default(), &WorkerPool::shared_default()));
+        assert!(Arc::ptr_eq(
+            &WorkerPool::shared_default(),
+            &WorkerPool::shared_default()
+        ));
     }
 }

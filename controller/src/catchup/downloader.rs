@@ -1,11 +1,19 @@
 // Copyright 2024 Stellar-K8s Contributors
 // SPDX-License-Identifier: Apache-2.0
-use std::{path::{Path, PathBuf}, sync::Arc, time::Duration};
+use super::WorkerPool;
 use anyhow::{bail, ensure, Context, Result};
 use reqwest::{header, Client, Response, StatusCode};
 use sha2::{Digest, Sha256};
-use tokio::{fs::{self, OpenOptions}, io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt}, task::JoinSet};
-use super::WorkerPool;
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
+use tokio::{
+    fs::{self, OpenOptions},
+    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
+    task::JoinSet,
+};
 
 #[derive(Debug, thiserror::Error)]
 #[error("archive body interrupted")]
@@ -22,9 +30,13 @@ pub struct DownloadConfig {
 
 impl Default for DownloadConfig {
     fn default() -> Self {
-        Self { chunk_bytes: 8 * 1024 * 1024, retries: 4,
-            initial_backoff: Duration::from_millis(250), max_backoff: Duration::from_secs(8),
-            request_timeout: Duration::from_secs(300) }
+        Self {
+            chunk_bytes: 8 * 1024 * 1024,
+            retries: 4,
+            initial_backoff: Duration::from_millis(250),
+            max_backoff: Duration::from_secs(8),
+            request_timeout: Duration::from_secs(300),
+        }
     }
 }
 
@@ -46,12 +58,24 @@ pub struct Downloader {
 impl Downloader {
     pub fn new(pool: Arc<WorkerPool>, config: DownloadConfig) -> Result<Self> {
         ensure!(config.chunk_bytes > 0, "chunk size must be positive");
-        ensure!(!config.request_timeout.is_zero(), "request timeout must be positive");
+        ensure!(
+            !config.request_timeout.is_zero(),
+            "request timeout must be positive"
+        );
         // Feature unification may enable compression through another reqwest
         // user. Range offsets and the trusted digest refer to wire bytes.
-        let client = Client::builder().timeout(config.request_timeout)
-            .no_gzip().no_brotli().no_deflate().no_zstd().build()?;
-        Ok(Self { client, pool, config })
+        let client = Client::builder()
+            .timeout(config.request_timeout)
+            .no_gzip()
+            .no_brotli()
+            .no_deflate()
+            .no_zstd()
+            .build()?;
+        Ok(Self {
+            client,
+            pool,
+            config,
+        })
     }
 
     /// Download to a unique temporary file and publish only after verification.
@@ -60,53 +84,91 @@ impl Downloader {
     pub async fn download(&self, archive: Archive) -> Result<PathBuf> {
         let expected = hex::decode(&archive.sha256).context("invalid SHA-256")?;
         ensure!(expected.len() == 32, "expected a 32-byte SHA-256 digest");
-        let parent = archive.destination.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
+        let parent = archive
+            .destination
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(Path::new("."));
         fs::create_dir_all(parent).await?;
         let staging_parent = parent.to_owned();
         let temporary = tokio::task::spawn_blocking(move || {
             tempfile::NamedTempFile::new_in(staging_parent).map(|file| file.into_temp_path())
-        }).await.context("temporary file creation task failed")??;
+        })
+        .await
+        .context("temporary file creation task failed")??;
         let path = temporary.to_path_buf();
         // Probe with GET rather than HEAD: signed cloud GET URLs may reject HEAD.
         let _slot = self.pool.slots.acquire().await?;
         let response = self.request(&archive.url, 0, 0, None).await?;
         let total;
         if response.status() == StatusCode::OK {
-            total = response.content_length().context("archive requires Content-Length")?;
+            total = response
+                .content_length()
+                .context("archive requires Content-Length")?;
             let mut response = response;
             let mut attempt = 0;
             loop {
                 match self.write_body(response, &path, 0, total).await {
-                    Err(error) if error.is::<BodyInterrupted>() && attempt < self.config.retries => {
+                    Err(error)
+                        if error.is::<BodyInterrupted>() && attempt < self.config.retries =>
+                    {
                         tokio::time::sleep(self.backoff(attempt)).await;
                         attempt += 1;
                         response = self.request(&archive.url, 0, 0, None).await?;
-                        ensure!(response.status() == StatusCode::OK, "archive range support changed during retry");
+                        ensure!(
+                            response.status() == StatusCode::OK,
+                            "archive range support changed during retry"
+                        );
                     }
-                    result => { result?; break; }
+                    result => {
+                        result?;
+                        break;
+                    }
                 }
             }
             drop(_slot);
         } else {
-            let range = response.headers().get(header::CONTENT_RANGE).context("missing Content-Range")?.to_str()?;
-            total = range.strip_prefix("bytes 0-0/").context("invalid probe Content-Range")?.parse::<u64>()?;
+            let range = response
+                .headers()
+                .get(header::CONTENT_RANGE)
+                .context("missing Content-Range")?
+                .to_str()?;
+            total = range
+                .strip_prefix("bytes 0-0/")
+                .context("invalid probe Content-Range")?
+                .parse::<u64>()?;
             ensure!(total > 0, "empty archive range");
-            let etag = response.headers().get(header::ETAG).and_then(|h| h.to_str().ok())
-                .filter(|s| !s.starts_with("W/")).map(str::to_owned);
+            let etag = response
+                .headers()
+                .get(header::ETAG)
+                .and_then(|h| h.to_str().ok())
+                .filter(|s| !s.starts_with("W/"))
+                .map(str::to_owned);
             // Validate the probe body, including truncation and oversized bodies.
             let mut probe = response;
             let mut attempt = 0;
             loop {
                 match self.write_body(probe, &path, 0, 1).await {
-                    Err(error) if error.is::<BodyInterrupted>() && attempt < self.config.retries => {
+                    Err(error)
+                        if error.is::<BodyInterrupted>() && attempt < self.config.retries =>
+                    {
                         tokio::time::sleep(self.backoff(attempt)).await;
                         attempt += 1;
                         probe = self.request(&archive.url, 0, 0, None).await?;
-                        ensure!(probe.status() == StatusCode::PARTIAL_CONTENT &&
-                            probe.headers().get(header::CONTENT_RANGE).and_then(|h| h.to_str().ok()) == Some(format!("bytes 0-0/{total}").as_str()),
-                            "archive changed during probe retry");
+                        ensure!(
+                            probe.status() == StatusCode::PARTIAL_CONTENT
+                                && probe
+                                    .headers()
+                                    .get(header::CONTENT_RANGE)
+                                    .and_then(|h| h.to_str().ok())
+                                    == Some(format!("bytes 0-0/{total}").as_str()),
+                            "archive changed during probe retry"
+                        );
                     }
-                    result => { result?; break; }
+                    result => {
+                        result?;
+                        break;
+                    }
                 }
             }
             drop(_slot);
@@ -118,13 +180,26 @@ impl Downloader {
             while next < total || !tasks.is_empty() {
                 while next < total && tasks.len() < self.pool.workers {
                     let start = next;
-                    let end = start.saturating_add(self.config.chunk_bytes - 1).min(total - 1);
+                    let end = start
+                        .saturating_add(self.config.chunk_bytes - 1)
+                        .min(total - 1);
                     next = end + 1;
-                    let (worker, url, file, tag) = (self.clone(), archive.url.clone(), path.clone(), etag.clone());
-                    tasks.spawn(async move { worker.chunk(&url, &file, start, end, total, tag.as_deref()).await });
+                    let (worker, url, file, tag) = (
+                        self.clone(),
+                        archive.url.clone(),
+                        path.clone(),
+                        etag.clone(),
+                    );
+                    tasks.spawn(async move {
+                        worker
+                            .chunk(&url, &file, start, end, total, tag.as_deref())
+                            .await
+                    });
                 }
                 if let Some(result) = tasks.join_next().await {
-                    let result = result.map_err(anyhow::Error::from).and_then(|result| result);
+                    let result = result
+                        .map_err(anyhow::Error::from)
+                        .and_then(|result| result);
                     if let Err(error) = result {
                         // Reap all workers before the staging path is dropped.
                         tasks.shutdown().await;
@@ -134,29 +209,51 @@ impl Downloader {
             }
         }
         let mut input = fs::File::open(&path).await?;
-        ensure!(input.metadata().await?.len() == total, "archive length mismatch");
+        ensure!(
+            input.metadata().await?.len() == total,
+            "archive length mismatch"
+        );
         let mut hasher = Sha256::new();
         let mut buffer = vec![0; 64 * 1024];
         loop {
             let read = input.read(&mut buffer).await?;
-            if read == 0 { break; }
+            if read == 0 {
+                break;
+            }
             hasher.update(&buffer[..read]);
         }
-        ensure!(hasher.finalize().as_slice() == expected.as_slice(), "archive SHA-256 mismatch");
+        ensure!(
+            hasher.finalize().as_slice() == expected.as_slice(),
+            "archive SHA-256 mismatch"
+        );
         drop(input);
         fs::rename(&path, &archive.destination).await?;
         Ok(archive.destination)
     }
 
-    async fn request(&self, url: &str, start: u64, end: u64, etag: Option<&str>) -> Result<Response> {
+    async fn request(
+        &self,
+        url: &str,
+        start: u64,
+        end: u64,
+        etag: Option<&str>,
+    ) -> Result<Response> {
         let mut attempt = 0;
         loop {
-            let mut request = self.client.get(url).header(header::ACCEPT_ENCODING, "identity")
+            let mut request = self
+                .client
+                .get(url)
+                .header(header::ACCEPT_ENCODING, "identity")
                 .header(header::RANGE, format!("bytes={start}-{end}"));
-            if let Some(tag) = etag { request = request.header(header::IF_RANGE, tag); }
+            if let Some(tag) = etag {
+                request = request.header(header::IF_RANGE, tag);
+            }
             let result = request.send().await;
             let transient = match &result {
-                Ok(response) => response.status().is_server_error() || response.status() == StatusCode::TOO_MANY_REQUESTS,
+                Ok(response) => {
+                    response.status().is_server_error()
+                        || response.status() == StatusCode::TOO_MANY_REQUESTS
+                }
                 Err(error) => error.is_timeout() || error.is_connect() || error.is_body(),
             };
             if transient && attempt < self.config.retries {
@@ -167,28 +264,60 @@ impl Downloader {
             }
             // Avoid returning reqwest errors containing presigned credentials.
             let response = result.map_err(|_| anyhow::anyhow!("archive HTTP transport failed"))?;
-            ensure!(response.status() == StatusCode::OK || response.status() == StatusCode::PARTIAL_CONTENT,
-                "archive HTTP status {}", response.status());
-            ensure!(response.headers().get(header::CONTENT_ENCODING).map_or(true, |h| h == "identity"),
-                "encoded range responses are unsupported");
+            ensure!(
+                response.status() == StatusCode::OK
+                    || response.status() == StatusCode::PARTIAL_CONTENT,
+                "archive HTTP status {}",
+                response.status()
+            );
+            ensure!(
+                response
+                    .headers()
+                    .get(header::CONTENT_ENCODING)
+                    .map_or(true, |h| h == "identity"),
+                "encoded range responses are unsupported"
+            );
             return Ok(response);
         }
     }
 
     fn backoff(&self, attempt: u32) -> Duration {
-        self.config.initial_backoff.saturating_mul(2u32.saturating_pow(attempt)).min(self.config.max_backoff)
+        self.config
+            .initial_backoff
+            .saturating_mul(2u32.saturating_pow(attempt))
+            .min(self.config.max_backoff)
     }
 
-    async fn chunk(&self, url: &str, path: &Path, start: u64, end: u64, total: u64, etag: Option<&str>) -> Result<()> {
+    async fn chunk(
+        &self,
+        url: &str,
+        path: &Path,
+        start: u64,
+        end: u64,
+        total: u64,
+        etag: Option<&str>,
+    ) -> Result<()> {
         let _slot = self.pool.slots.acquire().await?;
         let mut attempt = 0;
         loop {
             let response = self.request(url, start, end, etag).await?;
-            ensure!(response.status() == StatusCode::PARTIAL_CONTENT, "server ignored range or archive changed");
+            ensure!(
+                response.status() == StatusCode::PARTIAL_CONTENT,
+                "server ignored range or archive changed"
+            );
             let expected = format!("bytes {start}-{end}/{total}");
-            ensure!(response.headers().get(header::CONTENT_RANGE).and_then(|h| h.to_str().ok()) == Some(expected.as_str()),
-                "incorrect Content-Range");
-            match self.write_body(response, path, start, end - start + 1).await {
+            ensure!(
+                response
+                    .headers()
+                    .get(header::CONTENT_RANGE)
+                    .and_then(|h| h.to_str().ok())
+                    == Some(expected.as_str()),
+                "incorrect Content-Range"
+            );
+            match self
+                .write_body(response, path, start, end - start + 1)
+                .await
+            {
                 Err(error) if error.is::<BodyInterrupted>() && attempt < self.config.retries => {
                     tokio::time::sleep(self.backoff(attempt)).await;
                     attempt += 1;
@@ -198,18 +327,30 @@ impl Downloader {
         }
     }
 
-    async fn write_body(&self, mut response: Response, path: &Path, offset: u64, expected: u64) -> Result<()> {
-        if let Some(length) = response.content_length() { ensure!(length == expected, "incorrect Content-Length"); }
+    async fn write_body(
+        &self,
+        mut response: Response,
+        path: &Path,
+        offset: u64,
+        expected: u64,
+    ) -> Result<()> {
+        if let Some(length) = response.content_length() {
+            ensure!(length == expected, "incorrect Content-Length");
+        }
         let mut output = OpenOptions::new().write(true).open(path).await?;
         output.seek(std::io::SeekFrom::Start(offset)).await?;
         let mut written = 0u64;
         while let Some(bytes) = response.chunk().await.map_err(|_| BodyInterrupted)? {
-            if bytes.len() as u64 > expected - written { bail!("oversized archive response"); }
+            if bytes.len() as u64 > expected - written {
+                bail!("oversized archive response");
+            }
             self.pool.account(bytes.len()).await;
             output.write_all(&bytes).await?;
             written += bytes.len() as u64;
         }
-        if written != expected { return Err(BodyInterrupted.into()); }
+        if written != expected {
+            return Err(BodyInterrupted.into());
+        }
         output.flush().await?;
         Ok(())
     }
@@ -218,11 +359,21 @@ impl Downloader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::{net::TcpListener, io::{AsyncReadExt, AsyncWriteExt}};
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     // A real local HTTP peer checks actual Range requests and response parsing.
-    async fn server(mode: &'static str) -> (String, Arc<AtomicUsize>, Arc<AtomicUsize>, tokio::task::JoinHandle<()>) {
+    async fn server(
+        mode: &'static str,
+    ) -> (
+        String,
+        Arc<AtomicUsize>,
+        Arc<AtomicUsize>,
+        tokio::task::JoinHandle<()>,
+    ) {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let requests = Arc::new(AtomicUsize::new(0));
@@ -298,20 +449,44 @@ mod tests {
         let (url, requests, peak, server) = server(mode).await;
         let directory = tempfile::tempdir().unwrap();
         let destination = directory.path().join("archive");
-        let config = DownloadConfig { chunk_bytes: 4, initial_backoff: Duration::from_millis(1), ..Default::default() };
+        let config = DownloadConfig {
+            chunk_bytes: 4,
+            initial_backoff: Duration::from_millis(1),
+            ..Default::default()
+        };
         let downloader = Downloader::new(WorkerPool::new(2, 1_000_000).unwrap(), config).unwrap();
-        let checksum = if checksum_valid { hex::encode(Sha256::digest(b"abcdefghijklmnop")) } else { "00".repeat(32) };
-        let result = tokio::time::timeout(Duration::from_secs(10),
-            downloader.download(Archive { url, destination: destination.clone(), sha256: checksum }))
-            .await.expect("download timed out");
+        let checksum = if checksum_valid {
+            hex::encode(Sha256::digest(b"abcdefghijklmnop"))
+        } else {
+            "00".repeat(32)
+        };
+        let result = tokio::time::timeout(
+            Duration::from_secs(10),
+            downloader.download(Archive {
+                url,
+                destination: destination.clone(),
+                sha256: checksum,
+            }),
+        )
+        .await
+        .expect("download timed out");
         let success = result.is_ok();
         if success {
             assert_eq!(fs::read(&destination).await.unwrap(), b"abcdefghijklmnop");
-            if mode == "overlap" { assert_eq!(peak.load(Ordering::SeqCst), 2, "requests overlap up to the configured bound"); }
+            if mode == "overlap" {
+                assert_eq!(
+                    peak.load(Ordering::SeqCst),
+                    2,
+                    "requests overlap up to the configured bound"
+                );
+            }
         }
         let published = destination.exists();
         server.abort();
-        assert!(server.await.unwrap_err().is_cancelled(), "HTTP test server panicked");
+        assert!(
+            server.await.unwrap_err().is_cancelled(),
+            "HTTP test server panicked"
+        );
         (success, requests.load(Ordering::SeqCst), published)
     }
 
@@ -363,7 +538,8 @@ mod tests {
 
     #[test]
     fn caps_exponential_backoff() {
-        let downloader = Downloader::new(WorkerPool::new(1, 1).unwrap(), DownloadConfig::default()).unwrap();
+        let downloader =
+            Downloader::new(WorkerPool::new(1, 1).unwrap(), DownloadConfig::default()).unwrap();
         assert_eq!(downloader.backoff(0), Duration::from_millis(250));
         assert_eq!(downloader.backoff(1), Duration::from_millis(500));
         assert_eq!(downloader.backoff(100), Duration::from_secs(8));

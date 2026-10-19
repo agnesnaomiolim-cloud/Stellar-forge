@@ -10,6 +10,7 @@ ignore: |
   bundle/**
   .kiro/**
   charts/**/templates/**
+  examples/**/templates/**
   charts/**/charts/**
   **/node_modules/**
 

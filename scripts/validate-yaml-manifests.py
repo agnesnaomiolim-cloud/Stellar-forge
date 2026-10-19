@@ -452,9 +452,9 @@ class Config:
 
 def _relative(path: Path) -> str:
     try:
-        return str(path.resolve().relative_to(REPO_ROOT))
+        return path.resolve().relative_to(REPO_ROOT).as_posix()
     except ValueError:
-        return str(path)
+        return path.as_posix()
 
 
 def discover(targets: Sequence[str], config: Config) -> list[Path]:
@@ -473,7 +473,7 @@ def discover(targets: Sequence[str], config: Config) -> list[Path]:
         for path in candidates:
             if path.suffix not in (".yaml", ".yml"):
                 continue
-            if {".git", "target", "node_modules"} & set(path.parts):
+            if {".git", ".tools", "target", "node_modules"} & set(path.parts):
                 continue
             if config.is_excluded(_relative(path)):
                 continue

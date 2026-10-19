@@ -67,7 +67,8 @@ jobs:
             the two.
 
             **Commit:** ${{ github.sha }}
+            See [Helm template drift detection][helm-drift].
 
-            See [Helm template drift detection](https://github.com/${{ github.repository }}/blob/main/docs/development/static-analysis-gates.md#helm-template-drift-detection-1045-enhanced-1395)
+            [helm-drift]: https://github.com/${{github.repository}}/blob/main/docs/development/static-analysis-gates.md#helm-template-drift-detection-1045-enhanced-1395
             for how to tell intentional changes from unintentional ones, and
             how to regenerate goldens if the change is expected.

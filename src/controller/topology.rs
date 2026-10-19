@@ -1,9 +1,32 @@
+// Copyright 2024 Stellar-K8s Contributors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //! Dynamic zone-awareness for anti-affinity/topology-spread decisions.
 //!
 //! Downgrades a requested "Hard" (strict) anti-affinity strength to "Soft"
 //! (preferred) when the cluster does not have enough distinct zones to
 //! satisfy strict topology spread across sibling StellarNode pods — e.g.
 //! single-node Kind/Minikube dev clusters.
+
+pub mod enforcer;
+pub mod rules;
+
+pub use enforcer::{
+    build_statefulset_patch, discover_cluster_topology, enforce_namespace, enforce_on_statefulset,
+    EnforcementResult,
+};
+pub use rules::{
+    ClusterTopology, TopologyMode, TopologyRuleSet, TopologySpreadConstraint, WhenUnsatisfiable,
+};
 
 use std::collections::HashSet;
 

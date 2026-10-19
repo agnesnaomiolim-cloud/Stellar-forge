@@ -26,6 +26,13 @@ help: ## Show this help
 preflight: ## Verify required tools and pinned minimum versions
 	@bash scripts/preflight.sh
 
+.PHONY: third-party-licenses check-third-party-licenses
+third-party-licenses: ## Regenerate dependency license references
+	@python3 scripts/generate-third-party-licenses.py
+
+check-third-party-licenses: ## Verify dependency license references
+	@python3 scripts/generate-third-party-licenses.py --check
+
 fmt: ## Format code
 	$(CARGO) fmt --all
 

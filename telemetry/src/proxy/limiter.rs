@@ -243,9 +243,7 @@ impl RateLimiter {
         CacheStats {
             cached_families: inner.family_cache.len(),
             has_full_response: inner.last_full_response.is_some(),
-            last_scrape_age_ms: inner
-                .last_scrape_at
-                .map(|t| t.elapsed().as_millis() as u64),
+            last_scrape_age_ms: inner.last_scrape_at.map(|t| t.elapsed().as_millis() as u64),
         }
     }
 
@@ -408,9 +406,7 @@ fn type_family_name(line: &str) -> Option<&str> {
 fn compile_cache_rules(rules: &[CacheRule]) -> Result<Vec<CompiledCacheRule>, regex::Error> {
     rules
         .iter()
-        .map(|r| {
-            Regex::new(&r.pattern).map(|re| CompiledCacheRule { re, ttl: r.ttl() })
-        })
+        .map(|r| Regex::new(&r.pattern).map(|re| CompiledCacheRule { re, ttl: r.ttl() }))
         .collect()
 }
 
@@ -425,7 +421,11 @@ mod tests {
     use std::time::Duration;
     use tokio::time::sleep;
 
-    fn make_limiter(min_interval_ms: u64, cache_rules: Vec<CacheRule>, hf: Vec<&str>) -> RateLimiter {
+    fn make_limiter(
+        min_interval_ms: u64,
+        cache_rules: Vec<CacheRule>,
+        hf: Vec<&str>,
+    ) -> RateLimiter {
         let cfg = ProxyConfig {
             min_scrape_interval_ms: min_interval_ms,
             cache_rules,

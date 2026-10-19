@@ -14,6 +14,14 @@ inputs:
     description: Rust toolchain version
     required: false
     default: "stable"
+  targets:
+    description: Additional Rust compilation targets
+    required: false
+    default: ""
+  workspaces:
+    description: Cargo workspace paths to cache (including standalone workspaces)
+    required: false
+    default: "."
   extra-tools:
     description: >
       Space-separated cargo subcommand crates to install (e.g. "cargo-audit
@@ -31,7 +39,7 @@ runs:
       with:
         toolchain: ${{ inputs.toolchain }}
         components: ${{ inputs.components }}
-
+        targets: ${{ inputs.targets }}
     - name: Install system dependencies
       shell: bash
       run: |
@@ -47,6 +55,7 @@ runs:
       uses: Swatinem/rust-cache@v2
       with:
         shared-key: ${{ inputs.cache-key }}
+        workspaces: ${{ inputs.workspaces }}
         # Cache ~/.cargo/bin so cargo-installed tools (cargo-audit, tarpaulin,
         # cargo-watch) are restored across runs without reinstalling.
         cache-directories: |
@@ -55,9 +64,12 @@ runs:
     - name: Install extra cargo tools
       if: inputs.extra-tools != ''
       shell: bash
+      env:
+        EXTRA_TOOLS: ${{ inputs.extra-tools }}
       run: |
         set -euo pipefail
-        for tool in ${{ inputs.extra-tools }}; do
+        read -r -a tools <<< "$EXTRA_TOOLS"
+        for tool in "${tools[@]}"; do
           if command -v "$tool" >/dev/null 2>&1; then
             echo "✓ $tool already on PATH (cache hit), skipping install"
             continue
@@ -69,8 +81,10 @@ runs:
               installed=true
               break
             fi
-            echo "Attempt $i failed, retrying..."
-            sleep 5
+            if [[ "$i" -lt 3 ]]; then
+              echo "Attempt $i failed, retrying..."
+              sleep "$((5 * i))"
+            fi
           done
           if [[ "$installed" != "true" ]]; then
             echo "::error::Failed to install $tool after 3 attempts"

@@ -98,13 +98,25 @@ def main() -> None:
     # Recursively sort all mapping keys and emit.
     sorted_docs = [_sort_keys_recursive(d) for d in docs]
 
+    class ManifestDumper(yaml.SafeDumper):
+        """Keep embedded configs readable and wrap descriptions for YAML lint."""
+
+    def represent_string(dumper, value):
+        return dumper.represent_scalar(
+            "tag:yaml.org,2002:str", value,
+            style="|" if "\n" in value.rstrip("\n")
+            else ">" if len(value) > 70 and " " in value else None,
+        )
+
+    ManifestDumper.add_representer(str, represent_string)
     output = yaml.dump_all(
         sorted_docs,
+        Dumper=ManifestDumper,
         default_flow_style=False,
         allow_unicode=True,
         sort_keys=True,   # belt-and-suspenders: also sorts at the YAML emitter level
         explicit_start=True,
-        width=10**9,      # avoid spurious wrapping diffs vs committed manifests
+        width=70,
     )
     sys.stdout.write(output)
 

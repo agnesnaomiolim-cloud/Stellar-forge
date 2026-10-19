@@ -1,21 +1,7 @@
+null
+---
 # Copyright 2024 Stellar-K8s Contributors
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
----
-# Kyverno ClusterPolicy Suite for Stellar-K8s
-# These policies enforce operational and security best practices for StellarNode resources
-# Install with: kubectl apply -f policy/kyverno-policies.yaml
-
----
+# SPDX-License-Identifier: Apache-2.0
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -30,7 +16,8 @@ spec:
           kinds:
             - StellarNode
       validate:
-        message: "Using 'latest' tag for container images is not allowed. Specify an explicit version tag."
+        message: "Using 'latest' tag for container images is not allowed. Specify an explicit version
+          tag."
         pattern:
           spec:
             version: "!latest"
@@ -50,7 +37,8 @@ spec:
           kinds:
             - StellarNode
       validate:
-        message: "StellarNode resources must have required organizational labels: cost-center, owner, and environment"
+        message: "StellarNode resources must have required organizational labels: cost-center, owner,
+          and environment"
         pattern:
           metadata:
             labels:
@@ -73,7 +61,8 @@ spec:
           kinds:
             - StellarNode
       validate:
-        message: "Validator nodes must not use ephemeral emptyDir storage. Configure persistent storage with a storageClass."
+        message: "Validator nodes must not use ephemeral emptyDir storage. Configure persistent storage
+          with a storageClass."
         pattern:
           spec:
             nodeType: "Validator"
@@ -141,7 +130,8 @@ spec:
           kinds:
             - StellarNode
       validate:
-        message: "StellarNode resources must explicitly specify the target network (Mainnet, Testnet, Futurenet, or Custom)"
+        message: "StellarNode resources must explicitly specify the target network (Mainnet, Testnet,
+          Futurenet, or Custom)"
         pattern:
           spec:
             network: "?*"
@@ -230,7 +220,6 @@ spec:
             containers:
               - securityContext:
                   privileged: false
-
 ---
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
@@ -254,7 +243,6 @@ spec:
           spec:
             securityContext:
               runAsNonRoot: true
-
 ---
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
@@ -270,7 +258,8 @@ spec:
           kinds:
             - StellarNode
       validate:
-        message: "StellarNode resources should define minAvailable or maxUnavailable for pod disruption budgets"
+        message: "StellarNode resources should define minAvailable or maxUnavailable for pod disruption
+          budgets"
         pattern:
           spec:
             "|(min_available | max_unavailable)": "?*"

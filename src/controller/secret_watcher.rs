@@ -431,8 +431,14 @@ mod tests {
     #[test]
     fn expiration_warning_detected_when_secret_expires_soon() {
         let expiry = (chrono::Utc::now() + chrono::Duration::hours(12)).to_rfc3339();
-        assert!(secret_expires_soon(Some(&expiry), chrono::Duration::days(1)));
-        assert!(!secret_expires_soon(Some(&(chrono::Utc::now() + chrono::Duration::days(2)).to_rfc3339()), chrono::Duration::days(1)));
+        assert!(secret_expires_soon(
+            Some(&expiry),
+            chrono::Duration::days(1)
+        ));
+        assert!(!secret_expires_soon(
+            Some(&(chrono::Utc::now() + chrono::Duration::days(2)).to_rfc3339()),
+            chrono::Duration::days(1)
+        ));
     }
 
     #[test]

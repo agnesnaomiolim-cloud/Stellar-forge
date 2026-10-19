@@ -1,4 +1,16 @@
 // Copyright 2024 Stellar-K8s Contributors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// Copyright 2024 Stellar-K8s Contributors
 // Licensed under the Apache License, Version 2.0 (the "License")
 //! Finalizer handling and cleanup recovery for StellarNode resources.
 //!
@@ -99,14 +111,17 @@ pub fn is_being_deleted(node: &StellarNode) -> bool {
 
 /// Returns `true` when the node carries our finalizer.
 pub fn has_finalizer(node: &StellarNode) -> bool {
-    node.finalizers().iter().any(|f| f == STELLAR_NODE_FINALIZER)
+    node.finalizers()
+        .iter()
+        .any(|f| f == STELLAR_NODE_FINALIZER)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::crd::{
-        NodeType, ResourceRequirements, ResourceSpec, StellarNetwork, StellarNodeSpec, StorageConfig,
+        NodeType, ResourceRequirements, ResourceSpec, StellarNetwork, StellarNodeSpec,
+        StorageConfig,
     };
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
     use kube::api::ObjectMeta;
@@ -117,8 +132,14 @@ mod tests {
             network: StellarNetwork::Testnet,
             version: "v21.0.0".to_string(),
             resources: ResourceRequirements {
-                requests: ResourceSpec { cpu: "500m".to_string(), memory: "1Gi".to_string() },
-                limits:   ResourceSpec { cpu: "2".to_string(),    memory: "4Gi".to_string() },
+                requests: ResourceSpec {
+                    cpu: "500m".to_string(),
+                    memory: "1Gi".to_string(),
+                },
+                limits: ResourceSpec {
+                    cpu: "2".to_string(),
+                    memory: "4Gi".to_string(),
+                },
             },
             storage: StorageConfig {
                 storage_class: "standard".to_string(),

@@ -26,10 +26,10 @@ on:
       bump_override:
         description: "Override bump type (major | minor | patch). Leave empty for auto-detect."
         required: false
-        default: ""
+        default: auto
         type: choice
         options:
-          - ""
+          - auto
           - major
           - minor
           - patch
@@ -75,6 +75,7 @@ jobs:
         env:
           BUMP_OVERRIDE: ${{ github.event.inputs.bump_override }}
         run: |
+          if [[ "$BUMP_OVERRIDE" == "auto" ]]; then BUMP_OVERRIDE=""; fi
           bash scripts/bump-chart-version.sh \
             --chart-path "${{ env.CHART_PATH }}" \
             --output-env \
@@ -91,7 +92,9 @@ jobs:
           echo "### Helm Chart Release Decision" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           if [ "${{ needs.version-bump.outputs.has_changes }}" != "true" ]; then
-            echo "⏭️ **Skipped** — no releasable commits since last chart tag \`${{ needs.version-bump.outputs.chart_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+            echo \
+              "⏭️ **Skipped** — no releasable commits since \`${{ needs.version-bump.outputs.chart_tag }}\`" \
+              >> "$GITHUB_STEP_SUMMARY"
           else
             echo "✅ **Proceeding** with \`${{ needs.version-bump.outputs.bump_type }}\` bump" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
@@ -282,5 +285,7 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "**Install:**" >> "$GITHUB_STEP_SUMMARY"
           echo "\`\`\`bash" >> "$GITHUB_STEP_SUMMARY"
-          echo "helm install stellar-operator oci://${{ env.OCI_REPO }}/${{ env.CHART_NAME }} --version ${NEW_VERSION}" >> "$GITHUB_STEP_SUMMARY"
+          echo \
+            "helm install stellar-operator oci://${{ env.OCI_REPO }}/${{ env.CHART_NAME }} --version ${NEW_VERSION}" \
+            >> "$GITHUB_STEP_SUMMARY"
           echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"

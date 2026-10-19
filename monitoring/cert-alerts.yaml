@@ -36,10 +36,10 @@ data:
         annotations:
           summary: "Certificate expiring soon"
           description: |
-            Certificate {{ $labels.name }} in namespace {{ $labels.namespace }} 
+            Certificate {{ $labels.name }} in namespace {{ $labels.namespace }}
             expires in {{ $value | humanizeDuration }}.
           runbook_url: "https://docs.stellar.org/runbooks/cert-expiry"
-      
+
       # Certificate expiring in 7 days
       - alert: CertificateExpiringCritical
         expr: |
@@ -50,10 +50,10 @@ data:
         annotations:
           summary: "Certificate expiring critically soon"
           description: |
-            Certificate {{ $labels.name }} in namespace {{ $labels.namespace }} 
+            Certificate {{ $labels.name }} in namespace {{ $labels.namespace }}
             expires in {{ $value | humanizeDuration }}. Immediate action required.
           runbook_url: "https://docs.stellar.org/runbooks/cert-expiry-critical"
-      
+
       # Certificate expired
       - alert: CertificateExpired
         expr: |
@@ -64,10 +64,10 @@ data:
         annotations:
           summary: "Certificate has expired"
           description: |
-            Certificate {{ $labels.name }} in namespace {{ $labels.namespace }} 
+            Certificate {{ $labels.name }} in namespace {{ $labels.namespace }}
             has expired. Service may be unavailable.
           runbook_url: "https://docs.stellar.org/runbooks/cert-expired"
-      
+
       # Certificate renewal failed
       - alert: CertificateRenewalFailed
         expr: |
@@ -78,10 +78,10 @@ data:
         annotations:
           summary: "Certificate renewal failed"
           description: |
-            Certificate {{ $labels.name }} in namespace {{ $labels.namespace }} 
+            Certificate {{ $labels.name }} in namespace {{ $labels.namespace }}
             has failed to renew. Check cert-manager logs.
           runbook_url: "https://docs.stellar.org/runbooks/cert-renewal-failed"
-      
+
       # Certificate not ready
       - alert: CertificateNotReady
         expr: |
@@ -92,9 +92,9 @@ data:
         annotations:
           summary: "Certificate not ready"
           description: |
-            Certificate {{ $labels.name }} in namespace {{ $labels.namespace }} 
+            Certificate {{ $labels.name }} in namespace {{ $labels.namespace }}
             is not ready. This may affect TLS termination.
-      
+
       # ACME account registration failed
       - alert: ACMEAccountRegistrationFailed
         expr: |
@@ -106,7 +106,7 @@ data:
           summary: "ACME account registration failed"
           description: |
             Failed to register ACME account. Certificate issuance may be affected.
-      
+
       # Certificate count by issuer
       - alert: HighCertificateCount
         expr: |

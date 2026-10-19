@@ -107,8 +107,10 @@ jobs:
           echo "examples=$(_match \
             '^(examples/|config/crd/|config/samples/)')" \
             >> "$GITHUB_OUTPUT"
-          echo "yaml_schema=$(_match \
-            '^(\.yamllint\.yml|schemas/|config/crd/|config/yaml-validation\.yaml|charts/|examples/|scripts/ci/validate-yaml\.sh|scripts/ci/extract-crd-json-schemas\.py|scripts/validate-yaml-manifests\.py)')" \
+          yaml_pattern='^(\.yamllint\.yml|schemas/|config/crd/|config/yaml-validation\.yaml|charts/|examples/'
+          yaml_pattern+='|scripts/ci/validate-yaml\.sh|scripts/ci/extract-crd-json-schemas\.py'
+          yaml_pattern+='|scripts/validate-yaml-manifests\.py)'
+          echo "yaml_schema=$(_match "$yaml_pattern")" \
             >> "$GITHUB_OUTPUT"
           echo "db_migrations=$(_match \
             '^(db/|src/db_migrations\.rs|tests/db_migration_harness\.rs|scripts/ci/test-db-migrations\.sh)')" \
@@ -201,7 +203,8 @@ jobs:
       - name: Setup Kubeconform
         run: |
           KUBECONFORM_VERSION="v0.6.4"
-          wget -qO- https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz | tar -xz
+          release_host=https://github.com/yannh/kubeconform/releases/download
+          wget -qO- ${release_host}/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz | tar -xz
           sudo mv kubeconform /usr/local/bin/
 
       - name: Validate Config Samples
@@ -281,7 +284,9 @@ jobs:
         run: python3 scripts/check-shell-safety.py
 
       - name: Run shell safety gate unit tests
-        run: python3 -m unittest scripts.tests.test_check_shell_safety
+        run: >-
+          python3 -m unittest scripts.tests.test_check_shell_safety
+          scripts.tests.test_check_license_headers scripts.tests.test_check_secrets
 
       - name: Check formatting
         if: needs.changes.outputs.rust_core == 'true'
@@ -304,7 +309,9 @@ jobs:
         run: |
           set -euo pipefail
           echo "→ Running cargo doc with RUSTDOCFLAGS=-D warnings..."
-          RUSTDOCFLAGS="-D warnings -A rustdoc::bare_urls -A rustdoc::broken_intra_doc_links -A rustdoc::private_intra_doc_links" K8S_OPENAPI_ENABLED_VERSION=1.30 \
+          RUSTDOCFLAGS="-D warnings -A rustdoc::bare_urls"
+          RUSTDOCFLAGS+=" -A rustdoc::broken_intra_doc_links -A rustdoc::private_intra_doc_links"
+          RUSTDOCFLAGS="$RUSTDOCFLAGS" K8S_OPENAPI_ENABLED_VERSION=1.30 \
             cargo doc \
               --no-deps \
               --workspace \
@@ -578,8 +585,8 @@ jobs:
           helm template stellar-operator charts/stellar-operator \
             --set resources.limits.cpu=2 \
             --set resources.limits.memory=2Gi > /tmp/rendered-custom-resources.yaml
-          test -s /tmp/rendered-custom-resources.yaml && echo "Template with custom resources rendered successfully" || exit 1
-
+          test -s /tmp/rendered-custom-resources.yaml && \
+            echo "Template with custom resources rendered successfully" || exit 1
       - name: Chart dependencies validation
         run: |
           test -f charts/stellar-operator/Chart.yaml || exit 1
@@ -635,7 +642,8 @@ jobs:
       - name: Install kubeconform
         run: |
           KUBECONFORM_VERSION="v0.6.4"
-          wget -qO- https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz | tar -xz
+          release_host=https://github.com/yannh/kubeconform/releases/download
+          wget -qO- ${release_host}/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz | tar -xz
           sudo mv kubeconform /usr/local/bin/
           kubeconform -v
 
@@ -1090,11 +1098,11 @@ jobs:
         run: |
           docker run --rm ${{ env.REGISTRY }}/${{ steps.setup-docker.outputs.image-name }}:sha-${{ github.sha }} version
           echo "✓ stellar-operator boots"
-
-          docker run --rm --entrypoint /stellar-fork-detector ${{ env.REGISTRY }}/${{ steps.setup-docker.outputs.image-name }}:sha-${{ github.sha }} --help
+          docker run --rm --entrypoint /stellar-fork-detector \
+            ${{ env.REGISTRY }}/${{ steps.setup-docker.outputs.image-name }}:sha-${{ github.sha }} --help
           echo "✓ stellar-fork-detector boots"
-
-          docker run --rm --entrypoint /stellar-watcher ${{ env.REGISTRY }}/${{ steps.setup-docker.outputs.image-name }}:sha-${{ github.sha }} --help
+          docker run --rm --entrypoint /stellar-watcher \
+            ${{ env.REGISTRY }}/${{ steps.setup-docker.outputs.image-name }}:sha-${{ github.sha }} --help
           echo "✓ stellar-watcher boots"
 
       - name: Security Scan
