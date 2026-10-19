@@ -156,8 +156,11 @@ md5 = "0.8.0"
 # tar archive extraction for snapshot bootstrapping (#119)
 tar = "0.4"
 
+# libc for process signals
+libc = "0.2"
+
 # Terminal UI for kubectl-stellar validator diagnostics
-color-eye = "0.3"
+# color-eye = "0.3"  # unavailable; unused
 
 [server-dependencies]
 chrono = "0.4"
@@ -238,3 +241,9 @@ path = "src/bin/stellar-metrics-proxy.rs"
 
 [workspace]
 members = ["wasm-plugins", "telemetry", "security/p2p-firewall"]
+
+[build-dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+walkdir = "2"
+chrono = "0.4"

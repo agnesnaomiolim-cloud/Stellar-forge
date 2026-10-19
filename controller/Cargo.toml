@@ -29,6 +29,9 @@ base64 = "0.21"
 anyhow = "1"
 thiserror = "1"
 
+# libc for process signals
+libc = "0.2"
+
 # Logging
 tracing = "0.1"
 
