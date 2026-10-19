@@ -1,3 +1,15 @@
+// Copyright 2024 Stellar-K8s Contributors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //! Multi-Cluster Snapshot Synchronization Reconciler.
 //!
 //! Automates the full lifecycle of bringing a secondary cluster node up from a
@@ -32,7 +44,7 @@
 //!
 //! # Constraints
 //!
-//! - All downloads stream directly to disk (`tokio::io::copy`); no in-memory
+//! - All downloads stream ranges directly to disk; no in-memory
 //!   buffering of the archive body.
 //! - SHA-256 verification is mandatory; extraction is skipped on mismatch.
 //! - Extraction is atomic: performed into a `.tmp` directory, then renamed.
@@ -47,7 +59,6 @@ use flate2::read::GzDecoder;
 use serde::{Deserialize, Serialize};
 use tar::Archive as TarArchive;
 use tokio::fs;
-use tokio::io::AsyncWriteExt;
 use tracing::{debug, error, info, instrument, warn};
 
 use super::verifier::{parse_sha256_sidecar, verify_file};
@@ -159,9 +170,10 @@ impl SnapshotReconciler {
     /// `AWS_*` env vars, or `~/.aws/credentials`).
     pub async fn new(config: SnapshotReconcilerConfig) -> Result<Self> {
         let sdk_config = aws_config::from_env()
-            .region(aws_config::meta::region::RegionProviderChain::default_provider().or_else(
-                config.aws_region.as_str(),
-            ))
+            .region(
+                aws_config::meta::region::RegionProviderChain::default_provider()
+                    .or_else(config.aws_region.as_str()),
+            )
             .load()
             .await;
         let s3 = S3Client::new(&sdk_config);
@@ -206,8 +218,9 @@ impl SnapshotReconciler {
             "Discovered latest snapshot"
         );
 
-        // Step 2 — download
-        let archive_path = self.download_archive(&snapshot_ref).await?;
+        // Resolve a trusted digest before downloading; publication requires verification.
+        let expected_hex = self.resolve_checksum(&snapshot_ref).await?;
+        let archive_path = self.download_archive(&snapshot_ref, &expected_hex).await?;
         let downloaded_bytes = fs::metadata(&archive_path).await?.len();
         info!(
             path = %archive_path.display(),
@@ -215,18 +228,18 @@ impl SnapshotReconciler {
             "Download complete"
         );
 
-        // Step 3 — resolve checksum
-        let expected_hex = self.resolve_checksum(&snapshot_ref).await?;
-
         // Step 4 — verify
-        let vr = verify_file(&archive_path, &expected_hex).await?;
+        let vr = verify_file(&archive_path, &expected_hex)
+            .await?
+            .into_result()?;
         info!(
             result = %vr,
             "SHA-256 verification passed"
         );
 
         // Step 5 — extract
-        self.extract_archive(&archive_path, &self.config.data_dir).await?;
+        self.extract_archive(&archive_path, &self.config.data_dir)
+            .await?;
         info!(
             data_dir = %self.config.data_dir.display(),
             "Archive extracted"
@@ -302,14 +315,11 @@ impl SnapshotReconciler {
 
         // Attempt to extract ledger sequence from key name
         // Convention: `<prefix>/stellar-<network>-<ledger>.tar.gz`
-        let ledger_sequence = key
-            .rsplit('/')
-            .next()
-            .and_then(|name| {
-                name.strip_suffix(".tar.gz")
-                    .and_then(|s| s.rsplit('-').next())
-                    .and_then(|seq| seq.parse::<u64>().ok())
-            });
+        let ledger_sequence = key.rsplit('/').next().and_then(|name| {
+            name.strip_suffix(".tar.gz")
+                .and_then(|s| s.rsplit('-').next())
+                .and_then(|seq| seq.parse::<u64>().ok())
+        });
 
         debug!(key = %key, ledger = ?ledger_sequence, "resolved snapshot");
 
@@ -318,73 +328,42 @@ impl SnapshotReconciler {
             key,
             expected_sha256: None,
             size_bytes,
-            created_at: latest
-                .last_modified
-                .as_ref()
-                .map(|t| t.to_string()),
+            created_at: latest.last_modified.as_ref().map(|t| t.to_string()),
             ledger_sequence,
         })
     }
 
-    /// Download the archive to `staging_dir/<filename>` using streaming I/O.
-    ///
-    /// Uses [`aws_sdk_s3`]'s `GetObject` which returns a byte stream that is
-    /// piped directly to disk without buffering the full body in memory.
-    #[instrument(skip(self, snap), fields(key = %snap.key))]
-    async fn download_archive(&self, snap: &SnapshotRef) -> Result<PathBuf> {
-        fs::create_dir_all(&self.config.staging_dir).await?;
+    /// Fetch and verify ranges using the process-wide worker and egress budget.
+    #[instrument(skip(self, snap, expected_sha256), fields(key = %snap.key))]
+    async fn download_archive(&self, snap: &SnapshotRef, expected_sha256: &str) -> Result<PathBuf> {
+        use crate::catchup::{Archive, DownloadConfig, Downloader, WorkerPool};
+        use aws_sdk_s3::presigning::PresigningConfig;
 
-        let filename = snap
-            .key
-            .rsplit('/')
-            .next()
-            .unwrap_or("snapshot.tar.gz")
-            .to_string();
-        let dest = self.config.staging_dir.join(&filename);
-
-        info!(
-            src = %snap.display_name(),
-            dest = %dest.display(),
-            "Streaming snapshot download"
-        );
-
-        let resp = self
+        let filename = snapshot_staging_filename(&snap.bucket, &snap.key);
+        let dest = self.config.staging_dir.join(filename);
+        // A GET signature allows ranges without exposing permanent cloud credentials.
+        let signing = PresigningConfig::expires_in(Duration::from_secs(7 * 24 * 60 * 60))
+            .map_err(|_| Error::ConfigError("Invalid presigning duration".into()))?;
+        let signed = self
             .s3
             .get_object()
             .bucket(&snap.bucket)
             .key(&snap.key)
-            .send()
+            .presigned(signing)
             .await
-            .map_err(|e| {
-                Error::ConfigError(format!(
-                    "S3 GetObject failed for {}: {e}",
-                    snap.display_name()
-                ))
-            })?;
-
-        let mut outfile = fs::File::create(&dest).await?;
-        let mut stream = resp.body;
-        let mut total: u64 = 0;
-        let log_interval: u64 = 100 * 1024 * 1024; // log every 100 MiB
-
-        while let Some(chunk) = stream
-            .try_next()
+            .map_err(|_| Error::ConfigError("Unable to presign snapshot download".into()))?;
+        let pool = WorkerPool::shared_from_env().map_err(|e| Error::ConfigError(e.to_string()))?;
+        let downloader = Downloader::new(pool, DownloadConfig::default())
+            .map_err(|e| Error::ConfigError(e.to_string()))?;
+        downloader
+            .download(Archive {
+                url: signed.uri().to_string(),
+                destination: dest,
+                sha256: expected_sha256.to_owned(),
+            })
             .await
-            .map_err(|e| Error::ConfigError(format!("S3 streaming error: {e}")))?
-        {
-            outfile.write_all(&chunk).await?;
-            total += chunk.len() as u64;
-            if total % log_interval < chunk.len() as u64 {
-                debug!(bytes = total, "download progress");
-            }
-        }
-        outfile.flush().await?;
-        outfile.shutdown().await?;
-
-        info!(dest = %dest.display(), bytes = total, "download finished");
-        Ok(dest)
+            .map_err(|e| Error::ConfigError(format!("Snapshot download failed: {e}")))
     }
-
     /// Resolve the expected SHA-256 checksum for `snap`.
     ///
     /// Priority:
@@ -484,6 +463,18 @@ impl SnapshotReconciler {
     }
 }
 
+/// Object keys are opaque cloud identifiers, not safe local filenames. Hash
+/// both bucket and key so Windows separators, drive prefixes, ADS colons and
+/// reserved device names cannot escape or alias the configured staging folder.
+fn snapshot_staging_filename(bucket: &str, key: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut digest = Sha256::new();
+    digest.update(bucket.as_bytes());
+    digest.update([0]);
+    digest.update(key.as_bytes());
+    format!("snapshot-{}.tar.gz", hex::encode(digest.finalize()))
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Blocking extraction helper (runs inside spawn_blocking)
 // ──────────────────────────────────────────────────────────────────────────────
@@ -491,15 +482,13 @@ impl SnapshotReconciler {
 /// Decompress and extract a `.tar.gz` file into `dest_dir` using an atomic
 /// rename strategy to ensure `dest_dir` is never left partially extracted.
 fn extract_tar_gz(archive_path: &Path, dest_dir: &Path) -> Result<()> {
-    let tmp_dir = dest_dir.with_extension(
-        format!(
-            "tmp.{}",
-            archive_path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("snap")
-        )
-    );
+    let tmp_dir = dest_dir.with_extension(format!(
+        "tmp.{}",
+        archive_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("snap")
+    ));
 
     if tmp_dir.exists() {
         std::fs::remove_dir_all(&tmp_dir)?;
@@ -541,6 +530,34 @@ mod tests {
     use super::*;
     use std::io::Write;
     use tempfile::TempDir;
+
+    #[test]
+    fn cloud_keys_cannot_escape_or_alias_staging_paths() {
+        let directory = Path::new("staging");
+        for key in [
+            r"..\..\outside.tar.gz",
+            r"C:\outside.tar.gz",
+            "CON",
+            "name:stream",
+            "..",
+            "prefix/file.tar.gz",
+        ] {
+            let filename = snapshot_staging_filename("bucket", key);
+            assert!(filename.starts_with("snapshot-") && filename.ends_with(".tar.gz"));
+            assert_eq!(directory.join(&filename).parent(), Some(directory));
+            assert!(filename
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'.'));
+        }
+        assert_ne!(
+            snapshot_staging_filename("a", "prefix/file.tar.gz"),
+            snapshot_staging_filename("b", "prefix/file.tar.gz")
+        );
+        assert_ne!(
+            snapshot_staging_filename("a", "one/file.tar.gz"),
+            snapshot_staging_filename("a", "two/file.tar.gz")
+        );
+    }
 
     /// Build a minimal in-memory `.tar.gz` containing a single test file.
     fn make_test_tar_gz(filename: &str, content: &[u8]) -> Vec<u8> {

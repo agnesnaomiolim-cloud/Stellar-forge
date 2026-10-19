@@ -62,4 +62,5 @@ runs:
       if: success() && inputs.fail-on-severity != ''
       shell: bash
       run: |
-        echo "::notice title=Image scan::No ${{ inputs.fail-on-severity }} vulnerabilities with an available fix in ${{ inputs.image-ref }}"
+        printf "%s" "::notice title=Image scan::No ${{ inputs.fail-on-severity }} "
+        echo "vulnerabilities with an available fix in ${{ inputs.image-ref }}"

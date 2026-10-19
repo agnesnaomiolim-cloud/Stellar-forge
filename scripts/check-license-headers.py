@@ -17,6 +17,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
@@ -75,7 +76,7 @@ YAML_HEADER = """\
 
 # SPDX short-form header (acceptable alternative)
 SPDX_PATTERN = re.compile(
-    r"#.*SPDX-License-Identifier:\s*Apache-2\.0",
+    r"(?:#|//).*SPDX-License-Identifier:\s*Apache-2\.0",
     re.IGNORECASE,
 )
 
@@ -86,12 +87,15 @@ MAX_HEADER_LINES = 25
 EXCLUDED_PATHS = [
     # Generated files
     "target/",
+    ".git/",
+    ".tools/",
     "bundle/",
     "charts/stellar-operator/rendered/",
     # CRD files (auto-generated from Rust types via crdgen)
     "config/crd/",
     # Vendored / third-party
     "vendor/",
+    "node_modules/",
     # CI generated
     ".github/",
     # Pre-commit config itself
@@ -166,7 +170,8 @@ EXCLUDED_FILENAMES = [
 def should_exclude(path: Path) -> bool:
     """Determine if a file should be excluded from header checks."""
     rel = path.relative_to(REPO_ROOT)
-    rel_str = str(rel)
+    # Exclusion patterns use repository-relative POSIX paths on every host.
+    rel_str = rel.as_posix()
 
     # Check excluded filenames
     if path.name in EXCLUDED_FILENAMES:
@@ -204,7 +209,7 @@ def has_valid_header(path: Path, expected_header: str) -> tuple[bool, str]:
     Returns (is_valid, reason).
     """
     try:
-        content = path.read_text(encoding="utf-8")
+        content = path.read_text(encoding="utf-8-sig")
     except UnicodeDecodeError:
         return True, "binary file, skipping"
 
@@ -244,22 +249,17 @@ def has_valid_header(path: Path, expected_header: str) -> tuple[bool, str]:
 def fix_header(path: Path, expected_header: str) -> bool:
     """Add the expected license header to a file. Returns True if modified."""
     try:
-        content = path.read_text(encoding="utf-8")
+        content = path.read_text(encoding="utf-8-sig")
     except UnicodeDecodeError:
         return False
 
-    lines = content.splitlines()
-
-    # If file starts with a shebang, insert header after shebang
-    insert_at = 0
-    if lines and lines[0].startswith("#!"):
-        insert_at = 1
-
-    new_content = ""
-    if insert_at == 1 and len(lines) > 0:
-        new_content = lines[0] + "\n" + expected_header + "\n".join(lines[1:])
+    # Preserve the original body, including its final newline. Splitting and
+    # joining all lines used to silently remove the EOF newline from every fix.
+    if content.startswith("#!"):
+        shebang, _, body = content.partition("\n")
+        new_content = shebang + "\n" + expected_header + body
     else:
-        new_content = expected_header + "\n".join(lines)
+        new_content = expected_header + content
     path.write_text(new_content, encoding="utf-8")
     return True
 
@@ -268,9 +268,17 @@ def collect_files() -> list[Path]:
     """Collect all applicable files in the repository."""
     applicable = []
 
-    for pattern in ["**/*.rs", "**/*.sh", "**/*.yaml", "**/*.yml"]:
-        for path in REPO_ROOT.glob(pattern):
-            if path.is_file() and not should_exclude(path):
+    # Prune excluded trees before descending. Four recursive globs walked all
+    # vendored runtimes/build artifacts even though their files were discarded.
+    for directory, dirs, names in os.walk(REPO_ROOT):
+        base = Path(directory)
+        dirs[:] = [
+            name for name in dirs
+            if not should_exclude(base / name / "__license_probe.rs")
+        ]
+        for name in names:
+            path = base / name
+            if get_header_for_file(path) is not None and not should_exclude(path):
                 applicable.append(path)
 
     return sorted(applicable)

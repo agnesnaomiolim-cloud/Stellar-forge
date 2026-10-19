@@ -42,6 +42,10 @@ use kube::{
     Client,
 };
 use rand::{distributions::Alphanumeric, Rng};
+use rcgen::{
+    BasicConstraints, CertificateParams, DistinguishedName, DnType, ExtendedKeyUsagePurpose, IsCa,
+    KeyPair,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -49,13 +53,9 @@ use sqlx::postgres::PgPoolOptions;
 use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::time::Duration;
+use time::{Duration as TimeDuration, OffsetDateTime};
 use tokio::time::sleep;
 use tracing::{error, info, warn};
-use rcgen::{
-    BasicConstraints, CertificateParams, DistinguishedName, DnType, ExtendedKeyUsagePurpose,
-    IsCa, KeyPair,
-};
-use time::{Duration as TimeDuration, OffsetDateTime};
 
 /// Configuration for automated secret rotation
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema)]
@@ -389,10 +389,8 @@ impl MtlsRotationEngine {
 
             for pod in pod_list.items {
                 if let Some(pod_ip) = pod.status.as_ref().and_then(|s| s.pod_ip.as_ref()) {
-                    let endpoint = format!(
-                        "http://{}:{}/admin/reload",
-                        pod_ip, self.config.reload_port
-                    );
+                    let endpoint =
+                        format!("http://{}:{}/admin/reload", pod_ip, self.config.reload_port);
                     let payload = serde_json::json!({
                         "triggeredBy": "stellar-operator",
                         "version": Utc::now().timestamp()
@@ -864,9 +862,6 @@ mod tests {
         let Ok(client) = Client::try_default().await else {
             eprintln!("skipping test_password_generation: no Kubernetes client available");
             return;
-        let client = match Client::try_default().await {
-            Ok(c) => c,
-            Err(_) => return, // Skip test if no kubeconfig
         };
         let scheduler = SecretRotationScheduler::new(config.clone(), client);
 
@@ -881,9 +876,6 @@ mod tests {
         let Ok(client) = Client::try_default().await else {
             eprintln!("skipping test_password_hashing: no Kubernetes client available");
             return;
-        let client = match Client::try_default().await {
-            Ok(c) => c,
-            Err(_) => return, // Skip test if no kubeconfig
         };
         let scheduler = SecretRotationScheduler::new(config, client);
 
@@ -941,5 +933,4 @@ mod tests {
         assert_ne!(first.client_cert, second.client_cert);
         assert_ne!(first.client_key, second.client_key);
     }
-
 }

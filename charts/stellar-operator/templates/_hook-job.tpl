@@ -73,7 +73,8 @@ fi
 # Check namespace labels for network isolation
 {{- if .Values.networkIsolation.enabled }}
 echo "Checking namespace network labels..."
-NAMESPACE_LABEL=$(kubectl get namespace {{ .Release.Namespace }} -o jsonpath='{.metadata.labels.stellar\.org/network}' 2>/dev/null || echo "")
+NAMESPACE_LABEL=$(kubectl get namespace {{ .Release.Namespace }} \
+  -o jsonpath='{.metadata.labels.stellar\.org/network}' 2>/dev/null || echo "")
 if [ -z "$NAMESPACE_LABEL" ]; then
   echo "⚠ WARNING: Namespace {{ .Release.Namespace }} is not labeled with stellar.org/network"
   echo "  Network isolation is enabled but namespace is not labeled."
@@ -101,7 +102,8 @@ fi
 # Check storage classes for PVC support
 echo "Checking storage classes..."
 if kubectl get storageclass 2>/dev/null | grep -q "(default)"; then
-  DEFAULT_SC=$(kubectl get storageclass -o jsonpath='{.items[?(@.metadata.annotations.storageclass\.kubernetes\.io/is-default-class=="true")].metadata.name}')
+  DEFAULT_SC=$(kubectl get storageclass -o \
+    jsonpath='{.items[?(@.metadata.annotations.storageclass\.kubernetes\.io/is-default-class=="true")].metadata.name}')
   echo "✓ Default storage class found: $DEFAULT_SC"
 else
   echo "⚠ WARNING: No default storage class found. StellarNodes may fail to provision PVCs."
@@ -157,8 +159,10 @@ fi
 # Check operator deployment status
 echo "Checking current operator deployment..."
 if kubectl get deployment {{ include "stellar-operator.fullname" . }} -n {{ .Release.Namespace }} 2>/dev/null; then
-  READY_REPLICAS=$(kubectl get deployment {{ include "stellar-operator.fullname" . }} -n {{ .Release.Namespace }} -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
-  DESIRED_REPLICAS=$(kubectl get deployment {{ include "stellar-operator.fullname" . }} -n {{ .Release.Namespace }} -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "0")
+  READY_REPLICAS=$(kubectl get deployment {{ include "stellar-operator.fullname" . }} \
+    -n {{ .Release.Namespace }} -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+  DESIRED_REPLICAS=$(kubectl get deployment {{ include "stellar-operator.fullname" . }} \
+    -n {{ .Release.Namespace }} -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "0")
   echo "  Current replicas: $READY_REPLICAS/$DESIRED_REPLICAS"
 
   if [ "$READY_REPLICAS" != "$DESIRED_REPLICAS" ]; then
@@ -168,7 +172,8 @@ fi
 
 # Check for breaking changes in CRD schema
 echo "Validating CRD compatibility..."
-CURRENT_VERSION=$(kubectl get crd stellarnodes.stellar.org -o jsonpath='{.spec.versions[0].name}' 2>/dev/null || echo "unknown")
+CURRENT_VERSION=$(kubectl get crd stellarnodes.stellar.org \
+  -o jsonpath='{.spec.versions[0].name}' 2>/dev/null || echo "unknown")
 echo "  Current CRD version: $CURRENT_VERSION"
 
 # Validate that no nodes are in critical state
@@ -183,7 +188,8 @@ fi
 
 # Check for pending PVCs
 echo "Checking for pending PVCs..."
-PENDING_PVCS=$(kubectl get pvc --all-namespaces --field-selector=status.phase=Pending 2>/dev/null | grep stellar | wc -l || echo "0")
+PENDING_PVCS=$(kubectl get pvc --all-namespaces --field-selector=status.phase=Pending 2>/dev/null \
+  | grep stellar | wc -l || echo "0")
 if [ "$PENDING_PVCS" -gt 0 ]; then
   echo "⚠ WARNING: $PENDING_PVCS pending PVC(s) found"
 fi

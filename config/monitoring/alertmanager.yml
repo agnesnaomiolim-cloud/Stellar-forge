@@ -27,7 +27,7 @@ route:
         severity: critical
       receiver: 'critical'
       repeat_interval: 5m
-    
+
     # Warning alerts
     - match:
         severity: warning

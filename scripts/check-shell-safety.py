@@ -670,7 +670,7 @@ def discover(targets: Sequence[str], config: Config) -> list[Path]:
 
 def _relative(path: Path) -> str:
     try:
-        return str(path.resolve().relative_to(REPO_ROOT))
+        return path.resolve().relative_to(REPO_ROOT).as_posix()
     except ValueError:
         return str(path)
 

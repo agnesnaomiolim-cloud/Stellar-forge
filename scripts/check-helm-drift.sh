@@ -43,6 +43,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+cd "${PROJECT_ROOT}"
 CHART_DIR="${PROJECT_ROOT}/charts/stellar-operator"
 GOLDEN_DIR="${CHART_DIR}/rendered"
 SORTER="${SCRIPT_DIR}/sort-manifests.py"
@@ -60,9 +61,9 @@ NC='\033[0m'
 # so that adding a values file cannot silently escape coverage.
 PROFILES=(
   "default|"
-  "ha|-f ${CHART_DIR}/values-ha.yaml"
-  "production|-f ${CHART_DIR}/examples/values-production.yaml"
-  "development|-f ${CHART_DIR}/examples/values-development.yaml"
+  "ha|-f charts/stellar-operator/values-ha.yaml"
+  "production|-f charts/stellar-operator/examples/values-production.yaml"
+  "development|-f charts/stellar-operator/examples/values-development.yaml"
   "dr-cross-region|--set featureFlags.enableDr=true --set crossRegion.enabled=true --set crossRegion.peerClusters[0].clusterId=us-west-2 --set crossRegion.peerClusters[0].enabled=true --set crossRegion.peerClusters[0].endpoint=api.us-west-2.example.com --set crossRegion.peerClusters[0].region=us-west-2"
 )
 
@@ -166,7 +167,7 @@ yaml_diff() {
     diff -u "${left}" "${right}" > "${output}" 2>&1 || true
   fi
 
-  [[ -s "${output}" ]]
+  [[ ! -s "${output}" ]]
 }
 
 # ── Check for high-risk field changes in a diff ──────────────────────────────

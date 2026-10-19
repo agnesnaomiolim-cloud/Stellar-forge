@@ -128,7 +128,6 @@ spec:
   version: "v21.0.0"
 
 
-
   resources:
     requests:
       cpu: "4"

@@ -5,6 +5,7 @@ kind: StellarNode
 metadata:
   name: validator
 spec:
+  nodeType: Validator
   network: futurenet
   # Track the latest Futurenet-compatible build. Update via PR.
   version: "v22.0.0-preview"

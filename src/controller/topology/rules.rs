@@ -1,3 +1,15 @@
+// Copyright 2024 Stellar-K8s Contributors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //! Topology spread constraint rule generation for Stellar node StatefulSets.
 //!
 //! This module defines the rule types and generation logic used by the
@@ -163,17 +175,15 @@ pub fn soft_host_anti_affinity(
 
     PodAntiAffinity {
         required_during_scheduling_ignored_during_execution: None,
-        preferred_during_scheduling_ignored_during_execution: Some(vec![
-            WeightedPodAffinityTerm {
-                weight,
-                pod_affinity_term: PodAffinityTerm {
-                    label_selector: Some(label_selector),
-                    topology_key: TOPOLOGY_HOST_KEY.to_string(),
-                    namespaces,
-                    ..Default::default()
-                },
+        preferred_during_scheduling_ignored_during_execution: Some(vec![WeightedPodAffinityTerm {
+            weight,
+            pod_affinity_term: PodAffinityTerm {
+                label_selector: Some(label_selector),
+                topology_key: TOPOLOGY_HOST_KEY.to_string(),
+                namespaces,
+                ..Default::default()
             },
-        ]),
+        }]),
     }
 }
 
@@ -289,14 +299,24 @@ mod tests {
 
     fn sample_labels() -> BTreeMap<String, String> {
         let mut m = BTreeMap::new();
-        m.insert("app.kubernetes.io/name".to_string(), "stellar-node".to_string());
-        m.insert("app.kubernetes.io/component".to_string(), "validator".to_string());
+        m.insert(
+            "app.kubernetes.io/name".to_string(),
+            "stellar-node".to_string(),
+        );
+        m.insert(
+            "app.kubernetes.io/component".to_string(),
+            "validator".to_string(),
+        );
         m
     }
 
     fn three_zone_topology() -> ClusterTopology {
         ClusterTopology {
-            zones: vec!["us-east-1a".into(), "us-east-1b".into(), "us-east-1c".into()],
+            zones: vec![
+                "us-east-1a".into(),
+                "us-east-1b".into(),
+                "us-east-1c".into(),
+            ],
             node_count: 9,
         }
     }
@@ -421,7 +441,10 @@ mod tests {
     fn test_build_rule_set_single_zone_constraint_is_host_soft() {
         let rs = build_rule_set(&single_zone_topology(), sample_labels(), None);
         assert_eq!(rs.spread_constraints[0].topology_key, TOPOLOGY_HOST_KEY);
-        assert_eq!(rs.spread_constraints[0].when_unsatisfiable, "ScheduleAnyway");
+        assert_eq!(
+            rs.spread_constraints[0].when_unsatisfiable,
+            "ScheduleAnyway"
+        );
     }
 
     #[test]

@@ -172,17 +172,15 @@ impl WasmOptimizer {
         let original_size = wasm_bytes.len();
         let start = std::time::Instant::now();
 
-        let optimized_bytes = tokio::time::timeout(
-            self.config.timeout,
-            self.run_optimization(wasm_bytes),
-        )
-        .await
-        .map_err(|_| {
-            anyhow::anyhow!(
-                "wasm-opt timed out after {}ms",
-                self.config.timeout.as_millis()
-            )
-        })??;
+        let optimized_bytes =
+            tokio::time::timeout(self.config.timeout, self.run_optimization(wasm_bytes))
+                .await
+                .map_err(|_| {
+                    anyhow::anyhow!(
+                        "wasm-opt timed out after {}ms",
+                        self.config.timeout.as_millis()
+                    )
+                })??;
 
         let elapsed = start.elapsed();
         let optimized_size = optimized_bytes.len();
@@ -201,7 +199,11 @@ impl WasmOptimizer {
             (wasm_bytes.to_vec(), false)
         };
 
-        let final_size = if was_optimized { optimized_size } else { original_size };
+        let final_size = if was_optimized {
+            optimized_size
+        } else {
+            original_size
+        };
 
         Ok(OptimizationResult {
             bytes: final_bytes,
@@ -290,7 +292,9 @@ fn run_wasm_opt_subprocess(
     input_tmp
         .write_all(input)
         .map_err(|e| anyhow::anyhow!("write temp input: {e}"))?;
-    input_tmp.flush().map_err(|e| anyhow::anyhow!("flush temp input: {e}"))?;
+    input_tmp
+        .flush()
+        .map_err(|e| anyhow::anyhow!("flush temp input: {e}"))?;
 
     let output_tmp = tempfile::Builder::new()
         .suffix(".wasm")
@@ -319,8 +323,8 @@ fn run_wasm_opt_subprocess(
         anyhow::bail!("wasm-opt exited {}: {}", out.status, stderr.trim());
     }
 
-    let optimized = std::fs::read(&output_path)
-        .map_err(|e| anyhow::anyhow!("read wasm-opt output: {e}"))?;
+    let optimized =
+        std::fs::read(&output_path).map_err(|e| anyhow::anyhow!("read wasm-opt output: {e}"))?;
 
     validate_wasm_magic(&optimized)?;
     Ok(optimized)
@@ -482,21 +486,20 @@ pub async fn wasm_mutate_handler(
     };
 
     // Decode base64 → raw bytes.
-    let raw_bytes =
-        match base64::engine::general_purpose::STANDARD.decode(&wasm_b64) {
-            Ok(b) => b,
-            Err(e) => {
-                warn!(uid = %request.uid, err = %e, "invalid base64 in wasmBinary");
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(error_review(
-                        &request.uid,
-                        &format!("invalid base64 in wasmBinary: {e}"),
-                    )),
-                )
-                    .into_response();
-            }
-        };
+    let raw_bytes = match base64::engine::general_purpose::STANDARD.decode(&wasm_b64) {
+        Ok(b) => b,
+        Err(e) => {
+            warn!(uid = %request.uid, err = %e, "invalid base64 in wasmBinary");
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(error_review(
+                    &request.uid,
+                    &format!("invalid base64 in wasmBinary: {e}"),
+                )),
+            )
+                .into_response();
+        }
+    };
 
     info!(
         uid = %request.uid,
@@ -532,8 +535,7 @@ pub async fn wasm_mutate_handler(
         };
 
     // ── Build JSON Patch ─────────────────────────────────────────────────────
-    let optimised_b64 =
-        base64::engine::general_purpose::STANDARD.encode(&opt_result.bytes);
+    let optimised_b64 = base64::engine::general_purpose::STANDARD.encode(&opt_result.bytes);
 
     let patch = serde_json::json!([
         {
@@ -575,8 +577,7 @@ pub async fn wasm_mutate_handler(
         }
     };
 
-    let patch_b64 = base64::engine::general_purpose::STANDARD
-        .encode(patch_str.as_bytes());
+    let patch_b64 = base64::engine::general_purpose::STANDARD.encode(patch_str.as_bytes());
 
     info!(
         uid = %request.uid,
@@ -631,7 +632,11 @@ fn allow_review(uid: &str, warnings: Vec<String>) -> AdmissionReview {
             patch: None,
             patch_type: None,
             status: None,
-            warnings: if warnings.is_empty() { None } else { Some(warnings) },
+            warnings: if warnings.is_empty() {
+                None
+            } else {
+                Some(warnings)
+            },
         }),
     }
 }

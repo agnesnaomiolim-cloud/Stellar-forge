@@ -48,7 +48,8 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          curl -fsSLO "https://github.com/aquasecurity/kube-bench/releases/download/v${KUBE_BENCH_VERSION}/kube-bench_${KUBE_BENCH_VERSION}_linux_amd64.tar.gz"
+          release_host=https://github.com/aquasecurity/kube-bench/releases/download
+          curl -fsSLO "${release_host}/v${KUBE_BENCH_VERSION}/kube-bench_${KUBE_BENCH_VERSION}_linux_amd64.tar.gz"
           tar -xzf "kube-bench_${KUBE_BENCH_VERSION}_linux_amd64.tar.gz"
           sudo cp kube-bench /usr/local/bin/kube-bench
 

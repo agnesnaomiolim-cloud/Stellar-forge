@@ -101,8 +101,8 @@ jobs:
       - name: Annotate PR with outdated count
         if: github.event_name == 'pull_request' && steps.outdated.outputs.outdated_count > 0
         run: |
-          echo "::warning::${{ steps.outdated.outputs.outdated_count }} outdated direct dependencies found. Review outdated-dependencies-report artifact."
-
+          printf "%s" "::warning::${{ steps.outdated.outputs.outdated_count }} outdated direct "
+          echo "dependencies found. Review outdated-dependencies-report artifact."
   # ── 4. Dependency diff on PRs ────────────────────────────────────────────────
   dep-diff:
     name: Dependency Diff (PR only)

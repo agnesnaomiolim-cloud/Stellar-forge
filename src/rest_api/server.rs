@@ -33,8 +33,8 @@ use tracing::info;
 use crate::controller::ControllerState;
 use crate::{Error, Result};
 
-use super::audit_handlers;
 use super::alert_test;
+use super::audit_handlers;
 use super::auth;
 use super::compliance_handlers;
 use super::custom_metrics;
@@ -164,7 +164,6 @@ pub fn build_router(state: Arc<ControllerState>) -> Router {
         .route("/leader", get(handlers::leader_status))
         .route("/api/v1/nodes", get(handlers::list_nodes))
         .route("/api/v1/nodes/:namespace/:name", get(handlers::get_node))
-
         .route(
             "/config/log-level",
             axum::routing::post(handlers::set_log_level)
@@ -341,11 +340,15 @@ pub fn build_router(state: Arc<ControllerState>) -> Router {
     }
 
     // Correlation ID is outermost so every handler and log sees it.
-    let app = app.layer(middleware::from_fn(crate::middleware::correlation_middleware));
+    let app = app.layer(middleware::from_fn(
+        crate::middleware::correlation_middleware,
+    ));
     // Extension is outermost so version middleware can extract VersionPolicy.
     // Also inject the SCP sniffer state as an Extension so the eBPF handlers
     // can read it without an extra HTTP round-trip.
     app.layer(middleware::from_fn(versioning::inject_api_version_headers))
         .layer(Extension(policy))
-        .layer(Extension(crate::security::ebpf_sniffer::ScpSnifferStore::new_shared()))
+        .layer(Extension(
+            crate::security::ebpf_sniffer::ScpSnifferStore::new_shared(),
+        ))
 }

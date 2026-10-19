@@ -3,6 +3,8 @@
 # Default target
 .DEFAULT_GOAL := help
 
+.PHONY: preflight check-openapi-spec
+
 # Variables
 CARGO := cargo
 KUBECTL := kubectl
@@ -20,6 +22,16 @@ help: ## Show this help
 	@echo 'Usage: make [target]'
 	@echo ''
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+preflight: ## Verify required tools and pinned minimum versions
+	@bash scripts/preflight.sh
+
+.PHONY: third-party-licenses check-third-party-licenses
+third-party-licenses: ## Regenerate dependency license references
+	@python3 scripts/generate-third-party-licenses.py
+
+check-third-party-licenses: ## Verify dependency license references
+	@python3 scripts/generate-third-party-licenses.py --check
 
 fmt: ## Format code
 	$(CARGO) fmt --all
@@ -108,6 +120,9 @@ check-api-docs: ## Check API docs are up to date (used in CI)
 		--crd config/crd/stellarnode-crd.yaml \
 		--output docs/api-reference.md \
 		--check
+
+check-openapi-spec: ## Validate REST OpenAPI structure and implemented route coverage
+	@python3 scripts/generate-openapi-spec.py --spec docs/api/openapi.yaml --check
 
 install-crd: ## Install CRDs
 	$(KUBECTL) apply -f config/crd/stellarnode-crd.yaml

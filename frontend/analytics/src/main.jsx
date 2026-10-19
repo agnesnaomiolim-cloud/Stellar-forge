@@ -1,6 +1,9 @@
 import { StrictMode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import TopologyScene from './TopologyScene.jsx';
+import QuorumMatrixCanvas from '../../components/webgl/QuorumMatrixCanvas.jsx';
+import ResourceHeatmap from './heatmap/ResourceHeatmap.jsx';
+import { buildQuorumMatrix, emptyMatrix, matrixStats } from '../matrix/quorumMatrixModel.js';
 
 import { createStreamState, ingest, materialize, statusForNode } from './graphModel.js';
 
@@ -11,11 +14,8 @@ const query = new URLSearchParams(window.location.search);
 const sourceFromQuery = query.get('source');
 const bridgeUrl = query.get('ws') || 'localhost:8787';
 const initialSource = sourceFromQuery === 'mock' || sourceFromQuery === 'kafka' ? sourceFromQuery : 'live';
-const initialView = query.get('view') === 'heatmap' ? 'heatmap' : 'topology';
+const initialView = ['heatmap', 'matrix'].includes(query.get('view')) ? query.get('view') : 'topology';
 const prometheusEndpoint = query.get('prom') || '/api/v1/query';
-
-// Tab driven by ?view= query param so links are shareable.
-const initialView = query.get('view') === 'heatmap' ? 'heatmap' : 'topology';
 
 function streamUrl(source) {
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
@@ -30,17 +30,16 @@ function App() {
   const [graph, setGraph] = useState(EMPTY_GRAPH);
   const [connection, setConnection] = useState('connecting');
   const [selected, setSelected] = useState(null);
-  const [matrixCell, setMatrixCell] = useState(null);
   const [paused, setPaused] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(null);
-  const [view, setView] = useState('graph');
+  const [view, setView] = useState(initialView);
   const [matrix, setMatrix] = useState(emptyMatrix());
   const [hoverCell, setHoverCell] = useState(null);
   const streamStateRef = useRef(createStreamState());
   const renderFrameRef = useRef(null);
 
   useEffect(() => {
-    if (view !== 'topology') return; // don't open WS if not on topology view
+    if (view === 'heatmap') return;
     streamStateRef.current = createStreamState();
     setGraph(EMPTY_GRAPH);
     setMatrix(emptyMatrix());
@@ -62,7 +61,7 @@ function App() {
     };
     try {
       socket = new WebSocket(streamUrl(source));
-      socket.onopen = () => setConnection('live');
+      socket.onopen = () => { if (!disposed) setConnection('live'); };
       socket.onmessage = (event) => {
         if (disposed) return;
         try {
@@ -73,7 +72,7 @@ function App() {
           setConnection('error');
         }
       };
-      socket.onerror = () => setConnection('error');
+      socket.onerror = () => { if (!disposed) setConnection('error'); };
       socket.onclose = () => { if (!disposed) setConnection('offline'); };
     } catch {
       setConnection('error');
@@ -107,10 +106,54 @@ function App() {
       <header className="topbar">
         <div className="brand-block">
           <span className="eyebrow">STELLAR / OBSERVABILITY</span>
-
-
-
-
+          <h1>Cluster analytics</h1>
+          <p>{view === 'heatmap' ? 'Worker resource saturation' : sourceLabel}</p>
+        </div>
+        <div className="toolbar">
+          <label className="select-wrap">Dashboard
+            <select value={view} onChange={(event) => {
+              const next = event.target.value;
+              setView(next);
+              const url = new URL(window.location.href);
+              url.searchParams.set('view', next);
+              window.history.replaceState(null, '', url);
+            }}>
+              <option value="topology">Topology</option>
+              <option value="matrix">Quorum matrix</option>
+              <option value="heatmap">Saturation</option>
+            </select>
+          </label>
+          {view !== 'heatmap' && <label className="select-wrap">Stream source
+            <select value={source} onChange={(event) => setSource(event.target.value)}>
+              <option value="live">Operator WebSocket</option>
+              <option value="mock">Mock Kafka stream</option>
+              <option value="kafka">Kafka WebSocket bridge</option>
+            </select>
+          </label>}
+          {view === 'topology' && <button className="tool-button" onClick={() => setPaused((value) => !value)}>{paused ? 'Resume rotation' : 'Pause rotation'}</button>}
+        </div>
+      </header>
+      {view === 'heatmap' ? <ResourceHeatmap endpoint={prometheusEndpoint} /> : <>
+        <section className="metric-strip" aria-label="Validator health">
+          <Metric label="Validators" value={graph.nodes.length} detail={connection} />
+          <Metric label="Synced" value={counts.synced} detail="Externalizing" tone="green" />
+          <Metric label="Degraded" value={counts.degraded} detail="Consensus in progress" tone="amber" />
+          <Metric label="Falling behind" value={counts.falling} detail="Needs inspection" tone="red" />
+        </section>
+        <section className="workspace">
+          <div className="graph-panel">
+            <div className="panel-heading"><div><span className={`status-dot ${connection}`} />{connection}</div><span className="muted">{lastUpdate ? `Updated ${lastUpdate.toLocaleTimeString()}` : 'Waiting for topology'}</span></div>
+            {view === 'matrix'
+              ? <QuorumMatrixCanvas matrix={matrix} onHoverCell={setHoverCell} />
+              : <TopologyScene graph={graph} onSelect={selectNode} selectedId={selected?.id ?? null} paused={paused} />}
+            <div className="legend"><Legend color="green" label="Synced" /><Legend color="amber" label="Degraded" /><Legend color="red" label="Falling behind" /></div>
+          </div>
+          <aside className="inspector" aria-live="polite">
+            <span className="eyebrow">{view === 'matrix' ? 'CELL INSPECTOR' : 'VALIDATOR INSPECTOR'}</span>
+            {view === 'matrix' ? <CellInspector cell={hoverCell} matrix={matrix} summary={matrixSummary} /> : selected ? <NodeInspector node={graph.nodes.find((node) => node.id === selected.id) ?? selected} /> : <EmptyInspector />}
+          </aside>
+        </section>
+      </>}
     </main>
   );
 }

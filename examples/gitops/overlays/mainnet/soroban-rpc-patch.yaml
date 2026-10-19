@@ -5,6 +5,7 @@ kind: StellarNode
 metadata:
   name: soroban-rpc
 spec:
+  nodeType: SorobanRpc
   network: mainnet
   version: "v21.1.0"
   resources:

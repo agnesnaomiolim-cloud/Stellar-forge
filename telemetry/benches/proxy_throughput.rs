@@ -59,15 +59,17 @@ fn bench_filter_apply(c: &mut Criterion) {
     // Typical production config: drop instance/job labels, filter Go metrics.
     let config = ProxyConfig {
         label_drop_rules: vec![
-            LabelDropRule { pattern: "^instance$".to_string() },
-            LabelDropRule { pattern: "^job$".to_string() },
-        ],
-        series_filter_rules: vec![
-            SeriesFilterRule {
-                pattern: "^go_.*".to_string(),
-                action: FilterAction::Drop,
+            LabelDropRule {
+                pattern: "^instance$".to_string(),
+            },
+            LabelDropRule {
+                pattern: "^job$".to_string(),
             },
         ],
+        series_filter_rules: vec![SeriesFilterRule {
+            pattern: "^go_.*".to_string(),
+            action: FilterAction::Drop,
+        }],
         ..Default::default()
     };
     let filter = MetricsFilter::from_config(&config).unwrap();
@@ -159,9 +161,10 @@ fn bench_limiter_per_family_cache(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     let config = ProxyConfig {
-        cache_rules: vec![
-            CacheRule { pattern: "^stellar_benchmark_metric_.*".to_string(), ttl_secs: 300 },
-        ],
+        cache_rules: vec![CacheRule {
+            pattern: "^stellar_benchmark_metric_.*".to_string(),
+            ttl_secs: 300,
+        }],
         min_scrape_interval_ms: 60_000,
         ..Default::default()
     };
@@ -202,8 +205,12 @@ fn bench_hot_path_end_to_end(c: &mut Criterion) {
     let config = ProxyConfig {
         min_scrape_interval_ms: 60_000,
         label_drop_rules: vec![
-            LabelDropRule { pattern: "^instance$".to_string() },
-            LabelDropRule { pattern: "^job$".to_string() },
+            LabelDropRule {
+                pattern: "^instance$".to_string(),
+            },
+            LabelDropRule {
+                pattern: "^job$".to_string(),
+            },
         ],
         series_filter_rules: vec![SeriesFilterRule {
             pattern: "^go_.*".to_string(),
@@ -227,11 +234,7 @@ fn bench_hot_path_end_to_end(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(
-    filter_benches,
-    bench_filter_apply,
-    bench_filter_no_rules,
-);
+criterion_group!(filter_benches, bench_filter_apply, bench_filter_no_rules,);
 
 criterion_group!(
     limiter_benches,

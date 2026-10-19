@@ -79,20 +79,28 @@ pub fn map_error_to_api_code(err: &crate::Error) -> (StatusCode, ApiErrorCode) {
     use crate::Error;
     match err {
         Error::NotFound { .. } => (StatusCode::NOT_FOUND, ApiErrorCode::ErrNotFound),
-        Error::ValidationError(_) | Error::InvalidNodeType(_) | Error::MissingRequiredField { .. } => {
+        Error::ValidationError(_)
+        | Error::InvalidNodeType(_)
+        | Error::MissingRequiredField { .. } => {
             (StatusCode::BAD_REQUEST, ApiErrorCode::ErrBadRequest)
         }
-        Error::ConfigError(_) | Error::CertificateError(_) => {
-            (StatusCode::SERVICE_UNAVAILABLE, ApiErrorCode::ErrServiceUnavailable)
-        }
-        Error::KubeError(_) | Error::KubeconfigError(_) => {
-            (StatusCode::SERVICE_UNAVAILABLE, ApiErrorCode::ErrServiceUnavailable)
-        }
-        Error::FinalizerError(_) | Error::RemediationError(_) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, ApiErrorCode::ErrInternalServerError)
-        }
+        Error::ConfigError(_) | Error::CertificateError(_) => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            ApiErrorCode::ErrServiceUnavailable,
+        ),
+        Error::KubeError(_) | Error::KubeconfigError(_) => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            ApiErrorCode::ErrServiceUnavailable,
+        ),
+        Error::FinalizerError(_) | Error::RemediationError(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            ApiErrorCode::ErrInternalServerError,
+        ),
         Error::NetworkSafetyViolation(_) => (StatusCode::FORBIDDEN, ApiErrorCode::ErrForbidden),
-        _ => (StatusCode::INTERNAL_SERVER_ERROR, ApiErrorCode::ErrInternalServerError),
+        _ => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            ApiErrorCode::ErrInternalServerError,
+        ),
     }
 }
 

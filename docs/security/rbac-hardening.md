@@ -1,234 +1,248 @@
-# Stellar-K8s security hardening and least-privilege RBAC
+# Kubernetes RBAC hardening and validator seed custody
 
-This reference defines a deployable least-privilege profile for the stock `stellar-k8s run` process. The companion manifest is [`examples/security/strict-rbac.yaml`](../../examples/security/strict-rbac.yaml); the companion audit is [`examples/security/audit-rbac.sh`](../../examples/security/audit-rbac.sh).
+This manual defines a restricted **primary reconciliation** profile for the current `stellar-k8s run` binary. Apply [strict-rbac.yaml](../../examples/security/strict-rbac.yaml) with operator namespace `stellar-system`, managed namespace `stellar`, ServiceAccount `stellar-operator`, and arguments `--namespace=stellar-system --watch-namespace=stellar`. Set `POD_NAMESPACE=stellar-system` too. The example namespace is **testnet**; change `stellar.org/network` consistently before using a mainnet workload. Network isolation checks reject mismatches.
 
-The reference deployment assumes:
+This is a source-reviewed reference, not a completed live-cluster security audit. No cluster apply, reconciliation exercise, or audit was executed for this change. The validation gate below is required before production use.
 
-- operator namespace: `stellar-system`
-- managed workload namespace: `stellar`
-- operator ServiceAccount: `stellar-operator`
-- `--watch-namespace=stellar`
-- mTLS, scheduled snapshots and benchmark execution are not enabled unless their separately reviewed extension permissions are added
+## Boundaries and current limitations
 
-Change names consistently in the manifest and audit environment variables.
+The baseline permits writes only in the two named namespaces, except for patching the named workload Namespace. It grants no Secret writes, RBAC writes, namespace creation, Pod creation, exec/attach, ephemeral-container mutation, or ServiceAccount token creation. Kubernetes RBAC is additive: remove the installation's former broad bindings before evaluating this profile. Inspect bindings first; do not remove unrelated identities' grants.
 
-## Security invariants
+**`--watch-namespace` does not confine the entire process.** These current source paths use all-namespaces APIs:
 
-The strict profile has no RBAC wildcards. It does not allow the operator ServiceAccount to create/bind RBAC roles, create namespaces, mutate Kubernetes Secrets, use `pods/exec` or `pods/attach`, or mint ServiceAccount tokens. Validator seed material remains owned by Kubernetes/ESO/Vault/CSI.
+| Source | Unavoidable observation / conditional behavior |
+| --- | --- |
+| `src/preflight.rs` | Lists StellarNodes cluster-wide; lists operator Deployments, ConfigMaps and Leases; gets operator Namespace. |
+| `src/controller/peer_discovery.rs` | Lists all StellarNodes, gets their Services, applies `stellar-system/stellar-peers`. The peer namespace is hardcoded by the default config. |
+| `src/controller/benchmark/reconciler.rs` | Always watches all StellarBenchmarks and owned Pods. Active benchmarks additionally create Pods, read logs and publish reports/status. |
+| `src/controller/snapshot_worker.rs` | Always lists all StellarNodes; nodes with schedules trigger snapshot writes. |
+| `src/controller/maintenance/node_drain.rs` | Always lists/watches Nodes; on cordon lists Pods across namespaces and attempts eviction of matching managed pods. |
+| `src/controller/quorum/optimizer.rs` | Always lists all StellarNodes; enabled quorum optimization patches nodes and emits events in their own namespaces. |
+| `src/controller/topology.rs` | Default `podAntiAffinity: Hard` lists Nodes and sibling StellarNodes cluster-wide. |
 
-A small read-only ClusterRole is unavoidable in the **current stock binary** because some startup/background paths ignore `--watch-namespace`. That architectural limitation is documented explicitly below rather than hidden behind a broad write-capable ClusterRole.
+The observer ClusterRole supplies these read operations. Node `get` is also used by hardware-generation metrics. Cluster-wide Pod reads reveal Pod configuration, including literal environment variables; Service reads reveal endpoints. The primary Secret watch reads **all Secrets in `stellar`**, including ESO seed Secrets. A watch/list is data access, not only metadata access. `resourceNames` cannot restrict this unfiltered watch. This profile does not make the operator unable to read validator seeds.
 
-## Current stock-binary scope limitation
+The drain worker may attempt operations outside `stellar`; those writes remain denied. Do not enable benchmark execution, quorum optimization, scheduled snapshots, or other extensions in other namespaces and expect permission-error-free operation. Namespace-aware background workers or disable switches are needed for a stronger boundary; RBAC alone cannot provide it.
 
-`--watch-namespace` correctly scopes the primary `StellarNode` controller, but `run_operator()` also starts several paths with cluster-wide API clients:
+The stock disk monitor also calls `disk_scaler::get_disk_usage`, which executes `df` using `pods/exec`. In a metrics-enabled build the metrics path invokes this even if automatic disk expansion is disabled. The baseline denies exec, so the probe can log an authorization warning while primary reconciliation continues and disk metrics/expansion are unavailable. There is no supported per-probe disable switch in that path. For healthy disk probes, explicitly apply [disk-probe-rbac.yaml](../../examples/security/disk-probe-rbac.yaml). It grants arbitrary command execution in every Pod in `stellar`; Kubernetes RBAC cannot restrict exec to `df`. A no-exec profile and a clean stock disk-probe audit are incompatible until the implementation changes.
 
-- startup preflight calls `Api<StellarNode>::all(...).list(...)`;
-- `PeerDiscoveryManager` lists all `StellarNode` objects and looks up their Services;
-- `run_benchmark_controller()` watches all `StellarBenchmark` objects and owns an all-namespaces Pod watch;
-- `run_snapshot_worker()` lists all `StellarNode` objects every polling interval.
+Exec and attach expose both GET/WebSocket and POST API transports. The optional disk extension grants `get,create` for exec to cover those authorization paths. The baseline audit requires **both** verbs denied for exec and attach; checking only POST `create` can miss a GET grant. See the [Pod exec API](https://kubernetes.io/docs/reference/kubernetes-api/core/pod-v1/#connect-get-exec).
 
-Therefore a stock process cannot be both completely cross-namespace blind and free of authorization errors merely by setting `--watch-namespace`. The strict manifest grants only the **read-only observation** needed for those loops to start: cluster-wide `list` on `StellarNode`, `list/watch` on `StellarBenchmark` and Pods, and `get` on Services. It deliberately does **not** grant cluster-wide benchmark/snapshot writes.
+## Exact baseline permission map
 
-If your security boundary forbids even those cross-namespace reads, the correct fix is to make preflight/peer-discovery/benchmark/snapshot workers namespace-aware or independently disableable. Do not compensate by granting more cluster-wide write access.
+`patch` includes server-side apply creation at a named URL; a separate `create` verb is required only for actual POST requests. The following tables describe every rule in the companion manifest; optional extensions are separate below.
 
-The stock peer-discovery manager writes `stellar-peers` in `stellar-system`, so this reference uses `stellar-system` as the operator namespace.
+### Role `stellar/stellar-operator`
 
-## Exact permission map
-
-### Managed namespace Role
-
-| API/resource | Verbs | Why |
+| API group / resource | Verbs | Source and justification |
 | --- | --- | --- |
-| `stellar.org/stellarnodes` | `get,list,watch,update,patch` | Primary desired-state watch and metadata reconciliation in the managed namespace. |
-| `stellar.org/stellarnodes/status` | `get,update,patch` | Publish readiness/health/reconciliation status. |
-| `stellar.org/stellarnodes/finalizers` | `update` | Finalizer lifecycle. |
-| `apps/deployments,statefulsets` | CRUD + `list,watch` | Node and canary workload lifecycle. |
-| core `services,configmaps,persistentvolumeclaims` | CRUD + `list,watch` | Networking, configuration, alert ConfigMaps and persistent storage. |
-| core `pods` | `get,list,watch,update,patch,delete` | Health/remediation and managed-pod lifecycle. |
-| core `pods/log` | `get` | Diagnostics without exec access. |
-| core `pods/ephemeralcontainers` | `get,update,patch` | Forensic-snapshot subresource only; remove if break-glass diagnostics are prohibited. |
-| core `secrets` | `get,list,watch` | Read-only references/discovery; **no Secret writes**. |
-| `networking.k8s.io/networkpolicies,ingresses` | CRUD + `list,watch` | Isolation and optional ingress. |
-| `policy/poddisruptionbudgets` | CRUD + `list,watch` | Availability policy. |
-| `autoscaling/horizontalpodautoscalers` | CRUD + `list,watch` | HPA when configured. |
-| `autoscaling.k8s.io/verticalpodautoscalers` | `get,patch,delete` | `delete_vpa()` is called when `vpaConfig` is absent if the VPA CRD exists; `patch` supports the opt-in VPA path. |
-| `external-secrets.io/externalsecrets` | `get,patch` | Apply/read the ESO object for `seedSecretSource.externalRef`; ESO writes the target Secret under its own SA. |
-| `postgresql.cnpg.io/clusters,poolers` | CRUD + `list,watch` | Optional CloudNativePG managed database. Remove if the feature is excluded by policy. |
-| core `events` | `create,patch` | Kubernetes event publication. |
+| `stellar.org/stellarnodes` | `get,list,watch,patch` | `reconciler.rs`: desired-state watch, metadata/finalizer patches; network-isolation sibling checks. No user CR creation/deletion. |
+| `stellar.org/stellarnodes/status` | `patch` | Reconcile health, conditions and phases. |
+| `stellar.org/stellarnodes/finalizers` | `update` | Owner-reference admission and finalizer authorization; metadata patches use the main resource permission. |
+| `apps/deployments,statefulsets` | `get,list,watch,patch,delete` | `resources.rs`, `remediation.rs`: owned watches, apply, canary updates, restarts, teardown. |
+| core `services,persistentvolumeclaims` | `get,list,watch,patch,delete` | Owned watches, service routing, PVC expansion, lifecycle cleanup. |
+| core `persistentvolumeclaims` | `create` | `resources::ensure_pvc` explicitly POSTs the first PVC. |
+| core `configmaps` | `get,patch,delete` | Node config, alert rules and cleanup, using apply. |
+| core `pods` | `get,list,patch,delete` | Health checks, traffic labels and remediation; workload controllers create actual Pods. Observer role additionally supplies list/watch. |
+| core `pods/eviction` | `create` | Node-drain worker eviction, only in this namespace; PDB admission still applies. |
+| core `secrets` | `get,list,watch` | Primary controller's unfiltered Secret watch, cert/version and seed-related readers; no mutation. |
+| `networking.k8s.io/networkpolicies,ingresses` | `patch,delete` | Apply isolation/ingress and remove obsolete resources. |
+| `policy/poddisruptionbudgets` | `get,list,watch,patch,delete` | Owned watch, apply and cleanup of node availability policy. |
+| `autoscaling/horizontalpodautoscalers` | `patch,delete` | Apply configured HPA; cleanup on node deletion. |
+| `autoscaling.k8s.io/verticalpodautoscalers` | `delete` | `delete_vpa` runs even when `vpaConfig` is absent; missing CRD/object 404 is tolerated. |
+| core and `events.k8s.io/events` | `create,patch` | Legacy Event publication and kube runtime recorder. |
 
-The Role deliberately does not grant `create`/`delete` on the primary `StellarNode`, Secret mutation, `pods/exec`, `pods/attach`, RBAC writes, or namespace creation.
+### Role `stellar-system/stellar-operator-runtime`
 
-### Operator namespace Role
-
-The `stellar-system` Role contains only process-runtime needs:
-
-- `deployments get,list` for startup preflight;
-- `configmaps get,list,watch,patch` for preflight, feature-flag watching, and `stellar-peers` publication;
-- `leases get,list,create,update,patch` for preflight and leader election.
-
-### Read-only runtime observer ClusterRole
-
-The stock-binary limitation above requires:
-
-| Resource | Verbs | Forced by |
+| Resource | Verbs / name constraint | Justification |
 | --- | --- | --- |
-| cluster `stellar.org/stellarnodes` | `list` | preflight, peer discovery, snapshot worker |
-| cluster `stellar.org/stellarbenchmarks` | `list,watch` | always-spawned benchmark controller |
-| cluster Pods | `list,watch` | benchmark controller owned-Pod watch |
-| cluster Services | `get` | peer discovery Service lookup |
+| `apps/deployments` | `list` | Startup preflight. |
+| core `configmaps` | `list`; `watch` only on `stellar-operator-config` | Unfiltered preflight list and a feature-flag watch that uses a matching `metadata.name` field selector. |
+| core `configmaps` | `get,patch`, name `stellar-peers` | Peer discovery applies and reads its runtime ConfigMap. |
+| `coordination.k8s.io/leases` | `list,create` | Preflight list and initial leader-lease POST. `create` cannot be restricted with `resourceNames`; it is confined to this namespace. |
+| `coordination.k8s.io/leases` | `get,patch`, name `stellar-operator-leader` | Acquire, renew and release lease. |
 
-These are read-only. The strict baseline intentionally does not authorize benchmark Pods/reports or VolumeSnapshot writes cluster-wide. Do not place active `StellarBenchmark` or scheduled-snapshot workloads outside the reviewed baseline and then treat resulting 403s as a reason to widen the role automatically.
+### ClusterRole `stellar-operator-runtime-observer`
 
-### Named cluster-scoped exceptions
+| Resource | Verbs / constraint | Justification |
+| --- | --- | --- |
+| `stellar.org/stellarnodes` | `list` | Preflight, discovery, snapshots, quorum and topology. |
+| `stellar.org/stellarbenchmarks` | `list,watch` | Always-started benchmark controller. |
+| core `pods,nodes` | `list,watch` | Benchmark Pod watch and Node-drain watcher; Pod lists on cordon; topology discovery. |
+| core `nodes` | `get` | Infrastructure lookup for metrics. |
+| core `services` | `get` | Peer-discovery lookup in each discovered node's namespace. |
+| core `namespaces` | `get`, names `stellar-system,stellar` | Startup preflight and network-safety checks. |
+| core `namespaces` | `patch`, name `stellar` | `pss.rs` reconciles restricted labels; namespace must already exist. RBAC constrains the object, not label keys, so this allows changing any label on `stellar`. |
+| `storage.k8s.io/storageclasses` | `get`, names `local-path,local-storage` | Local-storage detection. For automatic expansion add only the actual PVC StorageClass names to this rule; storage-class queries are otherwise denied. |
 
-Startup preflight needs `get` on the operator Namespace. PSS and network-isolation logic need `get` on the managed Namespace, and `src/controller/pss.rs` patches its labels. The manifest therefore grants:
+## Optional feature rules
 
-```yaml
-resources: ["namespaces"]
-resourceNames: ["stellar-system", "stellar"]
-verbs: ["get"]
-```
+Add rules only after identifying the enabled feature and namespace. Use a Role/RoleBinding in each reviewed namespace, not a write-capable ClusterRoleBinding just because the background watch is cluster-wide. A shared operator process can still observe feature objects elsewhere and attempt denied writes.
 
-plus a separate `patch` rule restricted to `resourceNames: ["stellar"]`. Namespace creation remains denied.
+| Feature | Additional API rules | Scope / notes |
+| --- | --- | --- |
+| Disk probes | core `pods/exec: get,create` | `disk-probe-rbac.yaml`; GET/WebSocket and POST authorization differ by client/server version. Both verbs permit arbitrary commands; see the tradeoff above. |
+| ESO seeds | `external-secrets.io/externalsecrets: get,patch` | `eso-rbac.yaml`; ESO owns target Secret writes using its own identity. No SecretStore mutation needed by Stellar. |
+| VPA enabled | `autoscaling.k8s.io/verticalpodautoscalers: patch` | Baseline already permits delete; apply is sufficient. |
+| CloudNativePG | `postgresql.cnpg.io/clusters,poolers: patch,delete` | `resources.rs` applies/cleans up; CNPG has its own identity. |
+| mTLS / cert-manager | core `secrets: get,patch`; `cert-manager.io/certificates: patch` | Named operator CA/server Secrets in `stellar-system`, named node cert Secrets in `stellar`. Apply of generated certificates needs patch. Review names in `mtls.rs`; no broad Secret delete needed. |
+| Benchmark execution | core `pods: create,get`; `pods/log: get`; `stellar.org/stellarbenchmarks/status: patch`; `stellar.org/benchmarkreports: patch`; core `configmaps: patch` | `benchmark/reconciler.rs`, `collector.rs`. Grant in benchmark namespace only. Generated benchmark Pods must separately pass PSS. |
+| CSI snapshots | `snapshot.storage.k8s.io/volumesnapshots: get,list,create,delete` | `snapshot.rs` / `csi_snapshot.rs`, in each selected node namespace. CSI controller owns snapshot contents. |
+| OCI snapshots | `batch/jobs: get,create` | `oci_snapshot.rs` applies push/pull Jobs and polls completion; review registry credentials and any separate cleanup workflow independently. Generated root-running helper containers can fail restricted PSS. |
+| Istio | `security.istio.io/peerauthentications,requestauthentications: patch,delete`; `networking.istio.io/destinationrules,virtualservices: patch,delete` | `service_mesh.rs`; canary routing also applies VirtualServices. |
+| Linkerd | `policy.linkerd.io/servers,serverauthorizations: patch` | `service_mesh.rs`; service-mesh controllers have separate identities. |
+| Spot drain (`NODE_NAME` set) | core `nodes: patch`; core `pods/eviction: create`; node/Pod reads | `spot_drain.rs`; baseline supports in-namespace eviction but not cluster node cordoning. Keep `NODE_NAME` unset in the baseline. |
+| REST Kubernetes bearer auth | `authentication.k8s.io/tokenreviews: create`; `authorization.k8s.io/subjectaccessreviews: create` | ClusterRole required because reviews are cluster-scoped. Needed for that auth mode, not controller reconciliation. |
+| Forensics | core `pods/ephemeralcontainers: get,patch,update`; relevant logs | Break-glass only; forensic capabilities can be rejected by restricted PSS. |
 
-Local-storage auto-detection probes only StorageClasses named `local-path` and `local-storage`, so the reference grants `get` only on those two names. If every node sets `spec.storage.storageClass`, remove that ClusterRole/binding.
+Blue/green deployment, restore/integrity testing, GitOps decryption, key rotation, cross-cluster workflows and custom plugins are outside this profile. Their permissions depend on configuration and external identities. Review their concrete source calls before enabling them; the table is not a blanket authorization for every operator feature.
 
-## Restricted Pod Security Standards
+## Enforce restricted Pod Security Standards
 
-The **node workload namespace** `stellar` is labelled `restricted` for enforce/audit/warn. The operator namespace is audit/warn only: the current Helm operator pod values do not assert every field required for `restricted` enforcement, and this issue is about enforcing PSS on namespaces that run node workloads, not hiding a chart incompatibility.
+On a new dedicated testnet namespace, applying `strict-rbac.yaml` sets enforce/audit/warn to `restricted:latest`. The operator's `pss.rs` also forces these labels on reconciliation. A manually pinned version will be overwritten; changing this behavior requires a controller change. Re-evaluate admission whenever Kubernetes is upgraded.
 
-Before switching an existing workload namespace to enforcement, first run audit/warn and fix violations. Pod Security Admission validates new/updated pods; it does not rewrite existing pods.
-
-Managed StellarNode pods already receive non-root execution, `RuntimeDefault` seccomp, `allowPrivilegeEscalation: false`, and `capabilities.drop: [ALL]` from the controller builders.
-
-The forensic snapshot ephemeral container is a deliberate exception: it may request `NET_RAW`/`SYS_PTRACE`, which a `restricted` namespace can reject. Treat it as break-glass. Keep it disabled in the strict production profile or use a separately governed diagnostic path; do not weaken production PSS just to make diagnostics convenient.
-
-## HashiCorp Vault validator seeds
-
-For `seedSecretSource.vaultRef`, Stellar-K8s adds Vault Agent Injector annotations; it does not retrieve the seed value itself. Give the Vault policy only the validator path, for example KV-v2:
-
-```hcl
-path "kv/data/stellar/validators/validator-0" {
-  capabilities = ["read"]
-}
-```
-
-Bind the Vault Kubernetes-auth role to the **actual workload pod ServiceAccount** and workload namespace:
+For an existing namespace, first stop reconciliation during migration, audit current Pods and run the enforcement label as a server dry-run:
 
 ```bash
-vault write auth/kubernetes/role/stellar-validator \
-  bound_service_account_names=<validator-workload-service-account> \
-  bound_service_account_namespaces=stellar \
-  policies=stellar-validator \
-  ttl=1h
-```
-
-Do not copy a guessed JWT audience from generic examples; audience configuration must match the deployed Kubernetes/Vault auth setup. Enable Vault audit logging, avoid list/write/delete on validator seed paths, and rotate through Vault rather than Git/Helm values.
-
-Example:
-
-```yaml
-spec:
-  validatorConfig:
-    seedSecretSource:
-      vaultRef:
-        role: stellar-validator
-        secretPath: kv/data/stellar/validators/validator-0
-        secretKey: seed
-        secretFileName: stellar-seed
-```
-
-## AWS Secrets Manager through ESO
-
-Use External Secrets Operator with IRSA/workload identity. Give the **ESO ServiceAccount**, not Stellar-K8s, a narrowly scoped IAM policy:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Action": ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
-    "Resource": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:stellar/prod/validator-*"
-  }]
-}
-```
-
-Reference a platform-managed `SecretStore`/`ClusterSecretStore` from the node:
-
-```yaml
-spec:
-  validatorConfig:
-    seedSecretSource:
-      externalRef:
-        name: validator-seed
-        secretStoreRef:
-          name: aws-secrets
-          kind: ClusterSecretStore
-        remoteKey: stellar/prod/validator-0
-        remoteProperty: seed
-        refreshInterval: 1h
-```
-
-ESO writes the resulting Kubernetes Secret. Stellar-K8s remains read-only to Secret objects in the baseline.
-
-## Capabilities intentionally outside the baseline
-
-Do not silently widen the baseline for optional features. Review them as separate extensions:
-
-- `--enable-mtls` and cert-manager integration require Secret/certificate writes;
-- scheduled snapshots/OCI snapshots require snapshot and/or Job permissions;
-- full benchmark **execution** requires cluster-wide writes to benchmark status, Pods, reports/ConfigMaps because the current benchmark controller is all-namespaces;
-- service-mesh/Istio resources require their CRD permissions;
-- forensic snapshot capability can conflict with restricted PSS.
-
-The strict manifest keeps the unavoidable all-namespaces benchmark **watch** read-only rather than granting arbitrary Pod creation across the cluster.
-
-## Apply and audit
-
-Apply this reference **instead of layering it on top of a broader generated ClusterRole**; RBAC is additive, so leaving the old broad binding in place defeats the exercise.
-
-```bash
+kubectl label --overwrite namespace stellar \
+  pod-security.kubernetes.io/audit=restricted \
+  pod-security.kubernetes.io/warn=restricted
+kubectl label --dry-run=server --overwrite namespace stellar \
+  pod-security.kubernetes.io/enforce=restricted \
+  pod-security.kubernetes.io/enforce-version=latest
+# Fix every violation, then apply the reference and restart reconciliation.
 kubectl apply -f examples/security/strict-rbac.yaml
 ```
 
-Run the operator with `--namespace=stellar-system --watch-namespace=stellar` (or equivalent Helm values), mTLS off, and no unreviewed optional features.
+The main workload builders set non-root UID/GID, RuntimeDefault seccomp, no privilege escalation and drop ALL capabilities. Sidecars, init containers, injected Vault agents, OCI snapshot helpers and optional upgrades need individual admission validation. Admission does not rewrite running Pods. The operator namespace uses audit/warn because the supplied Helm Pod does not assert every restricted field. See the official [namespace label workflow](https://kubernetes.io/docs/tasks/configure-pod-container/enforce-standards-namespace-labels/) and [Restricted requirements](https://kubernetes.io/docs/concepts/security/pod-security-standards/).
 
-Then run:
+Workload Pods need no Kubernetes API RoleBinding to consume a `secretKeyRef`; kubelet retrieves the Secret. The builder currently uses the namespace's default ServiceAccount. Do not bind it to operator RBAC. To prevent token mounting for the ESO-based paths below:
 
 ```bash
-bash examples/security/audit-rbac.sh
+kubectl patch serviceaccount default -n stellar --type=merge \
+  -p '{"automountServiceAccountToken":false}'
 ```
 
-For different names, edit the static manifest names and pass matching audit values:
+This namespace-wide default is unsuitable for a Vault Agent path that needs the workload's projected token. Use the ESO path below when avoiding workload API credentials is required.
+
+## Seed interface and version prerequisites
+
+The supported interface is `spec.validatorConfig.seedSecretSource` with exactly one `localRef`, `externalRef`, `csiRef` or `vaultRef`. `kms_secret.rs` implements `externalRef` by applying an ExternalSecret and injecting `<StellarNode-name>-seed` key `STELLAR_CORE_SEED` into the main container's environment. The container image must consume that variable; this is the existing validator seed interface.
+
+The operator currently hardcodes **`external-secrets.io/v1beta1`**. Verify that your installed ESO CRDs serve it before using `externalRef`:
 
 ```bash
-OPERATOR_NAMESPACE=my-operator \
-MANAGED_NAMESPACE=my-stellar \
-SERVICE_ACCOUNT=my-operator \
-bash examples/security/audit-rbac.sh
+kubectl get crd externalsecrets.external-secrets.io \
+  -o jsonpath='{range .spec.versions[*]}{.name}{" served="}{.served}{"\n"}{end}'
+kubectl get crd secretstores.external-secrets.io \
+  -o jsonpath='{range .spec.versions[*]}{.name}{" served="}{.served}{"\n"}{end}'
+kubectl apply -f examples/security/eso-rbac.yaml
 ```
 
-The audit performs server-side manifest validation, required and forbidden `auth can-i` checks, positive/negative PSS admission tests, and an operator-log scan for RBAC errors.
+Current ESO documentation uses `v1`. A v1-only installation needs an operator API-version compatibility change before `externalRef` works; changing only the example YAML does not fix the controller's requests. Install/maintain ESO separately with its official chart, restrict its namespace scope, and retain its required Secret/token-request permissions. Its ServiceAccount is distinct from Stellar's.
 
-## Reconciliation validation gate
+## AWS KMS through Secrets Manager and ESO
 
-Run the final proof on a disposable/test cluster with no active benchmark/snapshot extension workloads:
+This workflow uses a customer-managed symmetric KMS encryption key protecting a Secrets Manager value; it is **not** KMS remote Ed25519 signing. No seed or AWS credentials belong in the StellarNode CR. See [AWS encryption behavior](https://docs.aws.amazon.com/secretsmanager/latest/userguide/security-encryption.html) and [ESO AWS provider](https://external-secrets.io/latest/provider/aws-secrets-manager/).
+
+Prerequisites: EKS with its OIDC provider registered in IAM, ESO able to request a token for `stellar/stellar-seed-reader`, an administrator authenticated to AWS CLI, and a seed JSON file on a protected local path outside Git containing `{"seed":"S..."}`. Set the values for your account:
 
 ```bash
-# Install CRDs/controller using the strict ServiceAccount and namespace settings.
-# Apply a testnet StellarNode in namespace stellar, then:
+export AWS_REGION=us-east-1
+export ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+export EKS_CLUSTER=your-cluster
+export SEED_JSON=/secure/validator-0.json
+export KMS_KEY_ARN="$(aws kms create-key --key-spec SYMMETRIC_DEFAULT \
+  --key-usage ENCRYPT_DECRYPT --description 'Stellar seed envelope encryption' \
+  --query KeyMetadata.Arn --output text)"
+export SECRET_ARN="$(aws secretsmanager create-secret \
+  --name stellar/prod/validator-0 --kms-key-id "$KMS_KEY_ARN" \
+  --secret-string "file://$SEED_JSON" --query ARN --output text)"
+export OIDC_ISSUER="$(aws eks describe-cluster --name "$EKS_CLUSTER" \
+  --query cluster.identity.oidc.issuer --output text)"
+export OIDC_HOST="${OIDC_ISSUER#https://}"
+cat > stellar-seed-trust.json <<EOF
+{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{
+"Federated":"arn:aws:iam::$ACCOUNT_ID:oidc-provider/$OIDC_HOST"},
+"Action":"sts:AssumeRoleWithWebIdentity","Condition":{"StringEquals":{
+"$OIDC_HOST:sub":"system:serviceaccount:stellar:stellar-seed-reader",
+"$OIDC_HOST:aud":"sts.amazonaws.com"}}}]}
+EOF
+cat > stellar-seed-policy.json <<EOF
+{"Version":"2012-10-17","Statement":[
+{"Effect":"Allow","Action":["secretsmanager:GetSecretValue","secretsmanager:DescribeSecret"],"Resource":"$SECRET_ARN"},
+{"Effect":"Allow","Action":"kms:Decrypt","Resource":"$KMS_KEY_ARN",
+"Condition":{"StringEquals":{"kms:ViaService":"secretsmanager.$AWS_REGION.amazonaws.com",
+"kms:EncryptionContext:SecretARN":"$SECRET_ARN"}}}]}
+EOF
+aws iam create-role --role-name stellar-seed-read \
+  --assume-role-policy-document file://stellar-seed-trust.json
+aws iam put-role-policy --role-name stellar-seed-read --policy-name validator-0-read \
+  --policy-document file://stellar-seed-policy.json
+```
+
+The KMS key policy must allow the account to delegate these IAM permissions (the default policy from `create-key` does); an existing custom key policy may need a grant for this reader. The reader cannot encrypt, modify/delete the secret or read other seeds. The provisioning administrator needs separate create/encrypt permissions.
+
+Replace account ARN and region in `externalsecret-aws.yaml`, apply it, then configure an **existing testnet validator** named `validator-0`:
+
+```bash
+kubectl apply -f examples/security/externalsecret-aws.yaml
+kubectl wait -n stellar --for=condition=Ready secretstore/aws-secrets-manager --timeout=120s
+kubectl patch stellarnode validator-0 -n stellar --type=merge -p '{"spec":{"validatorConfig":{"seedSecretSource":{"localRef":null,"csiRef":null,"vaultRef":null,"externalRef":{"name":"validator-0-seed","secretStoreRef":{"name":"aws-secrets-manager","kind":"SecretStore"},"remoteKey":"stellar/prod/validator-0","remoteProperty":"seed","refreshInterval":"1h"}}}}}'
+kubectl wait -n stellar --for=condition=Ready externalsecret/validator-0-seed --timeout=120s
+```
+
+## HashiCorp Vault through ESO
+
+This executable alternative also uses `externalRef`, avoiding the builder's default workload ServiceAccount and Vault Injector/PSS compatibility assumptions. Prerequisites: Vault on this Kubernetes cluster with TLS and KV-v2 mount `secret/`, Kubernetes auth enabled/configured using Vault's local rotating reviewer token, and Vault's own SA granted `system:auth-delegator`. Configure the Kubernetes auth mount according to [Vault's Kubernetes guide](https://developer.hashicorp.com/vault/docs/auth/kubernetes); do not grant token-review permissions to the validator or Stellar operator. For external Vault, configure a maintained reviewer credential and reachable Kubernetes API instead.
+
+With Vault administrator credentials and a protected seed file containing only the seed:
+
+```bash
+export VAULT_ADDR=https://vault.vault.svc:8200
+export VAULT_CACERT=/secure/vault-ca.crt
+export SEED_FILE=/secure/validator-0.seed
+vault kv put secret/stellar/validators/validator-0 seed=@"$SEED_FILE"
+vault policy write stellar-validator - <<'EOF'
+path "secret/data/stellar/validators/validator-0" {
+  capabilities = ["read"]
+}
+EOF
+vault write auth/kubernetes/role/stellar-validator \
+  bound_service_account_names=stellar-seed-reader \
+  bound_service_account_namespaces=stellar \
+  policies=stellar-validator audience=vault ttl=1h
+kubectl create configmap vault-ca -n stellar --from-file=ca.crt="$VAULT_CACERT" \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f examples/security/externalsecret-vault.yaml
+kubectl wait -n stellar --for=condition=Ready secretstore/vault-secrets --timeout=120s
+kubectl patch stellarnode validator-0 -n stellar --type=merge -p '{"spec":{"validatorConfig":{"seedSecretSource":{"localRef":null,"csiRef":null,"vaultRef":null,"externalRef":{"name":"validator-0-seed","secretStoreRef":{"name":"vault-secrets","kind":"SecretStore"},"remoteKey":"stellar/validators/validator-0","remoteProperty":"seed","refreshInterval":"1h"}}}}}'
+kubectl wait -n stellar --for=condition=Ready externalsecret/validator-0-seed --timeout=120s
+```
+
+The store audience `vault` must match the role and be supported by the deployed Kubernetes/Vault token-review configuration. Keep TLS verification enabled and mount only the CA public certificate in `vault-ca`. ESO needs permission to request the reader SA's token. See the [ESO Vault provider](https://external-secrets.io/v0.20.4/provider/hashicorp-vault/) for that API contract.
+
+`vaultRef` is also implemented: it adds Injector annotations and `STELLAR_SEED_FILE=/vault/secrets/<file>`, with a KV-v2 `.Data.data` template. That path requires a container entrypoint which reads the file, a workload SA/token, an Injector configured for restricted admission, and verified rotation/reload behavior. It is not interchangeable with the ESO example above.
+
+Both ESO workflows materialize plaintext seed bytes in a Kubernetes Secret and in a process environment. Protect the Kubernetes datastore with encryption at rest and restrict readers; KMS-at-rest in AWS does not encrypt the Kubernetes copy. On seed changes, update the remote value (`aws secretsmanager put-secret-value` or `vault kv put`), wait for ExternalSecret Ready, and roll the validator StatefulSet under quorum control. Environment variables do not refresh in existing containers; the current Secret watch's mapper returns no reconcile targets, so do not assume automatic restart. Seed identity changes require the corresponding Stellar validator/quorum procedure. Validate rotation on testnet first; never print Secret data or a full Pod environment in audit logs.
+
+## Apply, validate and record evidence
+
+Use a disposable cluster and a testnet validator fixture with optional features off. Review existing RoleBindings/ClusterRoleBindings for this ServiceAccount, replace broad installation bindings, then apply the manifest as an administrator:
+
+```bash
+kubectl get rolebindings -A -o wide
+kubectl get clusterrolebindings -o wide
+kubectl apply --dry-run=server -f examples/security/strict-rbac.yaml
+kubectl apply -f examples/security/strict-rbac.yaml
+# Deploy using the named SA and namespace arguments above; install CRDs first.
 kubectl get stellarnodes -n stellar -w
 kubectl get deploy,statefulset,svc,pvc,networkpolicy,pdb -n stellar
-kubectl logs -n stellar-system deploy/stellar-operator --since=10m \
-  | grep -Ei 'forbidden|permission denied|cannot (get|list|watch|create|update|patch|delete)' \
-  && echo 'RBAC FAILURE' || echo 'no RBAC errors found'
 bash examples/security/audit-rbac.sh
 ```
 
-A clean gate means the primary reconciliation succeeds, the stock background watches do not emit RBAC errors, restricted PSS accepts compliant node pods and rejects privileged pods, and high-risk permissions remain denied.
+The audit checks permissions, both PSS admission outcomes using server dry-runs, and current operator logs. Expected RBAC denials must produce `no`; API failures do not count as denial evidence. The negative admission test must report a restricted PodSecurity violation, so a different webhook or permission error does not count as PSS enforcement. A denied disk exec probe is a **failed clean-log gate**, not evidence of a complete security pass. Either retain that known degradation and record it explicitly, or apply the reviewed disk extension and run `EXPECT_DISK_EXEC=yes bash examples/security/audit-rbac.sh`. Neither choice authorizes writes in unrelated namespaces.
 
-## Security-review rejection criteria
+For each enabled extension, exercise creation, update, steady-state health, child-resource recreation, and deletion/finalizer cleanup. Exercise leader acquisition and failover. Confirm workloads become Ready and status advances; an empty error search alone proves nothing. Confirm permitted/forbidden operations with impersonation (the auditing administrator needs impersonation rights). Save the rendered manifests, API/ESO/Vault versions, namespace labels, `auth can-i` outputs, PSS dry-run errors, reconcile logs and Ready status as review artifacts **without secret values**.
 
-Reject the profile if it introduces RBAC wildcards; Secret write verbs in the baseline; RBAC role/binding writes; namespace creation; cross-namespace Secret reads; `pods/exec`, `pods/attach`, or `serviceaccounts/token`; unrestricted Namespace patching; cluster-wide workload writes merely to silence optional workers; or weaker node-workload PSS without an explicit break-glass decision.
-
-The permission map is grounded in `charts/stellar-operator/templates/rbac.yaml`, `src/commands/operator.rs`, `src/preflight.rs`, `src/controller/reconciler.rs`, `src/controller/resources.rs`, `src/controller/pss.rs`, `src/controller/network_isolation.rs`, `src/controller/kms_secret.rs`, `src/controller/peer_discovery.rs`, `src/controller/benchmark/reconciler.rs`, and `src/controller/snapshot_worker.rs`. Re-audit this document when those paths change.
+Reject a review that adds wildcard resources/verbs, cluster-wide workload writes, cross-namespace Secret reads, broad namespace mutation, unexpected Secret writes, operator RBAC on workload SAs, or unreviewed exec privileges. Review extension-specific PSS failures without exempting the production namespace. A live security audit and sign-off remain release requirements; this document does not assert they passed.

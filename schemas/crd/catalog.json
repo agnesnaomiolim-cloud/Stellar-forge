@@ -1,6 +1,12 @@
 {
   "schemas": [
     {
+      "file": "TrafficShapingPolicy-network.stellar.org-v1alpha1.json",
+      "source": "config/crd/stellar-traffic-shaping-crd.yaml",
+      "kind": "TrafficShapingPolicy",
+      "apiVersion": "network.stellar.org/v1alpha1"
+    },
+    {
       "file": "StellarAIOps-stellar.org-v1alpha1.json",
       "source": "config/crd/stellaraiops-crd.yaml",
       "kind": "StellarAIOps",
@@ -40,6 +46,12 @@
       "file": "StellarDRDrill-stellar.org-v1alpha1.json",
       "source": "config/crd/stellardr-crd.yaml",
       "kind": "StellarDRDrill",
+      "apiVersion": "stellar.org/v1alpha1"
+    },
+    {
+      "file": "StellarFailover-stellar.org-v1alpha1.json",
+      "source": "config/crd/stellardr-crd.yaml",
+      "kind": "StellarFailover",
       "apiVersion": "stellar.org/v1alpha1"
     },
     {

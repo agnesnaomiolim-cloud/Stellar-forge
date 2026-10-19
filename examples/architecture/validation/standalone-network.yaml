@@ -14,14 +14,14 @@ items:
       name: stellar-core-validator
       namespace: stellar
     data:
-      # Public test seed from Horizon's integration test suite (standalone network only).
+      # A fresh local keypair is injected when the standalone validator starts.
       stellar-core.cfg: |
         ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING=true
         NETWORK_PASSPHRASE="Standalone Network ; February 2017"
         PEER_PORT=11625
         HTTP_PORT=11626
         PUBLIC_HTTP_PORT=true
-        NODE_SEED="SACJC372QBSSKJYTV5A7LWT4NXWHTQO6GHG4QDAVC2XDPX6CNNXFZ4JK"
+        NODE_SEED="__VALIDATOR_SEED__"
         NODE_IS_VALIDATOR=true
         UNSAFE_QUORUM=true
         FAILURE_SAFETY=0
@@ -30,7 +30,7 @@ items:
 
         [QUORUM_SET]
         THRESHOLD_PERCENT=100
-        VALIDATORS=["GD5KD2KEZJIGTC63IGW6UMUSMVUVG5IHG64HUTFWCHVZH2N2IBOQN7PS"]
+        VALIDATORS=["__VALIDATOR_PUBLIC_KEY__"]
 
         [HISTORY.vs]
         get="cp /data/history/vs/{0} {1}"
@@ -62,7 +62,16 @@ items:
               args:
                 - |
                   set -e
-                  CFG=/etc/stellar-standalone/stellar-core.cfg
+                  umask 077
+                  KEYPAIR=$(stellar-core gen-seed)
+                  SEED=$(printf '%s\n' "$KEYPAIR" | awk '/^Secret seed:/ {print $3}')
+                  PUBLIC_KEY=$(printf '%s\n' "$KEYPAIR" | awk '/^Public( key)?:/ {print $NF}')
+                  test -n "$SEED" && test -n "$PUBLIC_KEY"
+                  CFG=/data/stellar-core.cfg
+                  sed -e "s/__VALIDATOR_SEED__/$SEED/g" \
+                    -e "s/__VALIDATOR_PUBLIC_KEY__/$PUBLIC_KEY/g" \
+                    /etc/stellar-standalone/stellar-core.cfg > "$CFG"
+                  unset KEYPAIR SEED PUBLIC_KEY
                   stellar-core --conf "$CFG" new-db
                   stellar-core --conf "$CFG" new-hist vs
                   exec stellar-core --conf "$CFG" run

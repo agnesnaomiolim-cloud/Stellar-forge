@@ -3,12 +3,10 @@
 .gitignore
 .github
 
-# Documentation
-*.md
-docs/
-README.md
-LICENSE
-SECURITY.md
+# Keep docs and root Markdown: build.rs embeds the search index, and the
+# REST schema validator embeds docs/api/openapi.yaml at compile time.
+PR_DESCRIPTION.md
+task.txt
 
 # CI/CD artifacts
 .github/
@@ -23,16 +21,20 @@ kubeconfig*.yaml
 # IDE
 .vscode
 .idea
+.tools/
+.ci-tooling/
+**/node_modules/
 *.swp
 *.swo
 *~
 
 # Build artifacts
-target/*
+**/target/*
 !target/release/
 target/release/*
 !target/release/stellar-operator
 !target/release/kubectl-stellar
+!target/release/soroban-cache-proxy
 debug/
 release/
 

@@ -228,7 +228,8 @@ jobs:
               ;;
             *)
               if [[ "$INPUT_BASELINE" == "latest" ]]; then
-                BASELINE=$(ls -t benchmarks/baselines/v*.json 2>/dev/null | head -1 || echo "benchmarks/baselines/v0.1.0.json")
+                BASELINE=$(ls -t benchmarks/baselines/v*.json 2>/dev/null \
+                  | head -1 || echo "benchmarks/baselines/v0.1.0.json")
               else
                 BASELINE="benchmarks/baselines/${INPUT_BASELINE}.json"
               fi

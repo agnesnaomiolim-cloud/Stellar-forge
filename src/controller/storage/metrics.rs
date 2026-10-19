@@ -160,7 +160,7 @@ mod tests {
     fn usage_pct_crosses_the_issue_threshold() {
         // The issue calls for expansion past 80 % on a 10 Gi volume.
         let usage = VolumeUsage {
-            used_bytes: 8_589_934_592,  // 8 GiB
+            used_bytes: 8_589_934_592,      // 8 GiB
             capacity_bytes: 10_737_418_240, // 10 GiB
         };
         assert_eq!(usage.usage_pct(), 80);

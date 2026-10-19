@@ -67,7 +67,10 @@ pub fn extract_or_generate(req: &Request<Body>) -> String {
     generate_id()
 }
 
-pub async fn correlation_middleware(mut req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
+pub async fn correlation_middleware(
+    mut req: Request<Body>,
+    next: Next,
+) -> Result<Response, StatusCode> {
     let cid = extract_or_generate(&req);
     // Store for handlers
     req.extensions_mut().insert(CorrelationId(cid.clone()));
@@ -80,10 +83,8 @@ pub async fn correlation_middleware(mut req: Request<Body>, next: Next) -> Resul
     let mut res = next.run(req).await;
     // Echo correlation ID in response
     if let Ok(val) = HeaderValue::from_str(&cid) {
-        res.headers_mut().insert(
-            HeaderName::from_static("x-correlation-id"),
-            val,
-        );
+        res.headers_mut()
+            .insert(HeaderName::from_static("x-correlation-id"), val);
     }
     // Structured logging: include correlation_id in JSON logs via tracing field
     Ok(res)

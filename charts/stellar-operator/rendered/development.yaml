@@ -6,8 +6,8 @@ metadata:
     app.kubernetes.io/instance: stellar-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: stellar-operator
-    app.kubernetes.io/version: 0.1.0
-    helm.sh/chart: stellar-operator-0.1.0
+    app.kubernetes.io/version: 2.21.0
+    helm.sh/chart: stellar-operator-2.21.0
   name: stellar-operator
 rules:
 - apiGroups:
@@ -141,12 +141,27 @@ rules:
   - delete
 - apiGroups:
   - ''
+  resourceNames:
+  - stellar-operator-gitops-source
+  - stellar-operator-gitops-age-key
   resources:
   - secrets
   verbs:
   - get
   - list
   - watch
+- apiGroups:
+  - ''
+  resourceNames:
+  - stellar-operator-gitops-source
+  - stellar-operator-gitops-age-key
+  resources:
+  - secrets
+  verbs:
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
   - apps
   resources:
@@ -175,6 +190,18 @@ rules:
   - networking.k8s.io
   resources:
   - networkpolicies
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - policy
+  resources:
+  - poddisruptionbudgets
   verbs:
   - get
   - list
@@ -229,6 +256,32 @@ rules:
   - pods/eviction
   verbs:
   - create
+- apiGroups:
+  - bitnami.com
+  resources:
+  - sealedsecrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - bitnami.com
+  resources:
+  - sealedsecrets/status
+  verbs:
+  - get
+  - update
+  - patch
+- apiGroups:
+  - ''
+  resourceNames:
+  - stellar-operator-gitops-source
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -237,8 +290,8 @@ metadata:
     app.kubernetes.io/instance: stellar-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: stellar-operator
-    app.kubernetes.io/version: 0.1.0
-    helm.sh/chart: stellar-operator-0.1.0
+    app.kubernetes.io/version: 2.21.0
+    helm.sh/chart: stellar-operator-2.21.0
   name: stellar-operator-namespace-reader
 rules:
 - apiGroups:
@@ -250,14 +303,34 @@ rules:
   - list
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/instance: stellar-operator
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: stellar-operator
+    app.kubernetes.io/version: 2.21.0
+    helm.sh/chart: stellar-operator-2.21.0
+  name: stellar-operator-node-reader
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   labels:
     app.kubernetes.io/instance: stellar-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: stellar-operator
-    app.kubernetes.io/version: 0.1.0
-    helm.sh/chart: stellar-operator-0.1.0
+    app.kubernetes.io/version: 2.21.0
+    helm.sh/chart: stellar-operator-2.21.0
   name: stellar-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -275,8 +348,8 @@ metadata:
     app.kubernetes.io/instance: stellar-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: stellar-operator
-    app.kubernetes.io/version: 0.1.0
-    helm.sh/chart: stellar-operator-0.1.0
+    app.kubernetes.io/version: 2.21.0
+    helm.sh/chart: stellar-operator-2.21.0
   name: stellar-operator-namespace-reader
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -287,30 +360,81 @@ subjects:
   name: stellar-operator
   namespace: stellar-system
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/instance: stellar-operator
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: stellar-operator
+    app.kubernetes.io/version: 2.21.0
+    helm.sh/chart: stellar-operator-2.21.0
+  name: stellar-operator-node-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: stellar-operator-node-reader
+subjects:
+- kind: ServiceAccount
+  name: stellar-operator
+  namespace: stellar-system
+---
 apiVersion: v1
 data:
-  config.yaml: "defaultResources:\n  validator:\n    requests:\n      cpu: \"250m\"\n      memory: \"512Mi\"\n    limits:\n      cpu: \"1\"\n      memory: \"2Gi\"\n  horizon:\n    requests:\n      cpu: \"250m\"\n      memory: \"512Mi\"\n    limits:\n      cpu: \"1\"\n      memory: \"2Gi\"\n  sorobanRpc:\n    requests:\n      cpu: \"500m\"\n      memory: \"1Gi\"\n    limits:\n      cpu: \"2\"\n      memory: \"4Gi\"\n"
+  config.yaml: |
+    defaultResources:
+      validator:
+        requests:
+          cpu: "250m"
+          memory: "512Mi"
+        limits:
+          cpu: "1"
+          memory: "2Gi"
+      horizon:
+        requests:
+          cpu: "250m"
+          memory: "512Mi"
+        limits:
+          cpu: "1"
+          memory: "2Gi"
+      sorobanRpc:
+        requests:
+          cpu: "500m"
+          memory: "1Gi"
+        limits:
+          cpu: "2"
+          memory: "4Gi"
+    keyRotation:
+      enabled: false
+      intervalSecs: 86400
+      validationWindowSecs: 30
+      validationSampleIntervalSecs: 5
+      minAuthenticatedPeers: 1
+      maxUnhealthySamples: 0
+      rollbackOnFailure: true
 kind: ConfigMap
 metadata:
   labels:
     app.kubernetes.io/instance: stellar-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: stellar-operator
-    app.kubernetes.io/version: 0.1.0
-    helm.sh/chart: stellar-operator-0.1.0
+    app.kubernetes.io/version: 2.21.0
+    helm.sh/chart: stellar-operator-2.21.0
   name: stellar-operator-defaults
 ---
 apiVersion: v1
 data:
+  enable_cost_optimization: 'false'
   enable_dr: 'false'
+  enable_rate_limiting: 'false'
 kind: ConfigMap
 metadata:
   labels:
     app.kubernetes.io/instance: stellar-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: stellar-operator
-    app.kubernetes.io/version: 0.1.0
-    helm.sh/chart: stellar-operator-0.1.0
+    app.kubernetes.io/version: 2.21.0
+    helm.sh/chart: stellar-operator-2.21.0
   name: stellar-operator-config
   namespace: stellar-system
 ---
@@ -321,8 +445,8 @@ metadata:
     app.kubernetes.io/instance: stellar-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: stellar-operator
-    app.kubernetes.io/version: 0.1.0
-    helm.sh/chart: stellar-operator-0.1.0
+    app.kubernetes.io/version: 2.21.0
+    helm.sh/chart: stellar-operator-2.21.0
   name: stellarnodes.stellar.org
 spec:
   group: stellar.org
@@ -357,8 +481,74 @@ spec:
         properties:
           spec:
             properties:
+              autoscaling:
+                properties:
+                  cache:
+                    description: Bounded fail-open cache for read-only Soroban
+                      RPC state requests
+                    properties:
+                      enabled:
+                        default: false
+                        type: boolean
+                      image:
+                        nullable: true
+                        type: string
+                      maxBytes:
+                        default: 67108864
+                        format: int64
+                        maximum: 67108864
+                        minimum: 1
+                        type: integer
+                      maxEntries:
+                        default: 10000
+                        format: int64
+                        maximum: 10000
+                        minimum: 1
+                        type: integer
+                      ttlSecs:
+                        default: 30
+                        format: int64
+                        minimum: 1
+                        type: integer
+                    type: object
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              backupConfig:
+                description: >-
+                  Pre-upgrade backup configuration for Validator PVC snapshots.
+                  When set, the operator snapshots the PVC before applying
+                  a new version.
+                properties:
+                  encryptionKeyRef:
+                    description: Reference to a Cloud KMS key for encrypting
+                      the snapshot.
+                    nullable: true
+                    type: string
+                  flushBeforeSnapshot:
+                    default: false
+                    description: >-
+                      If true, attempt to flush/lock the Stellar DB briefly
+                      before creating the snapshot.
+                    type: boolean
+                  readyTimeoutSeconds:
+                    default: 300
+                    description: >-
+                      Maximum time in seconds to wait for the snapshot to
+                      become ReadyToUse before failing the upgrade.
+                    format: int64
+                    minimum: 0
+                    type: integer
+                  volumeSnapshotClassName:
+                    description: >-
+                      VolumeSnapshotClass name. If unset, the default class
+                      for the PVC's driver is used.
+                    type: string
+                type: object
               diagnosticSidecarResources:
-                description: Resource requests and limits for the operator-managed diagnostic health-check sidecar. Defaults to 50m CPU and 64Mi memory for both requests and limits when unset.
+                description: >-
+                  Resource requests and limits for the operator-managed
+                  diagnostic health-check sidecar. Defaults to 50m CPU and
+                  64Mi memory for both requests and limits when unset.
                 nullable: true
                 properties:
                   limits:
@@ -377,7 +567,9 @@ spec:
                     type: object
                 type: object
               forensicSnapshot:
-                description: Forensic capture (PCAP, core) uploaded to S3; trigger via annotation stellar.org/request-forensic-snapshot.
+                description: >-
+                  Forensic capture (PCAP, core) uploaded to S3; trigger
+                  via annotation stellar.org/request-forensic-snapshot.
                 properties:
                   credentialsSecretRef:
                     nullable: true
@@ -418,7 +610,8 @@ spec:
                 type: string
               podAntiAffinity:
                 default: Hard
-                description: Pod anti-affinity strength for same-network stellar-node pods
+                description: Pod anti-affinity strength for same-network
+                  stellar-node pods
                 enum:
                 - Hard
                 - Soft
@@ -447,13 +640,18 @@ spec:
                     type: object
                 type: object
               restoreFromSnapshot:
-                description: Bootstrap this node from an existing VolumeSnapshot (Validator only). PVC is created from the snapshot.
+                description: >-
+                  Bootstrap this node from an existing VolumeSnapshot (Validator
+                  only). PVC is created from the snapshot.
                 properties:
                   namespace:
-                    description: Optional namespace of the VolumeSnapshot (CrossNamespaceVolumeDataSource).
+                    description: >-
+                      Optional namespace of the VolumeSnapshot (CrossNamespaceVolumeDataSource).
                     type: string
                   volumeSnapshotName:
-                    description: Name of the VolumeSnapshot to restore from (same namespace as StellarNode).
+                    description: >-
+                      Name of the VolumeSnapshot to restore from (same namespace
+                      as StellarNode).
                     type: string
                 type: object
               serviceConfig:
@@ -464,34 +662,48 @@ spec:
                     minimum: 30000
                     type: integer
                   peerNodePort:
-                    description: NodePort for peer connections (validators only)
+                    description: NodePort for peer connections (validators
+                      only)
                     maximum: 32767
                     minimum: 30000
                     type: integer
                 type: object
               snapshotSchedule:
-                description: Schedule and options for CSI VolumeSnapshots of the node data PVC (Validator only).
+                description: >-
+                  Schedule and options for CSI VolumeSnapshots of the node
+                  data PVC (Validator only).
                 properties:
                   flushBeforeSnapshot:
                     default: false
-                    description: If true, attempt to flush/lock the Stellar DB briefly before creating the snapshot.
+                    description: >-
+                      If true, attempt to flush/lock the Stellar DB briefly
+                      before creating the snapshot.
                     type: boolean
                   retentionCount:
                     default: 0
-                    description: Max snapshots to retain per node. 0 means no limit.
+                    description: Max snapshots to retain per node. 0 means
+                      no limit.
                     format: int32
                     type: integer
                   schedule:
-                    description: Cron expression for scheduled snapshots (e.g. "0 2 * * *" for daily at 2 AM). If unset, snapshots only on annotation stellar.org/request-snapshot=true.
+                    description: >-
+                      Cron expression for scheduled snapshots (e.g. "0 2
+                      * * *" for daily at 2 AM). If unset, snapshots only
+                      on annotation stellar.org/request-snapshot=true.
                     type: string
                   volumeSnapshotClassName:
-                    description: VolumeSnapshotClass name. If unset, default class for the driver is used.
+                    description: >-
+                      VolumeSnapshotClass name. If unset, default class
+                      for the driver is used.
                     type: string
                 type: object
               sorobanConfig:
                 properties:
                   captiveCoreConfig:
                     type: string
+                  captiveCoreStructuredConfig:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
                   enablePreflight:
                     type: boolean
                   maxEventsPerRequest:
@@ -499,12 +711,16 @@ spec:
                   stellarCoreUrl:
                     type: string
                 type: object
+                x-kubernetes-preserve-unknown-fields: true
               storage:
                 properties:
                   annotations:
                     additionalProperties:
                       type: string
-                    description: Optional annotations to apply to the PersistentVolumeClaim (useful for storage-class specific parameters like volumeBindingMode)
+                    description: >-
+                      Optional annotations to apply to the PersistentVolumeClaim
+                      (useful for storage-class specific parameters like
+                      volumeBindingMode)
                     nullable: true
                     type: object
                   retentionPolicy:
@@ -521,7 +737,8 @@ spec:
               strategy:
                 properties:
                   blueGreen:
-                    description: Validator (Stellar Core) blue/green rollout settings
+                    description: Validator (Stellar Core) blue/green rollout
+                      settings
                     properties:
                       maxLedgerLag:
                         default: 5
@@ -584,7 +801,8 @@ spec:
                         nullable: true
                         type: string
                       pkcs11LibPath:
-                        description: Path to the PKCS#11 library (e.g. /opt/cloudhsm/lib/libcloudhsm_pkcs11.so)
+                        description: >-
+                          Path to the PKCS#11 library (e.g. /opt/cloudhsm/lib/libcloudhsm_pkcs11.so)
                         type: string
                       provider:
                         enum:
@@ -600,7 +818,9 @@ spec:
                   seedSecretRef:
                     type: string
                   seedSecretSource:
-                    description: Typed seed source; exactly one of localRef, externalRef, csiRef, vaultRef.
+                    description: >-
+                      Typed seed source; exactly one of localRef, externalRef,
+                      csiRef, vaultRef.
                     properties:
                       csiRef:
                         type: object
@@ -663,11 +883,13 @@ spec:
                 nullable: true
                 type: string
               blueGreenSnapshotName:
-                description: VolumeSnapshot used to seed the green Validator PVC.
+                description: VolumeSnapshot used to seed the green Validator
+                  PVC.
                 nullable: true
                 type: string
               blueGreenTargetVersion:
-                description: Target Core version for an in-progress blue/green rollout.
+                description: Target Core version for an in-progress blue/green
+                  rollout.
                 nullable: true
                 type: string
               canaryReadyReplicas:
@@ -692,7 +914,8 @@ spec:
               endpoint:
                 type: string
               forensicSnapshotPhase:
-                description: Phase of forensic snapshot (Capturing, Complete, Failed).
+                description: Phase of forensic snapshot (Capturing, Complete,
+                  Failed).
                 type: string
               ledgerSequence:
                 format: int64
@@ -709,7 +932,8 @@ spec:
               replicas:
                 type: integer
               vaultObservedSecretVersion:
-                description: Last Vault secret version observed for rotation-driven rollouts.
+                description: Last Vault secret version observed for rotation-driven
+                  rollouts.
                 type: string
             type: object
         type: object
@@ -725,8 +949,8 @@ metadata:
     app.kubernetes.io/instance: stellar-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: stellar-operator
-    app.kubernetes.io/version: 0.1.0
-    helm.sh/chart: stellar-operator-0.1.0
+    app.kubernetes.io/version: 2.21.0
+    helm.sh/chart: stellar-operator-2.21.0
   name: tenants.stellar.org
 spec:
   group: stellar.org
@@ -815,8 +1039,8 @@ metadata:
     app.kubernetes.io/instance: stellar-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: stellar-operator
-    app.kubernetes.io/version: 0.1.0
-    helm.sh/chart: stellar-operator-0.1.0
+    app.kubernetes.io/version: 2.21.0
+    helm.sh/chart: stellar-operator-2.21.0
   name: tenantusages.stellar.org
 spec:
   group: stellar.org
@@ -884,8 +1108,8 @@ metadata:
     app.kubernetes.io/instance: stellar-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: stellar-operator
-    app.kubernetes.io/version: 0.1.0
-    helm.sh/chart: stellar-operator-0.1.0
+    app.kubernetes.io/version: 2.21.0
+    helm.sh/chart: stellar-operator-2.21.0
   name: stellar-operator
 spec:
   replicas: 1
@@ -1031,8 +1255,8 @@ metadata:
     app.kubernetes.io/instance: stellar-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: stellar-operator
-    app.kubernetes.io/version: 0.1.0
-    helm.sh/chart: stellar-operator-0.1.0
+    app.kubernetes.io/version: 2.21.0
+    helm.sh/chart: stellar-operator-2.21.0
   name: stellar-operator-test
   namespace: stellar-system
 spec:
@@ -1040,7 +1264,48 @@ spec:
   - command:
     - /bin/sh
     - -c
-    - "set -e\necho \"=== Stellar Operator Helm Test ===\"\n\n# Test 1: Operator deployment is ready\necho \"Test 1: Checking operator deployment...\"\nkubectl wait --for=condition=available --timeout=60s \\\n  deployment/stellar-operator \\\n  -n stellar-system\necho \"✓ Operator deployment is ready\"\n\n# Test 2: CRDs are installed\necho \"Test 2: Checking CRD installation...\"\nkubectl get crd stellarnodes.stellar.org\necho \"✓ StellarNode CRD is installed\"\n\n# Test 3: Service is accessible\necho \"Test 3: Checking service accessibility...\"\nkubectl get service stellar-operator -n stellar-system\necho \"✓ Operator service exists\"\n\n# Test 4: Metrics endpoint is responding\necho \"Test 4: Checking metrics endpoint...\"\nPOD_NAME=$(kubectl get pods -n stellar-system -l app.kubernetes.io/name=stellar-operator -o jsonpath='{.items[0].metadata.name}')\nkubectl exec -n stellar-system $POD_NAME -- wget -q -O- http://localhost:9090/metrics | grep -q \"stellar_\"\necho \"✓ Metrics endpoint is responding\"\n\n# Test 5: RBAC permissions\necho \"Test 5: Checking RBAC permissions...\"\nkubectl auth can-i get stellarnodes --as=system:serviceaccount:stellar-system:stellar-operator\nkubectl auth can-i create pods --as=system:serviceaccount:stellar-system:stellar-operator\necho \"✓ RBAC permissions are configured\"\n\n# Test 6: Webhook configuration (if enabled)\necho \"Test 6: Checking admission webhook...\"\nkubectl get validatingwebhookconfigurations | grep stellar\necho \"✓ Admission webhook is configured\"\n\necho \"\"\necho \"=== All Tests Passed ===\"\necho \"✓ Stellar Operator is healthy and ready\"\n"
+    - |
+      set -e
+      echo "=== Stellar Operator Helm Test ==="
+
+      # Test 1: Operator deployment is ready
+      echo "Test 1: Checking operator deployment..."
+      kubectl wait --for=condition=available --timeout=60s \
+        deployment/stellar-operator \
+        -n stellar-system
+      echo "✓ Operator deployment is ready"
+
+      # Test 2: CRDs are installed
+      echo "Test 2: Checking CRD installation..."
+      kubectl get crd stellarnodes.stellar.org
+      echo "✓ StellarNode CRD is installed"
+
+      # Test 3: Service is accessible
+      echo "Test 3: Checking service accessibility..."
+      kubectl get service stellar-operator -n stellar-system
+      echo "✓ Operator service exists"
+
+      # Test 4: Metrics endpoint is responding
+      echo "Test 4: Checking metrics endpoint..."
+      POD_NAME=$(kubectl get pods -n stellar-system \
+        -l app.kubernetes.io/name=stellar-operator -o jsonpath='{.items[0].metadata.name}')
+      kubectl exec -n stellar-system $POD_NAME -- wget -q -O- http://localhost:9090/metrics | grep -q "stellar_"
+      echo "✓ Metrics endpoint is responding"
+
+      # Test 5: RBAC permissions
+      echo "Test 5: Checking RBAC permissions..."
+      kubectl auth can-i get stellarnodes --as=system:serviceaccount:stellar-system:stellar-operator
+      kubectl auth can-i create pods --as=system:serviceaccount:stellar-system:stellar-operator
+      echo "✓ RBAC permissions are configured"
+
+      # Test 6: Webhook configuration (if enabled)
+      echo "Test 6: Checking admission webhook..."
+      kubectl get validatingwebhookconfigurations | grep stellar
+      echo "✓ Admission webhook is configured"
+
+      echo ""
+      echo "=== All Tests Passed ==="
+      echo "✓ Stellar Operator is healthy and ready"
     image: ghcr.io/stellar/stellar-k8s:latest
     imagePullPolicy: Always
     name: test
@@ -1065,13 +1330,13 @@ metadata:
     app.kubernetes.io/instance: stellar-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: stellar-operator
-    app.kubernetes.io/version: 0.1.0
-    helm.sh/chart: stellar-operator-0.1.0
+    app.kubernetes.io/version: 2.21.0
+    helm.sh/chart: stellar-operator-2.21.0
   name: stellar-operator
 spec:
   ports:
   - name: http
-    port: 8080
+    port: 9090
     protocol: TCP
     targetPort: http
   - name: metrics
@@ -1090,6 +1355,6 @@ metadata:
     app.kubernetes.io/instance: stellar-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: stellar-operator
-    app.kubernetes.io/version: 0.1.0
-    helm.sh/chart: stellar-operator-0.1.0
+    app.kubernetes.io/version: 2.21.0
+    helm.sh/chart: stellar-operator-2.21.0
   name: stellar-operator

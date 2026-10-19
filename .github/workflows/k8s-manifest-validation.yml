@@ -37,7 +37,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -47,7 +47,8 @@ jobs:
       - name: Install kubeconform
         run: |
           KUBECONFORM_VERSION="v0.6.4"
-          wget -qO- "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" | tar -xz
+          release_host=https://github.com/yannh/kubeconform/releases/download
+          wget -qO- "${release_host}/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" | tar -xz
           sudo mv kubeconform /usr/local/bin/
           kubeconform -v
 

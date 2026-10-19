@@ -8,7 +8,7 @@ name: Conventional Commits & Changelog
 #
 # Conventional Commits format:
 #   <type>[optional scope]: <description>
-#   
+#
 #   Types: feat, fix, docs, style, refactor, test, chore, perf, ci, build, revert
 #   Example: fix(auth): prevent race condition in login handler
 
@@ -50,35 +50,36 @@ jobs:
           cp target/release/conventional-commit-check /usr/local/bin/
 
       - name: Validate PR commits
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
-          BASE="${{ github.event.pull_request.base.sha }}"
-          
-          echo "→ Validating commits from $(git rev-parse --short $BASE) to $(git rev-parse --short HEAD)"
-          
+          echo "→ Validating commits from $(git rev-parse --short "$BASE") to $(git rev-parse --short "$PR_HEAD")"
+
           FAILED=0
           while IFS= read -r COMMIT; do
             MESSAGE=$(git log -1 --pretty=%B "$COMMIT")
             SUBJECT=$(echo "$MESSAGE" | head -1)
-            
+
             echo "Checking: $SUBJECT"
-            
+
             if ! conventional-commit-check "$SUBJECT"; then
               echo "  ❌ Failed"
               FAILED=$((FAILED + 1))
             else
               echo "  ✓ Passed"
             fi
-          done < <(git rev-list $BASE..HEAD)
-          
+          done < <(git rev-list "${BASE}..${PR_HEAD}")
+
           if [ $FAILED -gt 0 ]; then
             echo "::error::$FAILED commit(s) do not follow Conventional Commits format"
             exit 1
           fi
-          
+
           echo "✓ All commits follow Conventional Commits format"
 
       - name: Add PR comment with format guide
-        if: failure()
+        if: failure() && github.event.pull_request.head.repo.full_name == github.repository
         continue-on-error: true
         uses: actions/github-script@v7
         with:
@@ -90,9 +91,9 @@ jobs:
               body: `## ℹ️ Commit Format Reminder
 
               This repository uses [Conventional Commits](https://www.conventionalcommits.org/).
-              
+
               **Format**: \`<type>[optional scope]: <description>\`
-              
+
               **Types**:
               - \`feat\`: New feature
               - \`fix\`: Bug fix
@@ -105,13 +106,13 @@ jobs:
               - \`ci\`: CI/CD configuration
               - \`build\`: Build system changes
               - \`revert\`: Revert a previous commit
-              
+
               **Examples**:
               - \`feat(api): add webhook endpoint\`
               - \`fix: prevent race condition in auth\`
               - \`docs(readme): add installation guide\`
               - \`perf(cache): reduce memory usage by 50%\`
-              
+
               **Breaking Changes**:
               Add \`BREAKING CHANGE:\` in the commit body for breaking changes.
               `
@@ -137,11 +138,11 @@ jobs:
             if ! grep -q '## \[' CHANGELOG.md; then
               echo "::warning::CHANGELOG.md missing version headers (format: ## [version])"
             fi
-            
+
             # Check for date format
             if ! grep -qE '\[.*\] - [0-9]{4}-[0-9]{2}-[0-9]{2}' CHANGELOG.md; then
               echo "::warning::CHANGELOG.md missing dates (format: YYYY-MM-DD)"
             fi
-            
+
             echo "✓ Changelog format valid"
           fi

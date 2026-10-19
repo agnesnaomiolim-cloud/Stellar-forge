@@ -1,0 +1,28 @@
+# Optional extension: enables the stock df disk-usage probe. This grants arbitrary
+# command execution in any Pod in stellar, not just execution of df. RBAC cannot
+# constrain commands. Do not apply without reviewing this tradeoff.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: stellar-operator-disk-probe
+  namespace: stellar
+rules:
+  - apiGroups: [""]
+    resources: [pods/exec]
+    # WebSocket GET clients require get; POST and newer WebSocket authorization
+    # checks require create. Both authorize arbitrary exec commands.
+    verbs: [get, create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: stellar-operator-disk-probe
+  namespace: stellar
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: stellar-operator-disk-probe
+subjects:
+  - kind: ServiceAccount
+    name: stellar-operator
+    namespace: stellar-system

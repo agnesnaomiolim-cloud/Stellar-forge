@@ -1,4 +1,4 @@
-{{- if .Values.horizonHpa.enabled }}
+{{- if and .Values.horizonHpa .Values.horizonHpa.enabled }}
 # HorizontalPodAutoscaler for Horizon instances
 #
 # Scales Horizon Deployment replicas based on Stellar-specific metrics exposed

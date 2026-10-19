@@ -1,0 +1,60 @@
+name: Anomaly and Catchup Regression Checks
+
+on:
+  pull_request:
+    paths:
+      - frontend/**
+      - controller/**
+      - src/controller/snapshot/reconciler.rs
+      - .github/workflows/anomaly-catchup.yml
+  push:
+    branches: [main]
+    paths:
+      - frontend/**
+      - controller/**
+      - src/controller/snapshot/reconciler.rs
+      - .github/workflows/anomaly-catchup.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: anomaly-catchup-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  anomalies:
+    name: Anomaly model, components, and analytics build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/analytics
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # The existing analytics package has no checked-in lockfile.
+      - name: Install analytics dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Test anomaly calculations and real card rendering
+        run: npm run test:anomalies
+      - name: Build all analytics entries
+        run: npm run build
+
+  catchup:
+    name: Catchup HTTP and bandwidth regression tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: controller
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-rust
+        with:
+          workspaces: controller
+          cache-key: ci-catchup
+      - name: Resolve standalone controller dependencies
+        run: cargo generate-lockfile
+      - name: Test catchup downloader
+        run: cargo test --locked catchup
