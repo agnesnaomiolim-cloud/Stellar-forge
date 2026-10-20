@@ -107,6 +107,11 @@ while IFS=: read -r file lineno content; do
     [[ "$file" == *test* || "$file" == *example* || "$file" == *fixture* || "$file" == *sample* || "$file" == *secret_rotation* || "$file" == *secret-rotation* || "$file" == *check-secrets* ]] && continue
     # Allow obvious placeholders and Secret *resource names* (not credential values).
     echo "$content" | grep -qiE "(placeholder|example|changeme|your[-_]|<[^>]+>|\\\$\{|test[_-]?password|stellar-core-secret)" && continue
+    # Allow assignments whose value is a command substitution ( $( ... ) ). Such
+    # values are runtime data fetched from a secret store (e.g. a Vault CLI
+    # exchange), never a committed literal — see the vault injector seed
+    # exchange in controller/src/webhook/vault_injector.rs.
+    echo "$content" | grep -qiE '"[[:space:]]*\$$|"[[:space:]]*\$\(' && continue
     finding "$file" "$lineno" "Possible inline secret assignment (password=/secret=/token=)"
 done < <(grep -rni --include="*.rs" --include="*.sh" --include="*.yaml" --include="*.yml" \
     -E "(password|secret|token)\s*=\s*['\"][^'\"]{8,}" . \
