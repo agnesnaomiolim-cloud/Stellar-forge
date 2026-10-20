@@ -368,6 +368,23 @@ can exceed that. The release is still installing — watch it, then re-run
 kubectl get pods -n stellar-system -w
 ```
 
+### Docker socket permission denied (`permission denied while trying to connect to the Docker daemon socket`)
+
+If running `docker ps` or `make quickstart` fails with a permission error connecting to `/var/run/docker.sock`, your user has not been granted access to the Docker daemon socket:
+
+```bash
+# 1. Create the docker group (if it does not already exist)
+sudo groupadd docker
+
+# 2. Add your current user to the docker group
+sudo usermod -aG docker "$USER"
+
+# 3. Apply the new group membership in your active terminal session
+newgrp docker
+```
+
+> **Note:** Alternatively, log out and log back in (or restart your session) for the new group membership to take effect across all terminal windows. Verify the fix by running `docker ps` without `sudo`.
+
 ---
 
 ## Teardown
