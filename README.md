@@ -484,7 +484,7 @@ A dedicated Soroban monitoring dashboard is available at `monitoring/grafana-sor
 
 The operator exports the following Soroban-specific metrics:
 
-```
+```yaml
 # Wasm execution metrics
 soroban_rpc_wasm_execution_duration_microseconds{namespace, name, network, contract_id}
 
