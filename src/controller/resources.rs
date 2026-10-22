@@ -804,7 +804,10 @@ pub async fn ensure_statefulset(
     Ok(())
 }
 
-
+/// Build a StatefulSet for a StellarNode (used by validators and replicated
+/// database nodes).
+#[allow(clippy::too_many_arguments)]
+fn build_statefulset(
     node: &StellarNode,
     enable_mtls: bool,
     seed_injection: Option<&kms_secret::SeedInjectionSpec>,

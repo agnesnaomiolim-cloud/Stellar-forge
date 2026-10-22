@@ -23,6 +23,13 @@
 //! [`crate::controller::volume_resizer`], which is driven by
 //! [`crate::controller::pvc_autoscaler`]. This module handles what happens
 //! afterwards.
+//!
+//! - [`gc`] — CSI PVC garbage collector that scans for orphaned Persistent
+//!   Volume Claims left behind after a StellarNode with `retentionPolicy:
+//!   Delete` has been deleted.  The GC force-deletes the PVC and any stuck
+//!   `Released` PV so the CSI driver reclaims the underlying cloud disk,
+//!   preventing orphaned cloud billing.
 
 pub mod autoresize;
+pub mod gc;
 pub mod metrics;

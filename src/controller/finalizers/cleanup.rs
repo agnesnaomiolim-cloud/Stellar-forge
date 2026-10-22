@@ -44,12 +44,21 @@ use serde_json::json;
 use tracing::{error, info, warn};
 
 use crate::controller::finalizers::STELLAR_NODE_FINALIZER;
-use crate::controller::finalizers::cloud_verify::{CloudVerifier, VolumeAttachmentState};
+use crate::controller::finalizers::cloud_verify::CloudVerifier;
 use crate::crd::StellarNode;
 use crate::error::{Error, Result};
 
 /// How often the cleanup controller scans for stuck finalizers.
 pub const SCAN_INTERVAL_SECS: u64 = 30;
+
+/// Hard timeout: if a StellarNode has been stuck in Terminating for longer
+/// than this duration, the finalizer is forcibly removed to unblock
+/// namespace deletion.
+///
+/// This prevents the finalizer from permanently hanging the namespace
+/// deletion process when cloud verification keeps failing or a PVC is
+/// stuck in an unrecoverable state.
+pub const FINALIZER_HARD_TIMEOUT_SECS: i64 = 600; // 10 minutes
 
 /// A resource found stuck in Terminating with our finalizer.
 #[derive(Debug, Clone)]
@@ -73,6 +82,9 @@ pub enum CleanupOutcome {
     NoPvcsFound,
     /// Resource is not stuck (no deletion timestamp or no finalizer).
     NotStuck,
+    /// Hard timeout exceeded — finalizer forcibly removed to unblock
+    /// namespace deletion.
+    HardTimeoutExceeded { deletion_age_secs: i64 },
 }
 
 // ---------------------------------------------------------------------------
@@ -133,6 +145,8 @@ pub async fn scan_and_recover(client: &Client, verifier: &CloudVerifier) -> Resu
         "finalizer cleanup: found stuck StellarNode(s)"
     );
 
+    // ---------------------------------------------------------------------------
+
     for node in stuck {
         let name = node.name_any();
         let ns = node.namespace().unwrap_or_else(|| "default".to_string());
@@ -149,6 +163,14 @@ pub async fn scan_and_recover(client: &Client, verifier: &CloudVerifier) -> Resu
             }
             Ok(CleanupOutcome::CloudApiError(ref e)) => {
                 warn!(name, ns, error = e, "cloud API error — will retry next scan");
+            }
+            Ok(CleanupOutcome::HardTimeoutExceeded { deletion_age_secs }) => {
+                warn!(
+                    name, ns,
+                    deletion_age_secs,
+                    hard_timeout_secs = FINALIZER_HARD_TIMEOUT_SECS,
+                    "hard timeout exceeded — finalizer forcibly removed"
+                );
             }
             Ok(CleanupOutcome::NotStuck) => {}
             Err(e) => {
@@ -180,6 +202,39 @@ pub async fn attempt_recovery(
 
     let name = node.name_any();
     let namespace = node.namespace().unwrap_or_else(|| "default".to_string());
+
+    // ── Hard timeout fallback ───────────────────────────────────────────
+    //
+    // If the StellarNode has been stuck in Terminating for longer than
+    // FINALIZER_HARD_TIMEOUT_SECS, we forcibly remove the finalizer to
+    // unblock namespace deletion.  This prevents the finalizer from
+    // permanently hanging when cloud verification keeps failing or a PVC
+    // is stuck in an unrecoverable state.
+    if let Some(age) = deletion_age_secs(node) {
+        if age > FINALIZER_HARD_TIMEOUT_SECS {
+            warn!(
+                name,
+                namespace,
+                deletion_age_secs = age,
+                hard_timeout_secs = FINALIZER_HARD_TIMEOUT_SECS,
+                "hard timeout exceeded — forcibly removing finalizer to unblock namespace deletion"
+            );
+            strip_finalizer(client, node).await?;
+            emit_event(
+                client,
+                node,
+                "FinalizerHardTimeout",
+                &format!(
+                    "Stuck for {age}s (hard timeout: {FINALIZER_HARD_TIMEOUT_SECS}s); finalizer forcibly removed"
+                ),
+                "Warning",
+            )
+            .await;
+            return Ok(CleanupOutcome::HardTimeoutExceeded {
+                deletion_age_secs: age,
+            });
+        }
+    }
 
     // Find PVCs owned by this StellarNode.
     let pvcs = find_owned_pvcs(client, node).await?;
@@ -249,6 +304,18 @@ pub fn is_stuck_terminating(node: &StellarNode) -> bool {
             .finalizers()
             .iter()
             .any(|f| f == STELLAR_NODE_FINALIZER)
+}
+
+/// Returns the age of the deletion request in seconds, or `None` if the
+/// resource is not being deleted.
+pub fn deletion_age_secs(node: &StellarNode) -> Option<i64> {
+    node.metadata
+        .deletion_timestamp
+        .as_ref()
+        .map(|ts| {
+            let now = chrono::Utc::now();
+            (now - ts.0).num_seconds()
+        })
 }
 
 /// Find PVCs that belong to `node` in the same namespace.

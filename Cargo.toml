@@ -157,9 +157,9 @@ md5 = "0.8.0"
 tar = "0.4"
 
 # Terminal UI for kubectl-stellar validator diagnostics
-color-eye = "0.3"
+# color-eye = "0.3"  # crate not yet published; tracked separately
 
-[server-dependencies]
+[build-dependencies]
 chrono = "0.4"
 serde_json = "1"
 walkdir = "2"
