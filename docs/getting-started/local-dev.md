@@ -368,6 +368,21 @@ docker system prune -a --volumes   # removes unused images/volumes, not your clu
 If the operator's PVCs fill the node, delete the sample and reapply:
 `kubectl delete -f config/samples/test-stellarnode.yaml`.
 
+### Build fails: missing `wasm32-unknown-unknown` target
+
+The build requires the `wasm32-unknown-unknown` Rust target. If it is missing,
+the build fails with an error about the target not being installed. Add it:
+
+```bash
+rustup target add wasm32-unknown-unknown
+```
+
+Verify it is installed:
+
+```bash
+rustup target list --installed | grep wasm32-unknown-unknown
+```
+
 ### `cargo watch` does not rebuild on save
 
 Either the inotify limits above, or the source tree is on a mounted Windows/host
