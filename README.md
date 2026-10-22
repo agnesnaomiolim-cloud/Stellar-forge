@@ -704,3 +704,11 @@ This project is licensed under the [Apache 2.0 License](LICENSE).
 ## 📝 Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for a detailed history of changes and releases.
+
+## Handsoff notes
+
+<!-- handsoff-issue-541 -->
+- #541: ## [Frontend] Clean Up Unused CSS Modules Import
+
+<!-- handsoff-issue-550 -->
+- #550: ## [Frontend] Clean Up Unused React Hook Imports
