@@ -38,6 +38,28 @@ async-trait = "0.1"
 # Temporary files for wasm-opt subprocess I/O
 tempfile = "3"
 
+# Timestamp parsing for the PDB controller's "stable for N seconds" check
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+
+# Optional Kubernetes backend for the PDB auto-tuning controller. Kept behind
+# a feature so the default build of this crate stays lean. Versions match the
+# operator crate (kube 0.94 / k8s-openapi 0.22 for Kubernetes 1.30).
+kube = { version = "0.94", optional = true, features = ["runtime", "client", "derive"] }
+k8s-openapi = { version = "0.22", optional = true, default-features = false, features = ["v1_30"] }
+futures = { version = "0.3", optional = true }
+tracing-subscriber = { version = "0.3", optional = true, features = ["env-filter"] }
+
+[features]
+default = []
+# Kubernetes-backed PDB controller (`pdb::kube_backend`) and the
+# `pdb-controller` binary.
+kube-backend = ["dep:kube", "dep:k8s-openapi", "dep:futures", "dep:tracing-subscriber"]
+
+[[bin]]
+name = "pdb-controller"
+path = "src/bin/pdb-controller.rs"
+required-features = ["kube-backend"]
+
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
 axum = { version = "0.8", features = [] }

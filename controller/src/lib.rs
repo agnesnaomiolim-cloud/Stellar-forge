@@ -12,6 +12,9 @@
 //! - [`apis`] — Custom resource validation and API schema utilities.
 //! - [`deployment`] — StellarNode deployment pipeline, including the
 //!   [`deployment::optimizer`] WASM bytecode optimizer.
+//! - [`pdb`] — PodDisruptionBudget auto-tuning controller that keeps
+//!   `maxUnavailable` at 0 while validators sync and only relaxes it to 1
+//!   when the quorum can survive losing one validator.
 //! - [`quorum`] — Quorum-set graph analysis utilities.
 //! - [`webhook`] — Admission webhook handlers, including the
 //!   [`webhook::wasm_mutator`] MutatingAdmissionWebhook for WASM optimization.
@@ -23,5 +26,6 @@
 pub mod apis;
 pub mod deployment;
 pub mod ingestion;
+pub mod pdb;
 pub mod quorum;
 pub mod webhook;
