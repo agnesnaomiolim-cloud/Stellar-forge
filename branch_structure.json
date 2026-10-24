@@ -1,18 +1,18 @@
 {
   "default_branch": "main",
   "branches": [
-
+    "fix/issue-468-backend-dynamic-kafka-partitioning-for-scp",
     "main",
     "origin"
   ],
   "parent": {
-
+    "fix/issue-468-backend-dynamic-kafka-partitioning-for-scp": "main",
     "main": null,
     "origin": "main"
   },
   "order": [
     "main",
-
+    "fix/issue-468-backend-dynamic-kafka-partitioning-for-scp",
     "origin"
   ]
 }
