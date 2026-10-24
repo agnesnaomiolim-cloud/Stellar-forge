@@ -3,7 +3,6 @@
 /// This module integrates the Wasm ZK verifier with the node controller so that
 /// non-validator RPC nodes can boot from a lightweight proof rather than a full
 /// historical archive sync.
-
 pub mod fast_sync;
 pub mod verifier;
 

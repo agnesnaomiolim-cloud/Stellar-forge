@@ -1,0 +1,22 @@
+{
+  "name": "stellar-k8s-quorum-topology-webgl",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "WebGL network quorum topology visualizer (stellar-core quorum set dumps -> 3D force-directed graph). Issue #288",
+  "scripts": {
+    "test": "node --test webgl_renderer/*.test.js",
+    "bench": "node webgl_renderer/bench.js",
+    "typecheck": "tsc -p tsconfig.json",
+    "dev": "vite demo",
+    "build": "vite build demo"
+  },
+  "dependencies": {
+    "d3-force-3d": "^3.0.6",
+    "three": "^0.171.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vite": "^6.0.5"
+  }
+}

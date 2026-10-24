@@ -42,6 +42,10 @@ use kube::{
     Client,
 };
 use rand::{distributions::Alphanumeric, Rng};
+use rcgen::{
+    BasicConstraints, CertificateParams, DistinguishedName, DnType, ExtendedKeyUsagePurpose, IsCa,
+    KeyPair,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -49,13 +53,9 @@ use sqlx::postgres::PgPoolOptions;
 use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::time::Duration;
+use time::{Duration as TimeDuration, OffsetDateTime};
 use tokio::time::sleep;
 use tracing::{error, info, warn};
-use rcgen::{
-    BasicConstraints, CertificateParams, DistinguishedName, DnType, ExtendedKeyUsagePurpose,
-    IsCa, KeyPair,
-};
-use time::{Duration as TimeDuration, OffsetDateTime};
 
 /// Configuration for automated secret rotation
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema)]
@@ -389,10 +389,8 @@ impl MtlsRotationEngine {
 
             for pod in pod_list.items {
                 if let Some(pod_ip) = pod.status.as_ref().and_then(|s| s.pod_ip.as_ref()) {
-                    let endpoint = format!(
-                        "http://{}:{}/admin/reload",
-                        pod_ip, self.config.reload_port
-                    );
+                    let endpoint =
+                        format!("http://{}:{}/admin/reload", pod_ip, self.config.reload_port);
                     let payload = serde_json::json!({
                         "triggeredBy": "stellar-operator",
                         "version": Utc::now().timestamp()
@@ -861,43 +859,29 @@ mod tests {
     #[tokio::test]
     async fn test_password_generation() {
         let config = SecretRotationConfig::default();
-        let Ok(client) = Client::try_default().await else {
-            eprintln!("skipping test_password_generation: no Kubernetes client available");
-            return;
-        let client = match Client::try_default().await {
-            Ok(c) => c,
-            Err(_) => return, // Skip test if no kubeconfig
-        };
-        let scheduler = SecretRotationScheduler::new(config.clone(), client);
 
+        };
+
+        let scheduler = SecretRotationScheduler::new(config.clone(), client);
         let password = scheduler.generate_secure_password();
+
         assert_eq!(password.len(), config.password_length);
-        assert!(password.chars().all(|c| c.is_alphanumeric()));
+        assert!(password.chars().all(|c| c.is_ascii_alphanumeric()));
     }
 
     #[tokio::test]
     async fn test_password_hashing() {
         let config = SecretRotationConfig::default();
-        let Ok(client) = Client::try_default().await else {
-            eprintln!("skipping test_password_hashing: no Kubernetes client available");
-            return;
-        let client = match Client::try_default().await {
-            Ok(c) => c,
-            Err(_) => return, // Skip test if no kubeconfig
-        };
-        let scheduler = SecretRotationScheduler::new(config, client);
 
-        // Use a clearly-placeholder value so secret-audit scanners ignore it.
+        };
+
+        let scheduler = SecretRotationScheduler::new(config, client);
         let password = "test_password_placeholder";
         let hash = scheduler.hash_password(password);
 
-        // SHA256 produces 64 character hex string
         assert_eq!(hash.len(), 64);
         assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
-
-        // Same password should produce same hash
-        let hash2 = scheduler.hash_password(password);
-        assert_eq!(hash, hash2);
+        assert_eq!(scheduler.hash_password(password), hash);
     }
 
     #[test]
@@ -923,8 +907,12 @@ mod tests {
     #[tokio::test]
     async fn test_mtls_certificate_bundle_generation_and_rotation() {
         let config = MtlsConfig::default();
-        let engine = MtlsRotationEngine::new(config, Client::try_default().await.unwrap());
+        let Ok(client) = Client::try_default().await else {
+            eprintln!("skipping test_mtls_certificate_bundle_generation_and_rotation: no Kubernetes client available");
+            return;
+        };
 
+        let engine = MtlsRotationEngine::new(config, client);
         let first = engine.generate_bundle().expect("generate first bundle");
         let second = engine.generate_bundle().expect("generate rotated bundle");
 
@@ -941,5 +929,4 @@ mod tests {
         assert_ne!(first.client_cert, second.client_cert);
         assert_ne!(first.client_key, second.client_key);
     }
-
 }

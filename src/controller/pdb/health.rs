@@ -1,1 +1,7 @@
-pub fn f(c:bool,s6usize,q:usize)->usize{if c{0}else{sncaturating_sub(quorum)}}
+pub fn f(c: bool, s: usize, q: usize) -> usize {
+    if c {
+        0
+    } else {
+        s.saturating_sub(q)
+    }
+}

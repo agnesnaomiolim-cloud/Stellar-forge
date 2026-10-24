@@ -7,7 +7,8 @@ description = "kubectl plugin for Stellar validator health diagnostics"
 license = "Apache-2.0"
 repository = "https://github.com/stellar/stellar-k8s"
 
-[[bin]]name = "kubectl-stellar"
+[[bin]]
+name = "kubectl-stellar"
 path = "src/main.rs"
 
 [dependencies]
@@ -32,7 +33,7 @@ thiserror = "1"
 clap = { version = "4.5", features = ["derive", "env"] }
 clap_complete = "4.5"
 
-# HTTP client for stellar-core /info endpoint
+# HTTP client for stellar-core /info endpoint and Prometheus queries
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 # Terminal UI
@@ -47,9 +48,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 chrono = { version = "0.4", features = ["serde"] }
 
 # Tunneling for port-forward
-kube = { version = "0.94", features = ["client", "config", "ws", "runtime"] }
 tokio-tunnel = "0.1"
 
 [dev-dependencies]
 tokio-test = "0.4"
 wiremock = "0.6"
+tempfile = "3.10"

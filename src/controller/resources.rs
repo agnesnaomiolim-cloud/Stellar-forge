@@ -804,7 +804,7 @@ pub async fn ensure_statefulset(
     Ok(())
 }
 
-
+pub fn build_statefulset(
     node: &StellarNode,
     enable_mtls: bool,
     seed_injection: Option<&kms_secret::SeedInjectionSpec>,

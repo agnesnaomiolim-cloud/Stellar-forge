@@ -7,6 +7,5 @@
 //! up, blocking Kubernetes node drains until the node reaches full sync. It also
 /// takes total active quorum capacity into account to prevent evictions that could
 /// break SCP safety.
-
 pub mod health;
 pub mod reconciler;

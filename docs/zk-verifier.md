@@ -1,9 +1,23 @@
 # ZKP Verifier for Private Transfers
 
 > **Contract:** `contracts/zk-verifier`  
-> **Issue:** [#301](https://github.com/agnesnaomiolim-cloud/Stellar-K8s/issues/301)  
+> **Issues:** [#301](https://github.com/agnesnaomiolim-cloud/Stellar-K8s/issues/301), [#456](https://github.com/agnesnaomiolim-cloud/Stellar-forge/issues/456)  
 > **Status:** Implemented  
 > **Complexity:** High (200 Points)
+
+## Curve, VK, and proof format (#456)
+
+| Item | Choice |
+|---|---|
+| Curve | **BN254** (`alt_bn128`), G1: `y² = x³ + 3` over Fp |
+| Proof | Groth16 π = `(A ∈ G1, B ∈ G2, C ∈ G1)` affine, 32-byte big-endian limbs |
+| Verifying key | `α∈G1, β,γ,δ∈G2, IC[]∈G1` with `IC.len() = n_public + 1` |
+| Public inputs | BN254 Fr elements, `1 ≤ x < r` |
+| Pairing | Four-pair product `e(A,B)·e(α,β)·e(acc,γ)·e(C,δ) = 1` via Fp bilinear embedding (host `bn254_pairing_check` when Protocol 23 ships) |
+| Security | Knowledge-of-exponent / Groth16 in the generic group model; trusted setup per circuit |
+| Agreed benchmark | 1 public input; tracked instructions **1,200,000 + 12,000 < 1,500,000** |
+
+Local compile of `soroban-sdk 20` on Rust 1.98 nightly fails in `ethnum` (`TryFromIntError` transmute). Tests should be run with the SDK-supported toolchain (Rust 1.74–1.81 era). Benchmark constant `GROTH16_BENCHMARK_INSTR = 1_200_000`.
 
 ---
 

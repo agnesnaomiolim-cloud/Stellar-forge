@@ -141,10 +141,7 @@ impl ScpSnifferStore {
 
     /// Read a snapshot of the current state.
     pub fn snapshot(&self) -> ScpNetworkHealthState {
-        self.inner
-            .read()
-            .map(|g| g.clone())
-            .unwrap_or_default()
+        self.inner.read().map(|g| g.clone()).unwrap_or_default()
     }
 
     /// Replace the entire state with a newly scraped value.
@@ -227,13 +224,7 @@ impl ScpSnifferMonitor {
         exporter_port: Option<u16>,
     ) -> ScpSnifferStore {
         let store = ScpSnifferStore::new();
-        let monitor = Self::new(
-            client,
-            namespace,
-            node_name,
-            store.clone(),
-            exporter_port,
-        );
+        let monitor = Self::new(client, namespace, node_name, store.clone(), exporter_port);
         tokio::spawn(async move { monitor.run().await });
         store
     }
@@ -337,10 +328,10 @@ impl ScpSnifferMonitor {
             "eBPF sniffer detected SCP connection drops to peer {peer_ip}: \
              {rst} TCP RST(s), {hf} handshake failure(s), drop rate {dr:.1}%. \
              Classification: {fault_class}. Recommendation: {recommendation}",
-            peer_ip    = peer.peer_ip,
-            rst        = peer.rst_total,
-            hf         = peer.handshake_fail_total,
-            dr         = peer.drop_rate_pct,
+            peer_ip = peer.peer_ip,
+            rst = peer.rst_total,
+            hf = peer.handshake_fail_total,
+            dr = peer.drop_rate_pct,
             fault_class = fault_class,
             recommendation = recommendation,
         );
@@ -366,7 +357,9 @@ impl ScpSnifferMonitor {
             ..Event::default()
         };
 
-        events.create(&PostParams::default(), &event).await
+        events
+            .create(&PostParams::default(), &event)
+            .await
             .map_err(|e| anyhow::anyhow!("K8s Event create failed: {e}"))?;
 
         info!(
@@ -441,8 +434,8 @@ fn parse_prometheus_text(text: &str) -> ScpNetworkHealthState {
     for entry in peers.values_mut() {
         let denom = entry.packets_rx.max(1) as f64;
         entry.drop_rate_pct = (entry.rst_total as f64 / denom) * 100.0;
-        entry.is_degraded = entry.drop_rate_pct > DEGRADED_DROP_RATE_PCT
-            || entry.handshake_fail_total > 0;
+        entry.is_degraded =
+            entry.drop_rate_pct > DEGRADED_DROP_RATE_PCT || entry.handshake_fail_total > 0;
         entry.last_updated = now.clone();
     }
 

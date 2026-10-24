@@ -112,7 +112,10 @@ fn make_ban_manager(ttl_secs: u64) -> BanManager {
 fn analyzer_valid_payload_no_threat() {
     let a = PacketAnalyzer::new(10_000, 5, 10);
     let pkt = make_pkt(ip(1, 1), valid_scp_payload());
-    assert!(a.analyze(&pkt).is_none(), "valid packet should not trigger threat");
+    assert!(
+        a.analyze(&pkt).is_none(),
+        "valid packet should not trigger threat"
+    );
 }
 
 #[test]
@@ -121,7 +124,10 @@ fn analyzer_detects_malformed_bad_discriminant() {
     let pkt = make_pkt(ip(1, 2), malformed_payload());
     let result = a.analyze(&pkt).expect("should detect threat");
     assert!(
-        matches!(result.kind, ThreatKind::MalformedBadDiscriminant { discriminant: 9999 }),
+        matches!(
+            result.kind,
+            ThreatKind::MalformedBadDiscriminant { discriminant: 9999 }
+        ),
         "expected MalformedBadDiscriminant, got {:?}",
         result.kind
     );
@@ -208,7 +214,12 @@ fn ban_manager_sweep_removes_expired() {
 fn ban_manager_active_bans_snapshot() {
     let mgr = make_ban_manager(300);
     for i in 1u8..=3 {
-        mgr.ban(ip(5, i), ThreatKind::FloodAttack { pps: i as u64 * 1000 });
+        mgr.ban(
+            ip(5, i),
+            ThreatKind::FloodAttack {
+                pps: i as u64 * 1000,
+            },
+        );
     }
     let active: Vec<BanEntry> = mgr.active_bans();
     assert_eq!(active.len(), 3);
@@ -304,10 +315,7 @@ fn test_malformed_detection_latency() {
         let result = analyzer.analyze(&pkt);
         let elapsed_ns = start.elapsed().as_nanos();
 
-        assert!(
-            result.is_some(),
-            "malformed packet must always be detected"
-        );
+        assert!(result.is_some(), "malformed packet must always be detected");
         assert!(
             elapsed_ns < 1_000_000, // 1 ms
             "analysis must complete in < 1 ms (actual: {} ns)",
@@ -400,7 +408,10 @@ fn test_mixed_traffic_only_rogue_banned() {
         }
     }
 
-    assert!(!ban_mgr.is_banned(legitimate), "legitimate peer must not be banned");
+    assert!(
+        !ban_mgr.is_banned(legitimate),
+        "legitimate peer must not be banned"
+    );
     assert!(ban_mgr.is_banned(rogue), "rogue peer must be banned");
 }
 

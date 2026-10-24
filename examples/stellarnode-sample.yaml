@@ -1,0 +1,23 @@
+apiVersion: starlight.example.com/v1alpha1
+kind: StellarNode
+metadata:
+  name: stellarnode-sample
+  # Optional: namespace to deploy the resource into.
+  # namespace: default
+spec:
+  # Number of replicas for this node.
+  replicas: 1
+
+  # Optional: resource limits for the StellarNode container.
+  # Unremark the block below to enforce cpu and memory limits.
+  # resources:
+  #   limits:
+  #     cpu: "500m"
+  #     memory: "512Mi"
+  #   requests:
+  #     cpu: "250m"
+  #     memory: "256Mi"
+
+  # Optional: additional configuration for the node.
+  # config:
+  #   logLevel: info

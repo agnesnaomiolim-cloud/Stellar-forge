@@ -147,7 +147,7 @@ jobs:
           kind version
 
       - name: Run preflight tool/version gate
-        run: make preflight
+        run: ./scripts/preflight.sh
 
   # ── 2. Version consistency (main push only) ──────────────────────────────────
   version-consistency:

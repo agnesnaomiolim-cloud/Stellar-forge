@@ -7,13 +7,15 @@ persistent Soroban entries remain live.
 
 ## Sharding and transaction footprints
 
-Deploy and fund multiple instances of `BatchPayContract` to create independent
-payout shards. Submit each transaction to exactly one instance, and use distinct
-recipient accounts and transaction source accounts across transactions intended
-to execute concurrently. A separate instance has a separate contract address
-and token balance; merely using different storage keys inside one instance does
-not remove conflicts on that instance's token balance. Transactions paying the
-same recipient also contend on that recipient's token balance.
+Each batch writes only its own persistent `ProcessedBatch(batch_id)` key; there
+is no contract-wide payout lock. Deploy and fund multiple instances of
+`BatchPayContract` to create independent payout shards. Submit each transaction
+to exactly one instance, and use distinct recipient accounts and transaction
+source accounts across transactions intended to execute concurrently. A
+separate instance has a separate contract address and token balance; merely
+using different storage keys inside one instance does not remove conflicts on
+that instance's token balance. Transactions paying the same recipient also
+contend on that recipient's token balance.
 
 Soroban contracts cannot set a transaction's ledger footprint. The transaction
 builder must simulate each invocation, include the resulting read/write

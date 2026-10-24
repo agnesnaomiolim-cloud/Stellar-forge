@@ -511,6 +511,54 @@ fn default_backup_ready_timeout_seconds() -> u64 {
     300
 }
 
+fn default_halt_on_csi_unavailable() -> bool {
+    true
+}
+
+/// Snapshot-based upgrade safety for Validator nodes.
+///
+/// When `enabled` is true the controller pauses the StatefulSet rollout, creates
+/// a CSI VolumeSnapshot of the data PVC, and only updates the container image
+/// after the snapshot reports `ReadyToUse`. Snapshot waits use reconcile
+/// requeues (no blocking Tokio sleep).
+#[derive(Clone, Debug, Default, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct UpgradeSafetyConfig {
+    /// Enable pre-upgrade PVC snapshot gating.
+    #[serde(default)]
+    pub enabled: bool,
+    /// VolumeSnapshotClass name. If unset, the default class for the PVC's driver is used.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub volume_snapshot_class_name: Option<String>,
+    /// Flush/lock the Stellar database before creating the snapshot.
+    #[serde(default)]
+    pub flush_before_snapshot: bool,
+    /// Maximum seconds to wait for ReadyToUse before failing the upgrade.
+    #[serde(default = "default_backup_ready_timeout_seconds")]
+    pub ready_timeout_seconds: u64,
+    /// Encrypt the snapshot with this Cloud KMS key reference.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encryption_key_ref: Option<String>,
+    /// Halt the upgrade (and emit a Warning event) when the CSI snapshot driver is unavailable.
+    #[serde(default = "default_halt_on_csi_unavailable")]
+    pub halt_on_csi_unavailable: bool,
+}
+
+impl UpgradeSafetyConfig {
+    pub fn to_backup_config(&self) -> BackupConfig {
+        BackupConfig {
+            volume_snapshot_class_name: self.volume_snapshot_class_name.clone(),
+            flush_before_snapshot: self.flush_before_snapshot,
+            ready_timeout_seconds: if self.ready_timeout_seconds == 0 {
+                default_backup_ready_timeout_seconds()
+            } else {
+                self.ready_timeout_seconds
+            },
+            encryption_key_ref: self.encryption_key_ref.clone(),
+        }
+    }
+}
+
 /// Configuration to bootstrap a new node from an existing CSI VolumeSnapshot
 ///
 /// When set, the node's PVC is created from the specified VolumeSnapshot instead of

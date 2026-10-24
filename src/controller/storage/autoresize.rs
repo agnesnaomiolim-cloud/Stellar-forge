@@ -207,8 +207,7 @@ pub async fn fetch_volume_usage(
     };
 
     let used: Option<Sample> = query(metrics::used_bytes_query(namespace, pvc_name)).await;
-    let capacity: Option<Sample> =
-        query(metrics::capacity_bytes_query(namespace, pvc_name)).await;
+    let capacity: Option<Sample> = query(metrics::capacity_bytes_query(namespace, pvc_name)).await;
 
     VolumeUsage::from_samples(used, capacity)
 }
@@ -239,7 +238,11 @@ pub async fn reconcile_observed_storage(
 
     // Skip the write when nothing changed, so a steady-state node does not
     // generate a status update on every poll of the autoscaler loop.
-    if let Some(existing) = node.status.as_ref().and_then(|s| s.observed_storage.as_ref()) {
+    if let Some(existing) = node
+        .status
+        .as_ref()
+        .and_then(|s| s.observed_storage.as_ref())
+    {
         if *existing == observed {
             debug!("{}: observed storage unchanged", node.name_any());
             return Ok(Some(observed));
@@ -321,15 +324,17 @@ mod tests {
                 }),
                 ..Default::default()
             }),
-            status: capacity.map(|value| k8s_openapi::api::core::v1::PersistentVolumeClaimStatus {
-                capacity: Some(BTreeMap::from([(
-                    "storage".to_string(),
-                    Quantity::from(value),
-                )])),
-                phase: None,
-                access_modes: None,
-                conditions: None,
-            }),
+            status: capacity.map(
+                |value| k8s_openapi::api::core::v1::PersistentVolumeClaimStatus {
+                    capacity: Some(BTreeMap::from([(
+                        "storage".to_string(),
+                        Quantity::from(value),
+                    )])),
+                    phase: None,
+                    access_modes: None,
+                    conditions: None,
+                },
+            ),
         }
     }
 
@@ -387,7 +392,11 @@ mod tests {
     fn expansion_is_incomplete_while_provider_lags_the_request() {
         // The 10 Gi volume from the issue, asked to grow to 20 Gi but not yet
         // resized by the provider.
-        let pvc = pvc_with(Some("20Gi"), Some("10Gi"), &[("stellar.org/auto-expansion-count", "1")]);
+        let pvc = pvc_with(
+            Some("20Gi"),
+            Some("10Gi"),
+            &[("stellar.org/auto-expansion-count", "1")],
+        );
         let status = observed_status_from_pvc("core-data", &pvc, 0);
 
         assert_eq!(status.requested_bytes, Some(20 * GIB));
@@ -461,7 +470,8 @@ mod tests {
     fn reflects_the_issue_scenario_end_to_end() {
         // 10 Gi volume, expanded to the next tier (20 Gi) by the operator, with
         // the provider reporting the new size.
-        let before = observed_status_from_pvc("core-data", &pvc_with(Some("10Gi"), Some("10Gi"), &[]), 0);
+        let before =
+            observed_status_from_pvc("core-data", &pvc_with(Some("10Gi"), Some("10Gi"), &[]), 0);
         let after = observed_status_from_pvc(
             "core-data",
             &pvc_with(
@@ -479,6 +489,9 @@ mod tests {
         assert_eq!(after.actual_capacity_bytes, Some(20 * GIB));
         assert_eq!(after.requested_bytes, Some(20 * GIB));
         assert!(after.expansion_complete);
-        assert_ne!(before, after, "the parent status must change after an expansion");
+        assert_ne!(
+            before, after,
+            "the parent status must change after an expansion"
+        );
     }
 }

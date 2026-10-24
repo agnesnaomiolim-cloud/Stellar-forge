@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stellar Quorum Topology – WebGL Visualizer</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: #0b1119; color: #dbe7f3;
+        font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; }
+      #app { display: grid; grid-template-columns: 1fr 320px; height: 100%; }
+      #viewport { position: relative; min-width: 0; }
+      #sidebar { border-left: 1px solid #1f3247; padding: 16px; overflow-y: auto;
+        background: #0d1520; }
+      h1 { font-size: 15px; margin: 0 0 4px; color: #7fd7c4; }
+      h2 { font-size: 12px; margin: 16px 0 6px; color: #8fb8de; text-transform: uppercase;
+        letter-spacing: 0.08em; }
+      .sub { font-size: 11px; color: #6b8299; margin-bottom: 12px; }
+      .stat { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; }
+      .stat b { color: #dbe7f3; font-weight: 600; }
+      .legend { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 0; }
+      .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+      .direct { background: #2dd4bf; } .indirect { background: #fbbf24; }
+      .missing { background: #f43f5e; }
+      #meta { font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+      #meta .empty { color: #6b8299; }
+      .kv { display: grid; grid-template-columns: 90px 1fr; gap: 2px 8px; }
+      .kv span:nth-child(odd) { color: #6b8299; }
+      input[type=text] { width: 100%; background: #101c2a; color: #dbe7f3;
+        border: 1px solid #1f3247; border-radius: 4px; padding: 6px 8px; font-size: 12px; }
+      button { background: #14324a; color: #cfe4f5; border: 1px solid #24506f;
+        border-radius: 4px; padding: 6px 10px; font-size: 12px; cursor: pointer; margin-top: 6px; }
+      button:hover { background: #1a4060; }
+      .row { display: flex; gap: 6px; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="viewport"></div>
+      <aside id="sidebar">
+        <h1>Quorum Topology</h1>
+        <div class="sub">Federated Byzantine Agreement trust graph · issue #288</div>
+
+        <h2>Live stats</h2>
+        <div class="stat"><span>nodes</span><b id="s-nodes">–</b></div>
+        <div class="stat"><span>edges</span><b id="s-edges">–</b></div>
+        <div class="stat"><span>fps</span><b id="s-fps">–</b></div>
+        <div class="stat"><span>draw calls</span><b id="s-draw">–</b></div>
+        <div class="stat"><span>physics tick</span><b id="s-tick">–</b></div>
+
+        <h2>Edge legend</h2>
+        <div class="legend"><span class="dot direct"></span> direct trust</div>
+        <div class="legend"><span class="dot indirect"></span> indirect trust (inner set)</div>
+        <div class="legend"><span class="dot missing"></span> missing peer</div>
+
+        <h2>Selected node</h2>
+        <div id="meta"><span class="empty">click a sphere to inspect metadata</span></div>
+
+        <h2>WebSocket stream</h2>
+        <div class="row">
+          <input id="ws-url" type="text" placeholder="wss://quorum.example/stream" />
+        </div>
+        <button id="ws-connect">connect</button>
+        <div class="stat" style="margin-top:6px"><span>status</span><b id="ws-status">offline</b></div>
+      </aside>
+    </div>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

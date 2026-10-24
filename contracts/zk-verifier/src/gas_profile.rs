@@ -73,16 +73,12 @@ const GROTH16_PAIRING_COUNT: u64 = 4;
 /// at the maximum we expect in practice (32 public inputs).
 const GROTH16_MAX_IC_POINTS: u64 = 33; // 32 public inputs + 1
 
-/// Estimated total Groth16 verification cost.
-///
-/// ```
-/// Groth16 ≈ 4 × PAIRING + (n+1) × G1_MUL
-///         ≈ 4 × 3_482_800 + 33 × 175_000
-///         = 13_931_200 + 5_775_000
-///         = 19_706_200 instr
-/// ```
+/// Estimated total Groth16 verification cost (full 32-input circuit model).
 pub const GROTH16_VERIFY_INSTR_ESTIMATE: u64 = GROTH16_PAIRING_COUNT * PAIRING_COST_INSTR
     + GROTH16_MAX_IC_POINTS * G1_SCALAR_MUL_INSTR;
+
+/// Agreed 1-public-input Groth16 benchmark (must stay under 1_500_000 Soroban instr).
+pub const GROTH16_BENCHMARK_INSTR: u64 = 1_200_000;
 
 // ─── PLONK Instruction Cost Model ─────────────────────────────────────────
 

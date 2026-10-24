@@ -1,18 +1,17 @@
 #!/usr/bin/env node
 /**
- * @file heatmap-load-test.js
+ * @file options-amm-solvency-test.js
  * @description
- * Load-testing and validation harness for the Dynamic WebGL Traffic Routing
- * Heatmap (#329).
+ * Solvency and pricing validation harness for the Decentralized Options AMM
+ * Liquidity Pool contract.
  *
  * ## What this script does
  *
- * 1. Resolves the target Soroban RPC pod's Envoy admin URL.
- * 2. Opens a WebSocket connection to the telemetry streaming endpoint.
- * 3. Fires sustained HTTP load at the target pod using concurrent workers.
- * 4. Monitors the snapshot stream and asserts that the pod's `heat_level`
- *    transitions to RED (≥ 0.85) within the observation window.
- * 5. Optionally writes a JSON result file for CI consumption.
+ * 1. Simulates a sequence of option trades against the AMM pricing model.
+ * 2. Verifies that the pool remains solvent (collateral ≥ liabilities) after
+ *    every trade, including under high-volatility stress scenarios.
+ * 3. Asserts that pricing is monotonic and within arbitrage bounds.
+ * 4. Optionally writes a JSON result file for CI consumption.
  *
  * ## Usage
  *

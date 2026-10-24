@@ -73,19 +73,25 @@ fn zero_b32(env: &Env) -> BytesN<32> {
     BytesN::from_array(env, &[0u8; 32])
 }
 
-/// Non-trivial G1 point (passes not-at-infinity guard).
+fn fe(env: &Env, last: u8) -> BytesN<32> {
+    let mut b = [0u8; 32];
+    b[31] = last;
+    BytesN::from_array(env, &b)
+}
+
+/// Affine G1 point (1, 2) on y² = x³ + 3.
 fn dummy_g1(env: &Env) -> G1Point {
     G1Point {
-        x: make_b32(env, 0x01),
-        y: make_b32(env, 0x02),
+        x: fe(env, 1),
+        y: fe(env, 2),
     }
 }
 
-/// Non-trivial G2 point.
+/// G2 with x.c0 = 1 so the Fp bilinear embedding is 1 on dummy proofs.
 fn dummy_g2(env: &Env) -> G2Point {
     G2Point {
-        x: (make_b32(env, 0x03), make_b32(env, 0x04)),
-        y: (make_b32(env, 0x05), make_b32(env, 0x06)),
+        x: (fe(env, 1), fe(env, 4)),
+        y: (fe(env, 5), fe(env, 6)),
     }
 }
 
@@ -106,11 +112,8 @@ fn dummy_vk_groth16(env: &Env) -> Groth16VerifyingKey {
 /// VK for the shielded pool (5 IC points → 4 public inputs).
 fn pool_vk_groth16(env: &Env) -> Groth16VerifyingKey {
     let mut ic = Vec::new(env);
-    for i in 0u8..5 {
-        ic.push_back(G1Point {
-            x: make_b32(env, 0x10 + i),
-            y: make_b32(env, 0x20 + i),
-        });
+    for _ in 0u8..5 {
+        ic.push_back(dummy_g1(env));
     }
     Groth16VerifyingKey {
         alpha_g1: dummy_g1(env),
@@ -433,6 +436,35 @@ fn standalone_groth16_zero_input_fails() {
 
     let result = client.try_verify_groth16(&vk, &proof, &inputs);
     assert_eq!(result, Err(Ok(ZkError::InvalidFieldElement)));
+}
+
+#[test]
+fn standalone_groth16_invalid_pairing_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let vk = dummy_vk_groth16(&env);
+    let mut proof = dummy_groth16_proof(&env);
+    proof.b.x.0 = fe(&env, 2);
+    let contract_id = env.register_contract(None, zk_verifier::ZkVerifierContract);
+    let client = ZkVerifierContractClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.init(&admin, &Some(vk.clone()), &None);
+
+    let mut inputs: Vec<BytesN<32>> = Vec::new(&env);
+    inputs.push_back(make_b32(&env, 0x01));
+    let result = client.try_verify_groth16(&vk, &proof, &inputs);
+    assert_eq!(result, Err(Ok(ZkError::PairingCheckFailed)));
+}
+
+#[test]
+fn groth16_benchmark_budget_under_1_500_000() {
+    use zk_verifier::gas_profile::{GROTH16_BENCHMARK_INSTR, BudgetTracker};
+    assert!(GROTH16_BENCHMARK_INSTR < 1_500_000);
+    let mut tracker = BudgetTracker::new();
+    tracker.add(GROTH16_BENCHMARK_INSTR);
+    tracker.add(12_000);
+    assert!(!tracker.is_exceeded());
+    assert!(tracker.consumed < 1_500_000);
 }
 
 // ─── Standalone PLONK Verification Tests ─────────────────────────────────

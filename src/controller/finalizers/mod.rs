@@ -99,14 +99,17 @@ pub fn is_being_deleted(node: &StellarNode) -> bool {
 
 /// Returns `true` when the node carries our finalizer.
 pub fn has_finalizer(node: &StellarNode) -> bool {
-    node.finalizers().iter().any(|f| f == STELLAR_NODE_FINALIZER)
+    node.finalizers()
+        .iter()
+        .any(|f| f == STELLAR_NODE_FINALIZER)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::crd::{
-        NodeType, ResourceRequirements, ResourceSpec, StellarNetwork, StellarNodeSpec, StorageConfig,
+        NodeType, ResourceRequirements, ResourceSpec, StellarNetwork, StellarNodeSpec,
+        StorageConfig,
     };
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
     use kube::api::ObjectMeta;
@@ -117,8 +120,14 @@ mod tests {
             network: StellarNetwork::Testnet,
             version: "v21.0.0".to_string(),
             resources: ResourceRequirements {
-                requests: ResourceSpec { cpu: "500m".to_string(), memory: "1Gi".to_string() },
-                limits:   ResourceSpec { cpu: "2".to_string(),    memory: "4Gi".to_string() },
+                requests: ResourceSpec {
+                    cpu: "500m".to_string(),
+                    memory: "1Gi".to_string(),
+                },
+                limits: ResourceSpec {
+                    cpu: "2".to_string(),
+                    memory: "4Gi".to_string(),
+                },
             },
             storage: StorageConfig {
                 storage_class: "standard".to_string(),

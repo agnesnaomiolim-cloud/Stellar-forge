@@ -22,6 +22,7 @@ pub enum BatchPayError {
     LengthMismatch = 5,
     InvalidAmount = 6,
     DuplicateBatch = 7,
+    // Retained to keep the public error code stable; payout calls no longer use a lock.
     ReentrantCall = 8,
 }
 
@@ -36,7 +37,6 @@ impl BatchPayContract {
         env.storage()
             .instance()
             .set(&DataKey::Config, &Config { admin, token });
-        env.storage().instance().set(&DataKey::Processing, &false);
         Ok(())
     }
 
@@ -51,10 +51,6 @@ impl BatchPayContract {
             .instance()
             .get(&DataKey::Config)
             .ok_or(BatchPayError::NotInitialized)?;
-
-        if segmentation::is_processing(&env) {
-            return Err(BatchPayError::ReentrantCall);
-        }
 
         config.admin.require_auth();
         match segmentation::validate_batch(&recipients, &amounts) {
@@ -72,7 +68,6 @@ impl BatchPayContract {
             return Err(BatchPayError::DuplicateBatch);
         }
 
-        env.storage().instance().set(&DataKey::Processing, &true);
         env.storage().persistent().set(&processed_key, &true);
 
         let contract_address = env.current_contract_address();
@@ -98,7 +93,6 @@ impl BatchPayContract {
             token_client.transfer(&contract_address, &recipient, &amount);
         }
 
-        env.storage().instance().set(&DataKey::Processing, &false);
         Ok(())
     }
 }
@@ -180,6 +174,29 @@ mod test {
 
         assert_eq!(token.balance(&first_recipient), 40);
         assert_eq!(token.balance(&second_recipient), 60);
+    }
+
+    #[test]
+    fn distinct_batches_use_independent_replay_keys() {
+        let (env, token_address, contract_id) = setup();
+        let client = BatchPayContractClient::new(&env, &contract_id);
+        let token = token::Client::new(&env, &token_address);
+        let first = Address::generate(&env);
+        let second = Address::generate(&env);
+
+        client.process_batch(
+            &BytesN::from_array(&env, &[1; 32]),
+            &vec![&env, first.clone()],
+            &vec![&env, 125_i128],
+        );
+        client.process_batch(
+            &BytesN::from_array(&env, &[2; 32]),
+            &vec![&env, second.clone()],
+            &vec![&env, 375_i128],
+        );
+
+        assert_eq!(token.balance(&first), 125);
+        assert_eq!(token.balance(&second), 375);
     }
 
     #[test]

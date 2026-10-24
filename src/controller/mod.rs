@@ -1,5 +1,3 @@
-
-
 pub mod autoscaler;
 pub mod benchmark;
 pub mod blue_green;
@@ -22,14 +20,13 @@ pub mod ml_pipeline;
 pub mod network;
 pub mod network_isolation;
 pub mod observability_pipeline;
+pub mod pdb;
 pub mod phases;
 pub mod predictive_scaling;
-pub mod pdb;
 pub mod pss;
 pub mod quota;
 pub mod registry_controller;
 pub mod resource_meta;
-
 
 pub mod anomaly_detection;
 pub(crate) mod archive_health;
@@ -51,53 +48,55 @@ pub mod cross_region_sync;
 pub mod cve;
 pub(crate) mod cve_reconciler;
 pub mod cve_scanner;
-[cfg(test)]
+#[cfg(test)]
 pub(crate) mod cve_test;
 pub mod db_pool;
 pub mod diff;
 pub mod disk_scaler;
-[cfg(test)]
+#[cfg(test)]
 mod disk_scaler_test;
 pub mod dr;
 pub mod dr_drill;
-[cfg(test)]
+#[cfg(test)]
 mod dr_test;
 pub mod finalizers;
 pub(crate) mod forensic_snapshot;
 pub(crate) mod health;
 
+mod csi_snapshot;
 mod health_test;
 pub mod ingestion;
 pub mod kms_secret;
-[cfg(feature = "metrics")]
+#[cfg(feature = "metrics")]
 pub mod metrics;
 pub mod mtls;
 pub mod mtls_rotation;
 pub mod oci_snapshot;
 pub mod operator_config;
 pub mod peer_discovery;
-[cfg(test)]
+#[cfg(test)]
 mod peer_discovery_test;
 pub mod pruning_reconciler;
 pub mod pruning_worker;
 pub mod quorum;
 pub mod read_pool;
 pub(crate) mod reconciler;
-[cfg(test)]
+#[cfg(test)]
 mod reconciler_test;
 pub(crate) mod remediation;
-[cfg(test)]
+#[cfg(test)]
 mod remediation_test;
 pub mod resource_optimization;
 pub(crate) mod resources;
-[cfg(test)]
+#[cfg(test)]
 mod resources_test;
 pub mod rollout;
 pub mod secret_watcher;
 pub mod security;
 pub mod service_mesh;
-mod csi_snapshot;
+#[path = "snapshot.rs"]
 pub mod snapshot;
+pub(crate) mod upgrade_snapshot;
 pub mod snapshot_worker;
 pub mod spot_drain;
 pub mod storage;
@@ -105,9 +104,10 @@ pub mod storage_migration;
 pub(crate) mod sync_scale;
 pub(crate) mod sync_state_monitor;
 
+#[path = "topology.rs"]
 pub mod topology;
 pub mod traffic;
-[cfg(test)]
+#[cfg(test)]
 mod traffic_test;
 pub mod vpa;
 pub(crate) mod vsl;
@@ -122,7 +122,6 @@ pub use archive_health::{
 pub use audit_log::{AdminAction, AuditEntry, AuditLog};
 pub use audit_recorder::AuditRecorder;
 pub use background_jobs::{JobKind, JobRecord, JobRegistry, JobState, MAX_JOBS};
-pub use captive::{CaptiveCoreProcess, CaptiveCoreSupervisor, SupervisorConfig, SupervisorState};
 pub use benchmark::run_benchmark_controller;
 pub use blue_green::{
     cleanup_blue_deployment, create_green_deployment, rollback_to_blue, run_smoke_tests,
@@ -138,6 +137,7 @@ pub use cache_aware_queue::{
     calculate_cache_aware_backoff, priority_from_signals, CacheAwareBackoffInput,
     CacheAwarePriorityQueue, ReconcilePriority,
 };
+pub use captive::{CaptiveCoreProcess, CaptiveCoreSupervisor, SupervisorConfig, SupervisorState};
 pub use cross_cloud_failover::reconcile_cross_cloud_failover;
 pub use cross_cluster::{check_peer_latency, ensure_cross_cluster_services, PeerLatencyStatus};
 pub use cve_reconciler::reconcile_cve_patches;
@@ -156,8 +156,8 @@ pub use event_taxonomy::{EventAction, EventCategory, EventDescriptor, EventReaso
 pub use feature_flags::{
     watch_feature_flags, FeatureFlags, SharedFeatureFlags, FEATURE_FLAGS_CONFIGMAP,
 };
-pub use finalizers::STELLAR_NODE_FINALIZER;
 pub use finalizers::cleanup::run_finalizer_cleanup_controller;
+pub use finalizers::STELLAR_NODE_FINALIZER;
 pub use gitops_upgrade::{
     GitOpsEngine, GitOpsUpgradeController, GitOpsUpgradePlan, ProtocolUpgradeStep,
     ProtocolUpgradeTimeline,
@@ -185,7 +185,7 @@ pub use pss::{
     ensure_namespace_pss_labels, restricted_container_security_context,
     restricted_pod_security_context, validate_pss_compliance, PssViolation,
 };
-[cfg(feature = "reconciler-fuzz")]
+#[cfg(feature = "reconciler-fuzz")]
 pub use reconciler::reconcile_for_fuzzz;
 pub use reconciler::{run_controller, BatchSummaryReport, ControllerState};
 
@@ -215,4 +215,3 @@ pub use network::{
     HorizonBgpSidecar, HorizonSyncHealth, MetalLBController, MetalLBReconcileOutcome,
     MAX_ROUTE_WITHDRAWAL_SLA_MS, METALLB_API_GROUP, METALLB_NAMESPACE,
 };
-

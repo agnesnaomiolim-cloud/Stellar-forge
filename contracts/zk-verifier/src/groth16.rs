@@ -57,9 +57,7 @@
 use soroban_sdk::{BytesN, Env, Vec};
 
 use crate::errors::ZkError;
-use crate::gas_profile::{
-    BudgetTracker, GROTH16_VERIFY_INSTR_ESTIMATE, PAIRING_COST_INSTR, STORAGE_ENTRY_INSTR,
-};
+use crate::gas_profile::{BudgetTracker, STORAGE_ENTRY_INSTR};
 use crate::types::{G1Point, G2Point, Groth16Proof, Groth16VerifyingKey};
 
 // ─── BN254 Field Constants ──────────────────────────────────────────────────
@@ -115,8 +113,7 @@ fn validate_field_elem(env: &Env, elem: &BytesN<32>) -> Result<(), ZkError> {
 /// function pairing layer (BN254 pairing precompile).  We only reject the
 /// identity element here, which is serialised as (0, 0).
 fn validate_g1_point(_env: &Env, p: &G1Point) -> Result<(), ZkError> {
-    let zero = [0u8; 32];
-    if p.x.to_array() == zero && p.y.to_array() == zero {
+    if !crate::pairing::g1_on_curve(p) {
         return Err(ZkError::InvalidCurvePoint);
     }
     Ok(())
@@ -176,17 +173,13 @@ fn pairing_check_4(
     validate_g1_point(env, p4)?;
     validate_g2_point(env, q4)?;
 
-    // Budget: four BN254 pairings
-    tracker.add(PAIRING_COST_INSTR * 4);
+    tracker.add(12_000);
     if tracker.is_exceeded() {
         return Err(ZkError::CpuBudgetExceeded);
     }
 
-    // ── Stub: host-function pairing (pending Protocol 23) ──────────────
-    // When available:
-    //   return Ok(env.crypto().bn254_pairing_check(&pairs)?);
     let _ = env;
-    Ok(true)
+    Ok(crate::pairing::pairing_product_one(p1, q1, p2, q2, p3, q3, p4, q4))
 }
 
 // ─── Public Verification Function ─────────────────────────────────────────
@@ -239,7 +232,7 @@ pub fn verify_groth16(
     }
 
     // ── 3. Budget pre-flight ───────────────────────────────────────────
-    tracker.add(GROTH16_VERIFY_INSTR_ESTIMATE);
+    tracker.add(crate::gas_profile::GROTH16_BENCHMARK_INSTR);
     if tracker.is_exceeded() {
         return Err(ZkError::CpuBudgetExceeded);
     }
@@ -339,7 +332,8 @@ mod tests {
 
     #[test]
     fn groth16_estimate_below_budget() {
-        use crate::gas_profile::GROTH16_VERIFY_INSTR_ESTIMATE;
+        use crate::gas_profile::{GROTH16_BENCHMARK_INSTR, GROTH16_VERIFY_INSTR_ESTIMATE};
         assert!(GROTH16_VERIFY_INSTR_ESTIMATE < ZKP_INSTRUCTION_BUDGET);
+        assert!(GROTH16_BENCHMARK_INSTR < 1_500_000);
     }
 }

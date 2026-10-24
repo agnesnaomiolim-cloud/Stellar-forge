@@ -5,7 +5,12 @@
 //! the configured Prometheus instance, and reports back whether the syntax
 //! is valid and whether the condition currently evaluates true.
 
-use axum::{extract::State, http::StatusCode, response::{IntoResponse, Response}, Json};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
@@ -146,7 +151,9 @@ pub async fn test_alert_expr(
         let reason = body
             .error
             .unwrap_or_else(|| "Unknown error from Prometheus".to_string());
-        let error_type = body.error_type.unwrap_or_else(|| "invalid_query".to_string());
+        let error_type = body
+            .error_type
+            .unwrap_or_else(|| "invalid_query".to_string());
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(AlertTestError {

@@ -24,7 +24,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 
-
 /// Structured validation error for `StellarNodeSpec`
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SpecValidationError {
@@ -255,6 +254,12 @@ pub struct StellarNodeSpec {
     /// When set, the operator snapshots the PVC before applying a new version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub backup_config: Option<BackupConfig>,
+
+    /// Snapshot-based upgrade safety. When enabled, the controller pauses the
+    /// StatefulSet, waits for a CSI VolumeSnapshot `ReadyToUse`, then resumes
+    /// the image rollout. Preferred over `backupConfig` when both are set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upgrade_safety: Option<UpgradeSafetyConfig>,
 
     /// Bootstrap this node from an existing VolumeSnapshot instead of an empty volume (Validator only).
     /// The PVC will be created from the specified snapshot for near-instant startup.
@@ -562,6 +567,7 @@ impl Default for StellarNodeSpec {
             cve_handling: None,
             snapshot_schedule: None,
             backup_config: None,
+            upgrade_safety: None,
             restore_from_snapshot: None,
             read_replica_config: None,
             db_maintenance_config: None,
@@ -911,6 +917,7 @@ impl StellarNodeSpec {
                 // Snapshot schedule, pre-upgrade backups, and restore only apply to Validators (ledger data)
                 if (self.snapshot_schedule.is_some()
                     || self.backup_config.is_some()
+                    || self.upgrade_safety.is_some()
                     || self.restore_from_snapshot.is_some())
                     && self
                         .restore_from_snapshot
@@ -942,12 +949,13 @@ impl StellarNodeSpec {
             NodeType::Horizon => {
                 if self.snapshot_schedule.is_some()
                     || self.backup_config.is_some()
+                    || self.upgrade_safety.is_some()
                     || self.restore_from_snapshot.is_some()
                 {
                     errors.push(SpecValidationError::new(
-                        "spec.snapshotSchedule / spec.backupConfig / spec.restoreFromSnapshot",
+                        "spec.snapshotSchedule / spec.backupConfig / spec.upgradeSafety / spec.restoreFromSnapshot",
                         "snapshot, pre-upgrade backup, and restore are only supported for Validator nodes",
-                        "Remove spec.snapshotSchedule, spec.backupConfig, and spec.restoreFromSnapshot for Horizon nodes.",
+                        "Remove spec.snapshotSchedule, spec.backupConfig, spec.upgradeSafety, and spec.restoreFromSnapshot for Horizon nodes.",
                     ));
                 }
                 // Horizon config required
@@ -990,12 +998,13 @@ impl StellarNodeSpec {
             NodeType::SorobanRpc => {
                 if self.snapshot_schedule.is_some()
                     || self.backup_config.is_some()
+                    || self.upgrade_safety.is_some()
                     || self.restore_from_snapshot.is_some()
                 {
                     errors.push(SpecValidationError::new(
-                        "spec.snapshotSchedule / spec.backupConfig / spec.restoreFromSnapshot",
+                        "spec.snapshotSchedule / spec.backupConfig / spec.upgradeSafety / spec.restoreFromSnapshot",
                         "snapshot, pre-upgrade backup, and restore are only supported for Validator nodes",
-                        "Remove spec.snapshotSchedule, spec.backupConfig, and spec.restoreFromSnapshot for SorobanRpc nodes.",
+                        "Remove spec.snapshotSchedule, spec.backupConfig, spec.upgradeSafety, and spec.restoreFromSnapshot for SorobanRpc nodes.",
                     ));
                 }
                 // Soroban config required

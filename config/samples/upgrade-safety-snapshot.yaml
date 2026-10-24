@@ -1,0 +1,21 @@
+apiVersion: stellar.org/v1alpha1
+kind: StellarNode
+metadata:
+  name: validator-upgrade-safe
+  namespace: stellar-nodes
+spec:
+  nodeType: Validator
+  network: testnet
+  version: "22.0.0"
+  replicas: 1
+  storage:
+    storageClass: standard-rwo
+    size: "500Gi"
+  upgradeSafety:
+    enabled: true
+    volumeSnapshotClassName: csi-snapclass
+    flushBeforeSnapshot: true
+    readyTimeoutSeconds: 300
+    haltOnCsiUnavailable: true
+  validatorConfig:
+    seedSecretRef: validator-seed

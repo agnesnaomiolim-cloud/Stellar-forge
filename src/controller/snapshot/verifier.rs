@@ -264,10 +264,14 @@ mod tests {
 
     #[test]
     fn parse_sha256_sidecar_parses_standard_format() {
-        let line = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  archive.tar.gz\n";
+        let line =
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  archive.tar.gz\n";
         let (name, hex) = parse_sha256_sidecar(line).unwrap();
         assert_eq!(name, "archive.tar.gz");
-        assert_eq!(hex, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+        assert_eq!(
+            hex,
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
     }
 
     #[test]

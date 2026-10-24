@@ -159,9 +159,10 @@ impl SnapshotReconciler {
     /// `AWS_*` env vars, or `~/.aws/credentials`).
     pub async fn new(config: SnapshotReconcilerConfig) -> Result<Self> {
         let sdk_config = aws_config::from_env()
-            .region(aws_config::meta::region::RegionProviderChain::default_provider().or_else(
-                config.aws_region.as_str(),
-            ))
+            .region(
+                aws_config::meta::region::RegionProviderChain::default_provider()
+                    .or_else(config.aws_region.as_str()),
+            )
             .load()
             .await;
         let s3 = S3Client::new(&sdk_config);
@@ -226,7 +227,8 @@ impl SnapshotReconciler {
         );
 
         // Step 5 — extract
-        self.extract_archive(&archive_path, &self.config.data_dir).await?;
+        self.extract_archive(&archive_path, &self.config.data_dir)
+            .await?;
         info!(
             data_dir = %self.config.data_dir.display(),
             "Archive extracted"
@@ -302,14 +304,11 @@ impl SnapshotReconciler {
 
         // Attempt to extract ledger sequence from key name
         // Convention: `<prefix>/stellar-<network>-<ledger>.tar.gz`
-        let ledger_sequence = key
-            .rsplit('/')
-            .next()
-            .and_then(|name| {
-                name.strip_suffix(".tar.gz")
-                    .and_then(|s| s.rsplit('-').next())
-                    .and_then(|seq| seq.parse::<u64>().ok())
-            });
+        let ledger_sequence = key.rsplit('/').next().and_then(|name| {
+            name.strip_suffix(".tar.gz")
+                .and_then(|s| s.rsplit('-').next())
+                .and_then(|seq| seq.parse::<u64>().ok())
+        });
 
         debug!(key = %key, ledger = ?ledger_sequence, "resolved snapshot");
 
@@ -318,10 +317,7 @@ impl SnapshotReconciler {
             key,
             expected_sha256: None,
             size_bytes,
-            created_at: latest
-                .last_modified
-                .as_ref()
-                .map(|t| t.to_string()),
+            created_at: latest.last_modified.as_ref().map(|t| t.to_string()),
             ledger_sequence,
         })
     }
@@ -491,15 +487,13 @@ impl SnapshotReconciler {
 /// Decompress and extract a `.tar.gz` file into `dest_dir` using an atomic
 /// rename strategy to ensure `dest_dir` is never left partially extracted.
 fn extract_tar_gz(archive_path: &Path, dest_dir: &Path) -> Result<()> {
-    let tmp_dir = dest_dir.with_extension(
-        format!(
-            "tmp.{}",
-            archive_path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("snap")
-        )
-    );
+    let tmp_dir = dest_dir.with_extension(format!(
+        "tmp.{}",
+        archive_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("snap")
+    ));
 
     if tmp_dir.exists() {
         std::fs::remove_dir_all(&tmp_dir)?;

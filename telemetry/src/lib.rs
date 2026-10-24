@@ -34,7 +34,11 @@
 //! - [`parser`]  — Zero-copy async log parser for Soroban RPC invocation streams.
 //! - [`exporter`] — Prometheus metrics exporter with an HTTP `/metrics` endpoint.
 //! - [`proxy`]   — Intelligent rate-limiter proxy for the Stellar Core metrics endpoint.
+//! - [`ebpf`]    — Optional Aya-rs socket telemetry with graceful fallback.
+//! - [`metrics`] — Prometheus text for eBPF/fallback network counters.
 
+pub mod ebpf;
 pub mod exporter;
+pub mod metrics;
 pub mod parser;
 pub mod proxy;

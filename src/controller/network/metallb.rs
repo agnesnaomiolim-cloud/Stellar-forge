@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Stellar-K8s Contributors
+// Copyright 2024 Stellar-K8s Contributors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -38,7 +38,9 @@ use serde_json::json;
 use tracing::{debug, info, warn};
 
 use super::bgp::{BgpAnycastConfig, BgpAnycastRouter, BgpWithdrawalReason};
-use crate::crd::types::{BGPConfig, BGPPeer, ExternalTrafficPolicy, LoadBalancerConfig, LoadBalancerMode};
+use crate::crd::types::{
+    BGPConfig, BGPPeer, ExternalTrafficPolicy, LoadBalancerConfig, LoadBalancerMode,
+};
 use crate::crd::StellarNode;
 
 /// MetalLB API group
@@ -148,23 +150,33 @@ impl MetalLBController {
             } else {
                 format!("{}/32", anycast_ip)
             };
-            self.ensure_ip_address_pool(client, &pool_name, vec![pool_cidr]).await?;
+            self.ensure_ip_address_pool(client, &pool_name, vec![pool_cidr])
+                .await?;
             outcome.address_pool_created = true;
         }
 
         // 2. Ensure BGPPeers
         for (idx, peer) in bgp_config.peers.iter().enumerate() {
             let peer_name = format!("{}-bgp-peer-{}", node.name_any(), idx);
-            self.ensure_bgp_peer(client, &peer_name, bgp_config.local_asn, peer, bgp_config.bfd_profile.as_deref()).await?;
+            self.ensure_bgp_peer(
+                client,
+                &peer_name,
+                bgp_config.local_asn,
+                peer,
+                bgp_config.bfd_profile.as_deref(),
+            )
+            .await?;
             outcome.bgp_peers_configured += 1;
         }
 
         // 3. Ensure BGPAdvertisement
-        self.ensure_bgp_advertisement(client, &adv_name, vec![pool_name.clone()], bgp_config).await?;
+        self.ensure_bgp_advertisement(client, &adv_name, vec![pool_name.clone()], bgp_config)
+            .await?;
         outcome.advertisement_active = true;
 
         // 4. Ensure Horizon Anycast Service
-        self.ensure_anycast_service(client, node, lb_config, &pool_name).await?;
+        self.ensure_anycast_service(client, node, lb_config, &pool_name)
+            .await?;
         outcome.service_created = true;
 
         info!(
@@ -187,13 +199,22 @@ impl MetalLBController {
         let namespace = node.namespace().unwrap_or_else(|| "default".to_string());
 
         let mut labels = BTreeMap::new();
-        labels.insert("app.kubernetes.io/name".to_string(), "stellar-node".to_string());
+        labels.insert(
+            "app.kubernetes.io/name".to_string(),
+            "stellar-node".to_string(),
+        );
         labels.insert("app.kubernetes.io/instance".to_string(), node.name_any());
         labels.insert("stellar.org/anycast".to_string(), "true".to_string());
 
         let mut annotations = BTreeMap::new();
-        annotations.insert("metallb.universe.tf/address-pool".to_string(), pool_name.to_string());
-        annotations.insert("metallb.universe.tf/allow-shared-ip".to_string(), "stellar-horizon-anycast".to_string());
+        annotations.insert(
+            "metallb.universe.tf/address-pool".to_string(),
+            pool_name.to_string(),
+        );
+        annotations.insert(
+            "metallb.universe.tf/allow-shared-ip".to_string(),
+            "stellar-horizon-anycast".to_string(),
+        );
 
         if let Some(user_ann) = &lb_config.annotations {
             for (k, v) in user_ann {
@@ -286,7 +307,8 @@ impl MetalLBController {
             }
         });
 
-        self.apply_dynamic_resource(client, "ipaddresspools", name, pool).await
+        self.apply_dynamic_resource(client, "ipaddresspools", name, pool)
+            .await
     }
 
     /// Apply a BGPPeer CRD manifest.
@@ -322,7 +344,8 @@ impl MetalLBController {
             "spec": spec
         });
 
-        self.apply_dynamic_resource(client, "bgppeers", name, bgp_peer).await
+        self.apply_dynamic_resource(client, "bgppeers", name, bgp_peer)
+            .await
     }
 
     /// Apply a BGPAdvertisement CRD manifest.
@@ -357,7 +380,8 @@ impl MetalLBController {
             "spec": spec
         });
 
-        self.apply_dynamic_resource(client, "bgpadvertisements", name, adv).await
+        self.apply_dynamic_resource(client, "bgpadvertisements", name, adv)
+            .await
     }
 
     /// Execute fast route withdrawal by removing the BGPAdvertisement CRD.
@@ -376,7 +400,8 @@ impl MetalLBController {
             "Withdrawing MetalLB BGP advertisement"
         );
 
-        self.delete_dynamic_resource(client, "bgpadvertisements", &adv_name).await?;
+        self.delete_dynamic_resource(client, "bgpadvertisements", &adv_name)
+            .await?;
 
         if let Some(router) = &self.router {
             let _ = router
@@ -405,7 +430,8 @@ impl MetalLBController {
         let pool_name = format!("{}-anycast-pool", node.name_any());
         let adv_name = format!("{}-anycast-adv", node.name_any());
 
-        self.ensure_bgp_advertisement(client, &adv_name, vec![pool_name], bgp_config).await?;
+        self.ensure_bgp_advertisement(client, &adv_name, vec![pool_name], bgp_config)
+            .await?;
 
         if let Some(router) = &self.router {
             let _ = router.announce_anycast_route().await;
@@ -427,8 +453,12 @@ impl MetalLBController {
         let svc_name = format!("{}-horizon-anycast", name);
         let namespace = node.namespace().unwrap_or_else(|| "default".to_string());
 
-        let _ = self.delete_dynamic_resource(client, "bgpadvertisements", &adv_name).await;
-        let _ = self.delete_dynamic_resource(client, "ipaddresspools", &pool_name).await;
+        let _ = self
+            .delete_dynamic_resource(client, "bgpadvertisements", &adv_name)
+            .await;
+        let _ = self
+            .delete_dynamic_resource(client, "ipaddresspools", &pool_name)
+            .await;
 
         let svc_api: Api<Service> = Api::namespaced(client.clone(), &namespace);
         let _ = svc_api.delete(&svc_name, &DeleteParams::default()).await;
@@ -451,7 +481,9 @@ impl MetalLBController {
         let api: Api<DynamicObject> = Api::namespaced_with(client.clone(), METALLB_NAMESPACE, &gvr);
 
         let patch_params = PatchParams::apply("stellar-operator-metallb").force();
-        let _ = api.patch(name, &patch_params, &Patch::Apply(&resource)).await;
+        let _ = api
+            .patch(name, &patch_params, &Patch::Apply(&resource))
+            .await;
         Ok(())
     }
 
@@ -499,7 +531,9 @@ pub async fn simulate_cluster_failover(
     router_sec.announce_anycast_route().await?;
 
     let event = router_sec
-        .withdraw_anycast_route(BgpWithdrawalReason::NodeOutageSimulated(secondary_cluster.to_string()))
+        .withdraw_anycast_route(BgpWithdrawalReason::NodeOutageSimulated(
+            secondary_cluster.to_string(),
+        ))
         .await?;
 
     let log = format!(
@@ -517,7 +551,9 @@ pub async fn simulate_cluster_failover(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::crd::types::{BGPAdvertisementConfig, BGPConfig, BGPPeer, LoadBalancerConfig, LoadBalancerMode};
+    use crate::crd::types::{
+        BGPAdvertisementConfig, BGPConfig, BGPPeer, LoadBalancerConfig, LoadBalancerMode,
+    };
     use crate::crd::{StellarNode, StellarNodeSpec};
 
     #[test]
@@ -533,19 +569,40 @@ mod tests {
             ..Default::default()
         };
 
-        let svc = MetalLBController::build_anycast_service(&node, &lb_config, "horizon-anycast-pool");
-        assert_eq!(svc.spec.as_ref().unwrap().type_.as_deref(), Some("LoadBalancer"));
-        assert_eq!(svc.spec.as_ref().unwrap().external_traffic_policy.as_deref(), Some("Local"));
-        assert_eq!(svc.spec.as_ref().unwrap().load_balancer_ip.as_deref(), Some("192.0.2.200"));
-        
+        let svc =
+            MetalLBController::build_anycast_service(&node, &lb_config, "horizon-anycast-pool");
+        assert_eq!(
+            svc.spec.as_ref().unwrap().type_.as_deref(),
+            Some("LoadBalancer")
+        );
+        assert_eq!(
+            svc.spec
+                .as_ref()
+                .unwrap()
+                .external_traffic_policy
+                .as_deref(),
+            Some("Local")
+        );
+        assert_eq!(
+            svc.spec.as_ref().unwrap().load_balancer_ip.as_deref(),
+            Some("192.0.2.200")
+        );
+
         let ann = svc.metadata.annotations.as_ref().unwrap();
-        assert_eq!(ann.get("metallb.universe.tf/address-pool").unwrap(), "horizon-anycast-pool");
-        assert_eq!(ann.get("metallb.universe.tf/allow-shared-ip").unwrap(), "stellar-horizon-anycast");
+        assert_eq!(
+            ann.get("metallb.universe.tf/address-pool").unwrap(),
+            "horizon-anycast-pool"
+        );
+        assert_eq!(
+            ann.get("metallb.universe.tf/allow-shared-ip").unwrap(),
+            "stellar-horizon-anycast"
+        );
     }
 
     #[tokio::test]
     async fn test_simulate_cluster_failover() {
-        let result = simulate_cluster_failover("us-east-primary", "eu-west-secondary", "192.0.2.100").await;
+        let result =
+            simulate_cluster_failover("us-east-primary", "eu-west-secondary", "192.0.2.100").await;
         assert!(result.is_ok());
         let msg = result.unwrap();
         assert!(msg.contains("FAILOVER_SIMULATION_SUCCESS"));

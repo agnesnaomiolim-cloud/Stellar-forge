@@ -172,9 +172,8 @@ impl BanManager {
                 .and_modify(|e| {
                     e.ban_count += 1;
                     e.expiry_instant = ttl.map(|t| Instant::now() + t);
-                    e.expires_at = ttl.map(|t| {
-                        Utc::now() + chrono::Duration::from_std(t).unwrap_or_default()
-                    });
+                    e.expires_at =
+                        ttl.map(|t| Utc::now() + chrono::Duration::from_std(t).unwrap_or_default());
                     e.reason = reason.clone();
                 })
                 .or_insert_with(|| BanEntry::new(ip, reason.clone(), ttl));
@@ -219,18 +218,13 @@ impl BanManager {
     /// Whether the given IP is currently banned (and not expired).
     pub fn is_banned(&self, ip: IpAddr) -> bool {
         let bans = self.bans.lock().unwrap();
-        bans.get(&ip)
-            .map(|e| !e.is_expired())
-            .unwrap_or(false)
+        bans.get(&ip).map(|e| !e.is_expired()).unwrap_or(false)
     }
 
     /// Return a snapshot of all current (non-expired) ban entries.
     pub fn active_bans(&self) -> Vec<BanEntry> {
         let bans = self.bans.lock().unwrap();
-        bans.values()
-            .filter(|e| !e.is_expired())
-            .cloned()
-            .collect()
+        bans.values().filter(|e| !e.is_expired()).cloned().collect()
     }
 
     /// Remove all expired entries from the in-memory map.  Called periodically
@@ -269,11 +263,16 @@ impl BanManager {
 async fn apply_iptables_ban(ip: &str, port: u16) {
     let output = tokio::process::Command::new("iptables")
         .args([
-            "-I", "INPUT",
-            "-s", ip,
-            "-p", "tcp",
-            "--dport", &port.to_string(),
-            "-j", "DROP",
+            "-I",
+            "INPUT",
+            "-s",
+            ip,
+            "-p",
+            "tcp",
+            "--dport",
+            &port.to_string(),
+            "-j",
+            "DROP",
         ])
         .output()
         .await;

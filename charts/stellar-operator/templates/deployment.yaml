@@ -68,6 +68,9 @@ spec:
         {{- end }}
       containers:
         - name: {{ .Chart.Name }}
+          # eBPF telemetry is optional. Loading Aya probes requires CAP_BPF/CAP_PERFMON
+          # (see docs/ebpf-network-telemetry.md). Without those caps the collector
+          # degrades to standard metrics and does not crash the operator.
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: {{ include "stellar-operator.operatorImage" . }}

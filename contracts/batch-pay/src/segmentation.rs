@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, BytesN, Env, Vec};
+use soroban_sdk::{contracttype, Address, BytesN, Vec};
 
 pub const MAX_BATCH_SIZE: u32 = 100;
 
@@ -14,7 +14,6 @@ pub enum ValidationError {
 #[contracttype]
 pub enum DataKey {
     Config,
-    Processing,
     ProcessedBatch(BytesN<32>),
 }
 
@@ -45,13 +44,6 @@ pub fn validate_batch(
         }
     }
     Ok(())
-}
-
-pub fn is_processing(env: &Env) -> bool {
-    env.storage()
-        .instance()
-        .get(&DataKey::Processing)
-        .unwrap_or(false)
 }
 
 #[cfg(test)]

@@ -23,11 +23,7 @@ const LEDGER_TABLE: &str = "public.history_ledgers";
 
 async fn connect() -> Option<PgPool> {
     let url = std::env::var("TEST_DATABASE_URL").ok()?;
-    match PgPoolOptions::new()
-        .max_connections(4)
-        .connect(&url)
-        .await
-    {
+    match PgPoolOptions::new().max_connections(4).connect(&url).await {
         Ok(pool) => Some(pool),
         Err(e) => {
             eprintln!("warning: TEST_DATABASE_URL set but connection failed: {e}");
@@ -52,7 +48,13 @@ async fn seed_fragmented_table(pool: &PgPool) -> Result<u64, sqlx::Error> {
     for start in (0..insert_count).step_by(10_000) {
         let mut query = String::from("INSERT INTO compaction_test_items (id, payload) VALUES ");
         let batch: Vec<String> = (start..(start + 10_000).min(insert_count))
-            .map(|i| format!("({i}, 'payload-{i}-{}-{}', repeat('x', 128))", i % 7, i % 13))
+            .map(|i| {
+                format!(
+                    "({i}, 'payload-{i}-{}-{}', repeat('x', 128))",
+                    i % 7,
+                    i % 13
+                )
+            })
             .collect();
         query.push_str(&batch.join(", "));
         sqlx::query(&query).execute(pool).await?;
@@ -78,9 +80,7 @@ async fn seed_history_ledgers(pool: &PgPool) -> Result<(), sqlx::Error> {
 
     let ledgers = 5000u32;
     for start in (0..ledgers).step_by(1_000) {
-        let mut query = String::from(
-            "INSERT INTO history_ledgers (sequence, closed_at) VALUES ",
-        );
+        let mut query = String::from("INSERT INTO history_ledgers (sequence, closed_at) VALUES ");
         let batch: Vec<String> = (start..(start + 1_000).min(ledgers))
             .map(|i| {
                 // Newest sequence (i) closed most recently; spread over 120 days.
@@ -154,9 +154,7 @@ async fn test_compact_and_verify_integrity() {
         size_after <= size_before,
         "compaction should not grow the table (before={size_before}, after={size_after})"
     );
-    eprintln!(
-        "integrity OK: checksums match, size {size_before} → {size_after} bytes"
-    );
+    eprintln!("integrity OK: checksums match, size {size_before} → {size_after} bytes");
 
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM compaction_test_items")
         .fetch_one(&pool)

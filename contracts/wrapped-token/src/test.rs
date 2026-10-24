@@ -69,3 +69,19 @@ fn paused_token_rejects_transfer() {
     client.set_paused(&true);
     client.transfer(&user, &user, &1);
 }
+
+#[test]
+fn zero_amount_transfer_is_handled_gracefully() {
+    let (env, contract_id, _admin, _relayer, user) = setup();
+    let client = WrappedTokenClient::new(&env, &contract_id);
+    let recipient = Address::generate(&env);
+
+    client.mint(&user, &100);
+    assert_eq!(client.balance(&user), 100);
+    assert_eq!(client.balance(&recipient), 0);
+
+    // Transferring 0 tokens should succeed gracefully leaving balances unchanged
+    client.transfer(&user, &recipient, &0);
+    assert_eq!(client.balance(&user), 100);
+    assert_eq!(client.balance(&recipient), 0);
+}

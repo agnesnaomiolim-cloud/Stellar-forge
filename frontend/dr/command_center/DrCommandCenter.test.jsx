@@ -203,6 +203,43 @@ describe('5 — Execution history preserved across reconnects', () => {
     // History still present
     expect(screen.getByText(/history-preserved/)).toBeInTheDocument();
   });
+
+  it('restores the latest phase state from the backend after reconnecting', async () => {
+    mockTriggerOk('drill-recovery');
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        drill_id: 'drill-recovery',
+        node: 'validator-0',
+        status: 'running',
+        phases: {
+          snapshot_restoration: { status: 'passed', message: 'restored from backend' },
+        },
+      }),
+    });
+    renderCC();
+    await act(async () => { jest.runAllTimers(); });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /trigger simulated drill/i }));
+    });
+
+    const ws = lastWs();
+    act(() => { ws.onclose?.({ wasClean: false }); });
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+      jest.runOnlyPendingTimers();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('restored from backend')).toBeInTheDocument();
+      expect(global.fetch).toHaveBeenCalledWith('/api/dr/status/drill-recovery');
+    });
+    expect(lastWs().sent).toContainEqual({
+      action: 'subscribe_drill',
+      drill_id: 'drill-recovery',
+    });
+  });
 });
 
 describe('6 — Overall progress bar', () => {

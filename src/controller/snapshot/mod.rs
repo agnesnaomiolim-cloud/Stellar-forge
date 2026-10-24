@@ -16,6 +16,4 @@ pub mod reconciler;
 pub mod verifier;
 
 pub use reconciler::{ReconcileOutcome, SnapshotReconciler, SnapshotReconcilerConfig, SnapshotRef};
-pub use verifier::{
-    compute_sha256_sync, parse_sha256_sidecar, verify_file, VerificationResult,
-};
+pub use verifier::{compute_sha256_sync, parse_sha256_sidecar, verify_file, VerificationResult};

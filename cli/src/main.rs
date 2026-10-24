@@ -6,10 +6,12 @@
 
 mod commands;
 mod network;
+mod promql;
 
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 use commands::status::{StatusArgs, StatusCommand};
+use promql::aggregator::AggregatorArgs;
 
 /// Top-level CLI definition.
 ///
@@ -60,6 +62,9 @@ struct Cli {
 enum Command {
     /// Report health diagnostics for a validator node.
     Status(StatusArgs),
+
+    /// Aggregate PromQL metrics across clusters and detect performance drift.
+    Aggregator(AggregatorArgs),
 }
 
 fn main() -> Result<()> {
@@ -88,6 +93,9 @@ fn main() -> Result<()> {
                 },
             )
             .await?
+        }
+        Command::Aggregator(args) => {
+            promql::aggregator::async_run(args).await?
         }
     }
 
