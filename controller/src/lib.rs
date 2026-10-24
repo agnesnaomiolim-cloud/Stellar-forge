@@ -24,4 +24,5 @@ pub mod apis;
 pub mod deployment;
 pub mod ingestion;
 pub mod quorum;
+pub mod topology;
 pub mod webhook;
