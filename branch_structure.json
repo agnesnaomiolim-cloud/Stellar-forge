@@ -1,18 +1,18 @@
 {
   "default_branch": "main",
   "branches": [
-
+    "fix/issue-478-documentation-wasm-plugin-development-and",
     "main",
     "origin"
   ],
   "parent": {
-
+    "fix/issue-478-documentation-wasm-plugin-development-and": "main",
     "main": null,
     "origin": "main"
   },
   "order": [
     "main",
-
+    "fix/issue-478-documentation-wasm-plugin-development-and",
     "origin"
   ]
 }
