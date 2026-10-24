@@ -118,7 +118,7 @@ tokio-rustls = { version = "0.26", optional = true }
 
 # Base64 for Wasm plugin loading
 # HMAC-SHA256 for webhook payload signing
-hmac = "0.12"
+mac = "0.12"
 http = "1"
 jsonwebtoken = "9"
 lru = "0.12"
@@ -179,6 +179,9 @@ reconciler-fuzz = []
 
 # Kubernetes API version selection (exactly one must be enabled)
 k8s-v1-30 = ["k8s-openapi/v1_30"]
+
+# Real-time ConfigMap hot-reloader for core params (issue #127)
+config-hot-reload = []
 
 [dev-dependencies]
 tokio-test = "0.4"
@@ -278,4 +281,4 @@ name = "crdgen"
 path = "src/bin/crdgen.rs"
 
 [workspace]
-
+members = ["wasm-plugins", "telemetry", "security/p2p-firewall"]
