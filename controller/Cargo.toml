@@ -38,10 +38,24 @@ async-trait = "0.1"
 # Temporary files for wasm-opt subprocess I/O
 tempfile = "3"
 
+# Async trait objects for the pluggable cloud snapshot provider (issue #84)
+async-trait = "0.1"
+# Timestamps for snapshot age-based retention policy and descriptor serde
+chrono = { version = "0.4", features = ["clock", "serde"] }
+# SHA-256 for snapshot integrity verification (restore validation)
+sha2 = "0.10"
+# Hex encoding for checksum output
+hex = "0.4"
+# HMAC-SHA256 for AWS SigV4 request signing (EBS snapshot API calls)
+hmac = "0.12"
+
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
 axum = { version = "0.8", features = [] }
 serde_json = "1"
 base64 = "0.21"
+# Mock HTTP server for exercising the AWS EBS / GCP PD request round-trips
+# without a live cloud. Pinned to match the version used elsewhere in the repo.
+wiremock = "=0.6.5"
 
 [workspace]
