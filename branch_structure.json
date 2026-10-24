@@ -1,18 +1,18 @@
 {
   "default_branch": "main",
   "branches": [
-
+    "feat/issue-466-contract-decentralized-autonomous-orderbook",
     "main",
     "origin"
   ],
   "parent": {
-
+    "feat/issue-466-contract-decentralized-autonomous-orderbook": "main",
     "main": null,
     "origin": "main"
   },
   "order": [
     "main",
-
+    "feat/issue-466-contract-decentralized-autonomous-orderbook",
     "origin"
   ]
 }
