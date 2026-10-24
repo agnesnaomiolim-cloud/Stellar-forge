@@ -117,8 +117,7 @@ wasmtime-wasi = { version = "24.0.7", features = ["preview1"], optional = true }
 tokio-rustls = { version = "0.26", optional = true }
 
 # Base64 for Wasm plugin loading
-# HMAC-SHA256 for webhook payload signing
-hmac = "0.12"
+# HMAC-SHA256 for webhook payload signing(mac = "0.12"
 http = "1"
 jsonwebtoken = "9"
 lru = "0.12"
@@ -278,4 +277,4 @@ name = "crdgen"
 path = "src/bin/crdgen.rs"
 
 [workspace]
-
+members = ["wasm-plugins", "telemetry", "security/p2p-firewall", "contracts/debt-ceiling"]

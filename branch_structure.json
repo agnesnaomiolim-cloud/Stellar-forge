@@ -1,18 +1,18 @@
 {
   "default_branch": "main",
   "branches": [
-
+    "feat/issue-476-contract-multi-collateral-stablecoin-debt",
     "main",
     "origin"
   ],
   "parent": {
-
+    "feat/issue-476-contract-multi-collateral-stablecoin-debt": "main",
     "main": null,
     "origin": "main"
   },
   "order": [
     "main",
-
+    "feat/issue-476-contract-multi-collateral-stablecoin-debt",
     "origin"
   ]
 }
