@@ -18,6 +18,9 @@ It covers three areas:
 
 Related documents:
 
+- [Bare-Metal Kubernetes Bootstrap Guide](../infrastructure/bare-metal.md):
+  how to bootstrap the cluster itself (Talos or kubeadm), attach these drives
+  through local StorageClasses, and segment the physical network.
 - [Capacity Planning](../operations/capacity-planning.md): how much disk you
   need. This guide covers how fast the disk must be.
 - [Resource Limits](../resource-limits.md): CPU and memory for each node type.

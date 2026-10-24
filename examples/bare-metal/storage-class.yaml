@@ -43,7 +43,8 @@ allowVolumeExpansion: false
 # first, then point its ConfigMap at the tuned mount so volumes do not land on
 # the OS disk:
 #
-#   kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.37/deploy/local-path-storage.yaml
+#   kubectl apply -f \
+#     https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.37/deploy/local-path-storage.yaml
 #
 # The `defaultVolumeType: local` annotation makes the provisioner create real
 # `local` PersistentVolumes (with node affinity) instead of `hostPath` ones.

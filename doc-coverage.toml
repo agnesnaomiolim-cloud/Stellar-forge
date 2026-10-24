@@ -48,6 +48,13 @@ src = [
     "src/controller/archive_health.rs",
 ]
 
+# ── Bare-Metal Bootstrap ──────────────────────────────────────────────────────
+[[entry]]
+doc = "docs/infrastructure/bare-metal.md"
+src = [
+    "examples/bare-metal/**",
+]
+
 # ── Benchmarking ───────────────────────────────────────────────────────────────
 [[entry]]
 doc = "docs/benchmarking.md"
