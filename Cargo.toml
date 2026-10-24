@@ -118,7 +118,7 @@ tokio-rustls = { version = "0.26", optional = true }
 
 # Base64 for Wasm plugin loading
 # HMAC-SHA256 for webhook payload signing
-hmac = "0.12"
+mac = "0.12"
 http = "1"
 jsonwebtoken = "9"
 lru = "0.12"
@@ -156,6 +156,20 @@ md5 = "0.8.0"
 # tar archive extraction for snapshot bootstrapping (#119)
 tar = "0.4"
 
+# Terminal UI for kubectl-stellar validator diagnostics
+color-eye = "0.3"
+
+# GitOps deployment engine for Stellar clusters (issue: GitOps Deployment Engine)
+# HTTP client for GitHub API polling is provided by reqwest above.
+# Patch generation for ConfigMap reconciliation is provided by json-patch above.
+# Diff detection for drift reporting is provided by serde_json_diff above.
+
+# GitOps health checking via Prometheus queries reuses reqwest.
+# GitHub API rate-limit backoff reuses tokio timers.
+
+[server-dependencies]
+chrono = "0.4"
+serde_json = "1"
 walkdir = "2"
 
 [features]

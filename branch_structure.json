@@ -1,18 +1,21 @@
 {
   "default_branch": "main",
   "branches": [
-
+    "feat/issue-286-enhancement-gitops-deployment-engine-for",
+    "fix/issue-317-enhancement-webgl-based-validator-topology",
     "main",
     "origin"
   ],
   "parent": {
-
+    "feat/issue-286-enhancement-gitops-deployment-engine-for": "main",
+    "fix/issue-317-enhancement-webgl-based-validator-topology": "main",
     "main": null,
     "origin": "main"
   },
   "order": [
     "main",
-
+    "feat/issue-286-enhancement-gitops-deployment-engine-for",
+    "fix/issue-317-enhancement-webgl-based-validator-topology",
     "origin"
   ]
 }
