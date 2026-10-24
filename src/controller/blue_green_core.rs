@@ -1816,6 +1816,11 @@ async fn run_cutover_steps(
                 )
                 .await?;
                 // Persist publish token on the node for maintenance / observation checks.
+                let mut rollout_ann = serde_json::Map::new();
+                rollout_ann.insert(
+                    ANN_PUBLISH_ROLLOUT.to_string(),
+                    serde_json::json!(rollout_token),
+                );
                 let api: Api<StellarNode> = Api::namespaced(
                     client.clone(),
                     &node.namespace().unwrap_or_else(|| "default".to_string()),
@@ -1825,7 +1830,7 @@ async fn run_cutover_steps(
                         &node.name_any(),
                         &PatchParams::apply("stellar-operator-bg").force(),
                         &Patch::Merge(&serde_json::json!({
-                            "metadata": { "annotations": { ANN_PUBLISH_ROLLOUT: rollout_token } }
+                            "metadata": { "annotations": rollout_ann }
                         })),
                     )
                     .await;
@@ -1856,6 +1861,15 @@ async fn run_cutover_steps(
                 }
                 ensure_active_service_selector(client, node, COLOR_GREEN, enable_mtls, dry_run)
                     .await?;
+                let mut cutover_ann = serde_json::Map::new();
+                cutover_ann.insert(
+                    ANN_CUTOVER_AT.to_string(),
+                    serde_json::json!(Utc::now().to_rfc3339()),
+                );
+                cutover_ann.insert(
+                    ANN_CUTOVER_STEP.to_string(),
+                    serde_json::json!(CutoverStep::Complete.as_str()),
+                );
                 let api: Api<StellarNode> = Api::namespaced(
                     client.clone(),
                     &node.namespace().unwrap_or_else(|| "default".to_string()),
@@ -1865,12 +1879,7 @@ async fn run_cutover_steps(
                         &node.name_any(),
                         &PatchParams::apply("stellar-operator-bg").force(),
                         &Patch::Merge(&serde_json::json!({
-                            "metadata": {
-                                "annotations": {
-                                    ANN_CUTOVER_AT: Utc::now().to_rfc3339(),
-                                    ANN_CUTOVER_STEP: CutoverStep::Complete.as_str(),
-                                }
-                            }
+                            "metadata": { "annotations": cutover_ann }
                         })),
                     )
                     .await;
