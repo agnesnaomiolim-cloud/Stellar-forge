@@ -62,6 +62,27 @@ spec:
                     type: string
                     default: 1m
                     description: Sync interval
+                  commitHash:
+                    type: string
+                    description: Pinned Git commit hash currently applied
+                  previousCommitHash:
+                    type: string
+                    description: Previous Git commit hash used for rollback
+              healthCheck:
+                type: object
+                description: Node sync health monitoring for automated rollback
+                properties:
+                  enabled:
+                    type: boolean
+                    default: true
+                    description: Enable health-based automated rollback
+                  prometheusEndpoint:
+                    type: string
+                    description: Prometheus endpoint used to query node sync health
+                  rollbackTimeout:
+                    type: string
+                    default: 5m
+                    description: Maximum time to wait before triggering rollback
               secretInjection:
                 type: object
                 description: GitOps-driven immutable secret injection configuration
@@ -147,6 +168,14 @@ spec:
               lastSyncTime:
                 type: string
                 format: date-time
+              lastAppliedCommit:
+                type: string
+                description: Git commit hash most recently applied to the cluster
+              lastRollbackTime:
+                type: string
+                format: date-time
+              rollbackReason:
+                type: string
               secretInjectionStatus:
                 type: object
                 properties:
@@ -162,5 +191,7 @@ spec:
                 - Synced
                 - OutOfSync
                 - Unknown
+                - RollingBack
+                - Degraded
     served: true
     storage: true

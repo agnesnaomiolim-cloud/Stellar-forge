@@ -111,6 +111,7 @@ pub mod deployment_strategy;
 pub mod error;
 
 pub mod fork_detector;
+pub mod gateway;
 pub mod incident;
 pub mod infra;
 pub mod load_balancer;
@@ -134,6 +135,7 @@ pub mod simulation_cache;
 #[path = "telemetry.rs"]
 pub mod telemetry;
 pub mod version_check;
+pub mod wasm;
 pub mod websocket_streaming;
 
 #[cfg(feature = "rest-api")]
