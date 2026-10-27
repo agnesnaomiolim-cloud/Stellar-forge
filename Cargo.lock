@@ -5427,6 +5427,7 @@ dependencies = [
  "aws-sdk-secretsmanager",
  "axum 0.8.9",
  "axum-server",
+ "base64 0.22.1",
  "bytes",
  "chrono",
  "clap",

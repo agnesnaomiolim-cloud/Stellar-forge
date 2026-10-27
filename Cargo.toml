@@ -8,6 +8,7 @@ license = "Apache-2.0"
 repository = "https://github.com/stellar/stellar-k8s"
 
 [dependencies]
+base64 = "0.22"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 toml = "0.8"
 # Glob pattern matching for label propagation filters

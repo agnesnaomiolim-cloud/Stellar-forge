@@ -298,7 +298,10 @@ impl CrossRegionSyncController {
             STAGING_SECRET_PREFIX, snapshot.source_region, snapshot.ledger_sequence
         );
 
-        let payload_b64 = base64::encode(&snapshot.state_payload);
+        let payload_b64 = base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD,
+            &snapshot.state_payload,
+        );
         let mut data = BTreeMap::new();
         data.insert(
             "ledger_sequence".to_string(),
