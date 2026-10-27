@@ -18,6 +18,7 @@
 
 pub mod backup;
 pub mod benchmark;
+pub mod bootstrap;
 pub mod check_crd;
 pub mod doctor;
 pub mod export_compliance;

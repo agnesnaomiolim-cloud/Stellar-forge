@@ -151,6 +151,7 @@ json-patch = "4.1.0"
 md5 = "0.8.0"
 # tar archive extraction for snapshot bootstrapping (#119)
 tar = "0.4"
+zstd = "=0.13.3"
 
 # Stale-documentation checker traverses source trees.
 walkdir = "2"

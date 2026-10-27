@@ -49,7 +49,7 @@
 //! - SHA-256 verification is mandatory; extraction is skipped on mismatch.
 //! - Extraction completes in a temporary directory before publication.
 //!   Replacing existing data uses two renames with rollback on install errors;
-//!   a process crash between renames can leave the data at its `.old` backup.
+//!   a publication journal recovers interrupted renames on the next pass.
 //! - A `bootstrapped` sentinel file prevents re-extraction on restarts.
 
 use std::path::{Path, PathBuf};
@@ -58,7 +58,7 @@ use std::sync::Arc;
 
 use aws_sdk_s3::Client as S3Client;
 use chrono::Utc;
-use flate2::read::GzDecoder;
+use flate2::read::MultiGzDecoder;
 use serde::{Deserialize, Serialize};
 use tar::Archive as TarArchive;
 use tokio::fs;
@@ -200,6 +200,12 @@ impl SnapshotReconciler {
     #[instrument(skip(self), fields(bucket = %self.config.bucket, prefix = %self.config.key_prefix))]
     pub async fn reconcile(&self) -> Result<ReconcileOutcome> {
         let publication_guard = lock_bootstrap_destination(&self.config.data_dir).await?;
+        let recovery_destination = self.config.data_dir.clone();
+        let recovery_guard = publication_guard.clone();
+        tokio::task::spawn_blocking(move || {
+            let _guard = recovery_guard;
+            recover_publication(&recovery_destination)
+        }).await.map_err(|error| Error::InternalError(format!("Snapshot recovery task failed: {error}")))??;
         // Step 0 — check sentinel
         let sentinel = self.config.data_dir.join(".bootstrapped");
         if self.config.skip_if_bootstrapped && sentinel.exists() {
@@ -252,6 +258,7 @@ impl SnapshotReconciler {
             &self.config.data_dir,
             publication_guard.clone(),
             archive_guard.clone(),
+            snapshot_ref.clone(),
         )
             .await?;
         info!(
@@ -259,8 +266,7 @@ impl SnapshotReconciler {
             "Archive extracted"
         );
 
-        // Step 6 — write sentinel
-        self.write_sentinel(&sentinel, &snapshot_ref).await?;
+        // The fresh sentinel was published together with the prepared data.
 
         // Clean up staging file
         if let Err(e) = fs::remove_file(&archive_path).await {
@@ -455,13 +461,14 @@ impl SnapshotReconciler {
     /// Extracts into a unique temporary sibling directory first, then
     /// renames it into place. This prevents partially-extracted data from being
     /// used if the process is interrupted.
-    #[instrument(skip(self, archive_path, dest_dir, publication_guard, archive_guard), fields(archive = %archive_path.as_ref().display()))]
+    #[instrument(skip(self, archive_path, dest_dir, publication_guard, archive_guard, snapshot), fields(archive = %archive_path.as_ref().display()))]
     async fn extract_archive(
         &self,
         archive_path: impl AsRef<Path>,
         dest_dir: impl AsRef<Path>,
         publication_guard: Arc<tokio::sync::OwnedMutexGuard<()>>,
         archive_guard: Arc<tempfile::TempPath>,
+        snapshot: SnapshotRef,
     ) -> Result<()> {
         let archive_path = archive_path.as_ref().to_owned();
         let dest_dir = dest_dir.as_ref().to_owned();
@@ -472,7 +479,7 @@ impl SnapshotReconciler {
             // lock until that work stops, so another reconciliation cannot race it.
             let _guard = publication_guard;
             let _archive_guard = archive_guard;
-            extract_tar_gz(&archive_path, &dest_dir)
+            extract_tar_gz_with_snapshot(&archive_path, &dest_dir, Some(&snapshot))
         })
             .await
             .map_err(|e| Error::InternalError(format!("spawn_blocking panicked: {e}")))??;
@@ -480,21 +487,6 @@ impl SnapshotReconciler {
         Ok(())
     }
 
-    /// Write a `.bootstrapped` sentinel file containing the snapshot metadata.
-    async fn write_sentinel(&self, sentinel: &Path, snap: &SnapshotRef) -> Result<()> {
-        if let Some(parent) = sentinel.parent() {
-            fs::create_dir_all(parent).await?;
-        }
-        let content = serde_json::json!({
-            "bootstrapped_at": Utc::now().to_rfc3339(),
-            "snapshot_key": snap.key,
-            "snapshot_bucket": snap.bucket,
-            "ledger_sequence": snap.ledger_sequence,
-        });
-        fs::write(sentinel, serde_json::to_string_pretty(&content)?).await?;
-        info!(sentinel = %sentinel.display(), "Wrote bootstrapped sentinel");
-        Ok(())
-    }
 }
 
 /// Object keys are opaque cloud identifiers, not safe local filenames. Hash
@@ -554,8 +546,16 @@ fn latest_snapshot(
 // ──────────────────────────────────────────────────────────────────────────────
 
 /// Decompress fully before publication; roll back failed replacement renames.
-/// A crash between backup and installation can require restoring `.old`.
+/// A publication journal recovers process interruption between renames.
+#[cfg(test)]
 fn extract_tar_gz(archive_path: &Path, dest_dir: &Path) -> Result<()> {
+    extract_tar_gz_with_snapshot(archive_path, dest_dir, None)
+}
+
+fn extract_tar_gz_with_snapshot(
+    archive_path: &Path, dest_dir: &Path, snapshot: Option<&SnapshotRef>,
+) -> Result<()> {
+    recover_publication(dest_dir)?;
     let parent = dest_dir
         .parent()
         .filter(|path| !path.as_os_str().is_empty())
@@ -564,7 +564,7 @@ fn extract_tar_gz(archive_path: &Path, dest_dir: &Path) -> Result<()> {
         .ok_or_else(|| Error::ValidationError("Snapshot destination needs a directory name".into()))?
         .to_os_string();
     old_name.push(".old");
-    let old_dir = parent.join(old_name);
+    let mut old_dir = parent.join(old_name);
     std::fs::create_dir_all(parent)?;
     // Separate attempts must never delete each other's in-progress files.
     // RAII also removes partial extraction output when unpacking fails.
@@ -574,23 +574,42 @@ fn extract_tar_gz(archive_path: &Path, dest_dir: &Path) -> Result<()> {
     let tmp_dir = temporary.path();
 
     let file = std::fs::File::open(archive_path)?;
-    let gz = GzDecoder::new(file);
+    let gz = MultiGzDecoder::new(file);
     let mut archive = TarArchive::new(gz);
     archive.set_overwrite(true);
     archive.set_preserve_permissions(true);
     archive.unpack(tmp_dir)?;
 
-    // Each rename is atomic, but replacement has a gap between these renames.
-    let mut backup = None;
-    if dest_dir.exists() {
-        // Keep old data as `.old` for emergency rollback
-        if old_dir.exists() {
-            std::fs::remove_dir_all(&old_dir)?;
-        }
-        std::fs::rename(dest_dir, &old_dir)?;
-        backup = Some(old_dir);
+    // A snapshot may itself contain an old node's sentinel. Only metadata for
+    // this verified installation may be published as completion evidence.
+    remove_bootstrap_sentinel(tmp_dir)?;
+    let sentinel = snapshot.map(|snapshot| serde_json::json!({
+        "bootstrapped_at": Utc::now().to_rfc3339(),
+        "snapshot_key": snapshot.key,
+        "snapshot_bucket": snapshot.bucket,
+        "ledger_sequence": snapshot.ledger_sequence,
+    }));
+    if let Some(content) = &sentinel {
+        let mut file = std::fs::File::create(tmp_dir.join(".bootstrapped"))?;
+        serde_json::to_writer_pretty(&mut file, content)?;
+        file.sync_all()?;
     }
-    publish_extraction(tmp_dir, dest_dir, backup.as_deref())?;
+    sync_snapshot_tree(tmp_dir, 0)?;
+
+    // Each rename is atomic, but replacement has a gap between these renames.
+    if old_dir.exists() {
+        // Never delete a prior backup or an unrelated sibling occupying .old.
+        let reservation = tempfile::Builder::new().prefix(".stellar-backup-").tempdir_in(parent)?;
+        old_dir = reservation.path().to_owned();
+        reservation.close()?;
+    }
+    let journal = PublicationJournal {
+        temporary: PathBuf::from(tmp_dir.file_name().ok_or_else(|| Error::InternalError("Missing extraction directory name".into()))?),
+        backup: dest_dir.exists().then(|| PathBuf::from(old_dir.file_name().unwrap())),
+        sentinel,
+    };
+    write_publication_journal(dest_dir, &journal)?;
+    recover_publication(dest_dir)?;
 
     info!(
         archive = %archive_path.display(),
@@ -600,8 +619,152 @@ fn extract_tar_gz(archive_path: &Path, dest_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PublicationJournal {
+    temporary: PathBuf,
+    backup: Option<PathBuf>,
+    sentinel: Option<serde_json::Value>,
+}
+
+fn publication_journal_path(destination: &Path) -> Result<PathBuf> {
+    let mut name = destination.file_name()
+        .ok_or_else(|| Error::ValidationError("Snapshot destination needs a directory name".into()))?
+        .to_os_string();
+    name.push(".bootstrap-pending.json");
+    Ok(destination.with_file_name(name))
+}
+
+fn remove_bootstrap_sentinel(directory: &Path) -> Result<()> {
+    match std::fs::remove_file(directory.join(".bootstrapped")) {
+        Ok(()) => sync_snapshot_directory(directory),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn sync_snapshot_directory(directory: &Path) -> Result<()> {
+    #[cfg(unix)]
+    std::fs::File::open(directory)?.sync_all()?;
+    #[cfg(not(unix))]
+    let _ = directory;
+    Ok(())
+}
+
+/// Persist prepared files before the durable journal can authorize publication.
+fn sync_snapshot_tree(directory: &Path, depth: usize) -> Result<()> {
+    if depth > 128 {
+        return Err(Error::ValidationError("Snapshot directory nesting exceeds limit".into()));
+    }
+    for entry in std::fs::read_dir(directory)? {
+        let entry = entry?;
+        let kind = entry.file_type()?;
+        if kind.is_dir() {
+            sync_snapshot_tree(&entry.path(), depth + 1)?;
+        } else if kind.is_file() {
+            std::fs::File::open(entry.path())?.sync_all()?;
+        }
+        // Symlink metadata is persisted by the containing directory; never
+        // follow archive links merely to flush the prepared tree.
+    }
+    sync_snapshot_directory(directory)
+}
+
+fn write_publication_journal(destination: &Path, journal: &PublicationJournal) -> Result<()> {
+    use std::io::Write;
+    let path = publication_journal_path(destination)?;
+    let parent = path.parent().filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+    temporary.write_all(&serde_json::to_vec(journal)?)?;
+    temporary.as_file().sync_all()?;
+    // Never overwrite another writer's intent, or a malformed pending journal.
+    temporary.persist_noclobber(path).map_err(|error| error.error)?;
+    sync_snapshot_directory(parent)
+}
+
+/// Recovery runs before sentinel checks and while holding the destination gate.
+/// It is idempotent at each rename boundary. Independent processes still need
+/// exclusive directory ownership; the journal is not a distributed lock.
+fn recover_publication(destination: &Path) -> Result<()> {
+    let path = publication_journal_path(destination)?;
+    let metadata = match std::fs::symlink_metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
+    };
+    if !metadata.is_file() || metadata.len() > 64 * 1024 {
+        return Err(Error::ValidationError("Invalid snapshot publication journal".into()));
+    }
+    let journal: PublicationJournal = serde_json::from_slice(&std::fs::read(&path)?)?;
+    let parent = destination.parent().filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let safe_name = |name: &Path| name.file_name().is_some_and(|file| Path::new(file) == name);
+    let mut expected_backup = destination.file_name().unwrap().to_os_string();
+    expected_backup.push(".old");
+    if !safe_name(&journal.temporary)
+        || journal.temporary.as_os_str() == destination.file_name().unwrap()
+        || !journal.temporary.to_string_lossy().starts_with(".stellar-extract-")
+        || journal.backup.as_ref().is_some_and(|name| {
+            !safe_name(name) || (name.as_os_str() != expected_backup.as_os_str()
+                && !name.to_string_lossy().starts_with(".stellar-backup-"))
+        })
+    {
+        return Err(Error::ValidationError("Unsafe paths in snapshot publication journal".into()));
+    }
+    let temporary = parent.join(&journal.temporary);
+    let backup = journal.backup.as_ref().map(|name| parent.join(name));
+    for directory in [Some(destination), Some(temporary.as_path()), backup.as_deref()].into_iter().flatten() {
+        match std::fs::symlink_metadata(directory) {
+            Ok(metadata) if !metadata.is_dir() => return Err(Error::ValidationError(
+                "Snapshot publication paths must be directories, not files or symlinks".into()
+            )),
+            Ok(_) => {},
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {},
+            Err(error) => return Err(error.into()),
+        }
+    }
+    if temporary.exists() {
+        if destination.exists() {
+            let backup = backup.as_ref().ok_or_else(|| Error::InternalError(
+                "Snapshot destination appeared during first installation".into()
+            ))?;
+            if backup.exists() {
+                return Err(Error::InternalError("Snapshot backup collision during recovery".into()));
+            }
+            std::fs::rename(destination, backup)?;
+            sync_snapshot_directory(parent)?;
+        }
+        publish_extraction(&temporary, destination, backup.as_deref())?;
+    } else if !destination.exists() {
+        if backup.is_none() {
+            // A first-install attempt failed before changing any live data and
+            // its RAII staging directory was removed. A fresh attempt is safe.
+            std::fs::remove_file(path)?;
+            return sync_snapshot_directory(parent);
+        }
+        let backup = backup.as_ref().filter(|backup| backup.exists()).ok_or_else(|| {
+            Error::InternalError("Snapshot recovery has neither staged data nor backup".into())
+        })?;
+        std::fs::rename(backup, destination)?;
+        sync_snapshot_directory(parent)?;
+        remove_bootstrap_sentinel(destination)?;
+    }
+    // A restored backup may carry an old sentinel. Only the exact sentinel
+    // prepared for this journal can establish a completed new installation.
+    let published_sentinel = std::fs::read(destination.join(".bootstrapped"))
+        .ok().and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok());
+    if journal.sentinel.is_none() || published_sentinel != journal.sentinel {
+        remove_bootstrap_sentinel(destination)?;
+    }
+    std::fs::remove_file(path)?;
+    sync_snapshot_directory(parent)
+}
+
 /// Restore the previous data if installing the completed extraction fails.
 fn publish_extraction(temporary: &Path, destination: &Path, backup: Option<&Path>) -> Result<()> {
+    let parent = destination.parent().filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
     if let Err(publish_error) = std::fs::rename(temporary, destination) {
         if let Some(backup) = backup {
             std::fs::rename(backup, destination).map_err(|rollback_error| {
@@ -610,10 +773,11 @@ fn publish_extraction(temporary: &Path, destination: &Path, backup: Option<&Path
                     backup.display()
                 ))
             })?;
+            sync_snapshot_directory(parent)?;
         }
         return Err(publish_error.into());
     }
-    Ok(())
+    sync_snapshot_directory(parent)
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -625,6 +789,123 @@ mod tests {
     use super::*;
     use std::io::Write;
     use tempfile::TempDir;
+
+    #[test]
+    fn publication_recovers_at_each_rename_boundary() {
+        for boundary in 0..=2 {
+            let directory = TempDir::new().unwrap();
+            let destination = directory.path().join("data");
+            let temporary = directory.path().join(".stellar-extract-ready");
+            let backup = directory.path().join("data.old");
+            std::fs::create_dir(&destination).unwrap();
+            std::fs::create_dir(&temporary).unwrap();
+            std::fs::write(destination.join("ledger"), b"previous").unwrap();
+            std::fs::write(temporary.join("ledger"), b"replacement").unwrap();
+            let sentinel = serde_json::json!({"snapshot_key": "new-snapshot"});
+            std::fs::write(temporary.join(".bootstrapped"), serde_json::to_vec(&sentinel).unwrap()).unwrap();
+            write_publication_journal(&destination, &PublicationJournal {
+                temporary: PathBuf::from(".stellar-extract-ready"),
+                backup: Some(PathBuf::from("data.old")),
+                sentinel: Some(sentinel.clone()),
+            }).unwrap();
+            if boundary >= 1 {
+                std::fs::rename(&destination, &backup).unwrap();
+            }
+            if boundary >= 2 {
+                std::fs::rename(&temporary, &destination).unwrap();
+            }
+            recover_publication(&destination).unwrap();
+            recover_publication(&destination).unwrap(); // Recovery is idempotent.
+            assert_eq!(std::fs::read(destination.join("ledger")).unwrap(), b"replacement");
+            assert_eq!(std::fs::read(backup.join("ledger")).unwrap(), b"previous");
+            let recovered: serde_json::Value = serde_json::from_slice(
+                &std::fs::read(destination.join(".bootstrapped")).unwrap(),
+            ).unwrap();
+            assert_eq!(recovered, sentinel);
+            assert!(!publication_journal_path(&destination).unwrap().exists());
+        }
+    }
+
+    #[test]
+    fn missing_stage_restores_backup_and_invalidates_stale_sentinel() {
+        let directory = TempDir::new().unwrap();
+        let destination = directory.path().join("data");
+        let backup = directory.path().join("data.old");
+        std::fs::create_dir(&backup).unwrap();
+        std::fs::write(backup.join("ledger"), b"previous").unwrap();
+        std::fs::write(backup.join(".bootstrapped"), b"stale metadata").unwrap();
+        write_publication_journal(&destination, &PublicationJournal {
+            temporary: PathBuf::from(".stellar-extract-missing"),
+            backup: Some(PathBuf::from("data.old")),
+            sentinel: Some(serde_json::json!({"snapshot_key": "replacement"})),
+        }).unwrap();
+        recover_publication(&destination).unwrap();
+        assert_eq!(std::fs::read(destination.join("ledger")).unwrap(), b"previous");
+        assert!(!destination.join(".bootstrapped").exists());
+    }
+
+    #[test]
+    fn extraction_preserves_existing_backup_and_rejects_archive_sentinel() {
+        let directory = TempDir::new().unwrap();
+        let destination = directory.path().join("data");
+        let backup = directory.path().join("data.old");
+        let archive = directory.path().join("archive.tar.gz");
+        std::fs::create_dir(&destination).unwrap();
+        std::fs::create_dir(&backup).unwrap();
+        std::fs::write(destination.join("ledger"), b"previous").unwrap();
+        std::fs::write(backup.join("ledger"), b"older backup").unwrap();
+        std::fs::write(&archive, make_test_tar_gz(".bootstrapped", b"stale metadata")).unwrap();
+        extract_tar_gz(&archive, &destination).unwrap();
+        assert!(!destination.join(".bootstrapped").exists());
+        assert_eq!(std::fs::read(backup.join("ledger")).unwrap(), b"older backup");
+        let previous_backup = std::fs::read_dir(directory.path()).unwrap()
+            .map(|entry| entry.unwrap().path())
+            .find(|path| path.file_name().unwrap().to_string_lossy().starts_with(".stellar-backup-"))
+            .expect("previous live directory retained under a unique backup name");
+        assert_eq!(std::fs::read(previous_backup.join("ledger")).unwrap(), b"previous");
+    }
+
+    #[test]
+    fn recovery_rejects_journal_path_traversal_before_touching_data() {
+        let directory = TempDir::new().unwrap();
+        let destination = directory.path().join("data");
+        std::fs::create_dir(&destination).unwrap();
+        std::fs::write(destination.join("ledger"), b"previous").unwrap();
+        write_publication_journal(&destination, &PublicationJournal {
+            temporary: PathBuf::from("../outside"),
+            backup: None,
+            sentinel: None,
+        }).unwrap();
+        assert!(recover_publication(&destination).is_err());
+        assert_eq!(std::fs::read(destination.join("ledger")).unwrap(), b"previous");
+        assert!(publication_journal_path(&destination).unwrap().exists());
+    }
+
+    #[test]
+    fn failed_first_install_can_restart_without_a_stage() {
+        let directory = TempDir::new().unwrap();
+        let destination = directory.path().join("data");
+        write_publication_journal(&destination, &PublicationJournal {
+            temporary: PathBuf::from(".stellar-extract-missing"), backup: None, sentinel: None,
+        }).unwrap();
+        recover_publication(&destination).unwrap();
+        assert!(!publication_journal_path(&destination).unwrap().exists());
+    }
+
+    #[test]
+    fn completed_installation_with_wrong_sentinel_is_not_skipped() {
+        let directory = TempDir::new().unwrap();
+        let destination = directory.path().join("data");
+        std::fs::create_dir(&destination).unwrap();
+        std::fs::write(destination.join(".bootstrapped"), b"old marker").unwrap();
+        write_publication_journal(&destination, &PublicationJournal {
+            temporary: PathBuf::from(".stellar-extract-already-installed"),
+            backup: None,
+            sentinel: Some(serde_json::json!({"snapshot_key": "new snapshot"})),
+        }).unwrap();
+        recover_publication(&destination).unwrap();
+        assert!(!destination.join(".bootstrapped").exists());
+    }
 
     #[tokio::test]
     async fn destination_lock_survives_retained_blocking_worker_guard() {

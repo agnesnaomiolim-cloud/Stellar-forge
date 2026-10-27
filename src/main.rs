@@ -37,6 +37,10 @@ async fn main() -> Result<(), Error> {
     let offline = args.offline;
 
     let result = match args.command {
+        Commands::SnapshotBootstrap(bootstrap_args) => {
+            return stellar_k8s::commands::bootstrap::run_bootstrap(bootstrap_args)
+                .await.map_err(|error| Error::config_step("snapshot bootstrap", error));
+        }
         Commands::Version => {
             println!("Stellar-K8s Operator v{}", env!("CARGO_PKG_VERSION"));
             println!("Build Date: {}", env!("BUILD_DATE"));

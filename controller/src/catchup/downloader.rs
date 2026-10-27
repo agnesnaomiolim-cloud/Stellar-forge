@@ -58,14 +58,33 @@ pub struct Downloader {
 
 impl Downloader {
     pub fn new(pool: Arc<WorkerPool>, config: DownloadConfig) -> Result<Self> {
+        Self::with_bearer(pool, config, None)
+    }
+
+    /// Optional authenticated HTTPS archive access. The header is sensitive so
+    /// debug formatting does not expose credentials; errors never echo tokens.
+    pub fn with_bearer(
+        pool: Arc<WorkerPool>,
+        config: DownloadConfig,
+        token: Option<&str>,
+    ) -> Result<Self> {
         ensure!(config.chunk_bytes > 0, "chunk size must be positive");
         ensure!(
             !config.request_timeout.is_zero(),
             "request timeout must be positive"
         );
+        let mut headers = header::HeaderMap::new();
+        if let Some(token) = token {
+            ensure!(!token.trim().is_empty(), "archive bearer token is empty");
+            let mut value = header::HeaderValue::from_str(&format!("Bearer {token}"))
+                .map_err(|_| anyhow::anyhow!("invalid archive authorization header"))?;
+            value.set_sensitive(true);
+            headers.insert(header::AUTHORIZATION, value);
+        }
         // Feature unification may enable compression through another reqwest
         // user. Range offsets and the trusted digest refer to wire bytes.
         let client = Client::builder()
+            .default_headers(headers)
             // A total request deadline also counts deliberate limiter waits.
             // Large fallback bodies must be allowed to outlive that deadline
             // while each network operation still has a finite timeout.
@@ -413,6 +432,9 @@ mod tests {
                 }
                 let text = String::from_utf8_lossy(&request).to_lowercase();
                 assert!(text.contains("accept-encoding: identity"));
+                if mode == "authenticated" {
+                    assert!(text.lines().any(|line| line == "authorization: bearer fixture"));
+                }
                 let range = text.lines().find_map(|line| line.strip_prefix("range: bytes=")).unwrap();
                 let (start, end) = range.split_once('-').unwrap();
                 let (start, end) = (start.parse::<usize>().unwrap(), end.parse::<usize>().unwrap());
@@ -505,6 +527,39 @@ mod tests {
     #[tokio::test]
     async fn supports_servers_ignoring_initial_range() {
         assert_eq!(check("fallback", true).await, (true, 1, true));
+    }
+
+    #[test]
+    fn malformed_bearer_headers_are_rejected_without_echoing_the_token() {
+        for token in ["", "\r\nX-Injected: fixture"] {
+            assert!(Downloader::with_bearer(
+                WorkerPool::new(1, 1024).unwrap(), DownloadConfig::default(), Some(token),
+            ).is_err());
+        }
+    }
+
+    #[tokio::test]
+    async fn authenticated_requests_include_the_header_on_probe_and_chunks() {
+        let (url, requests, _, server) = server("authenticated").await;
+        let directory = tempfile::tempdir().unwrap();
+        let destination = directory.path().join("archive");
+        let downloader = Downloader::with_bearer(
+            WorkerPool::new(2, 1_000_000).unwrap(),
+            DownloadConfig { chunk_bytes: 4, ..Default::default() },
+            Some("fixture"),
+        ).unwrap();
+        let result = tokio::time::timeout(
+            Duration::from_secs(10),
+            downloader.download(Archive {
+                url, destination: destination.clone(),
+                sha256: hex::encode(Sha256::digest(b"abcdefghijklmnop")),
+            }),
+        ).await.expect("authenticated download timed out");
+        server.abort();
+        assert!(server.await.unwrap_err().is_cancelled());
+        result.unwrap();
+        assert_eq!(requests.load(Ordering::SeqCst), 5);
+        assert_eq!(fs::read(destination).await.unwrap(), b"abcdefghijklmnop");
     }
 
     #[tokio::test]

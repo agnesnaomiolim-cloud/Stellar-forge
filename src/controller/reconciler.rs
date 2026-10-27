@@ -1508,6 +1508,12 @@ pub(crate) fn apply_stellar_node(
             return Err(Error::ValidationError(message));
         }
 
+        // Verify restore inputs before plugins, PVCs, workloads or restore Jobs.
+        if let Err(error) = resources::validate_snapshot_bootstrap(&node) {
+            update_status(&client, &node, "Failed", Some(error.to_string()), 0, true).await?;
+            return Err(error);
+        }
+
         // Network safety check — must run before any resources are created.
         // Ensures no Mainnet node shares a namespace with a Testnet node (or vice versa).
         if let Err(e) = super::network_isolation::check_network_safety(&client, &node).await {

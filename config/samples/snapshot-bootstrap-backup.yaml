@@ -13,9 +13,11 @@
 ##       AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION
 ##   - A .tar.gz backup at s3://my-stellar-backups/mainnet/latest.tar.gz
 ##     (created by the auto-snapshot worker or manually)
+##   - A trusted SHA-256 of its compressed bytes and a built operator restore image
+##   - An empty data PVC; see docs/development/verified-bootstrap.md
 ##
 ## Expected outcome:
-##   - Init container downloads and extracts the archive (~2-5 minutes)
+##   - Init container downloads in parallel, verifies, and extracts the archive
 ##   - Stellar Core starts with pre-populated ledger data
 ##   - Node reaches Synced state within ~10 minutes
 ##   - status.snapshotBootstrap.secondsToSync ≤ 600
@@ -25,6 +27,9 @@ kind: StellarNode
 metadata:
   name: validator-from-backup
   namespace: stellar-system
+  annotations:
+    # Replace with the trusted publisher's SHA-256 of the compressed archive.
+    stellar.org/snapshot-sha256: "REPLACE_WITH_64_HEX_SHA256"
 spec:
   nodeType: Validator
   network: mainnet
@@ -49,7 +54,8 @@ spec:
     snapshotRef:
       backupUrl: "s3://my-stellar-backups/mainnet/latest.tar.gz"
       credentialsSecretRef: "s3-backup-credentials"
-      # restoreImage: "amazon/aws-cli:latest"  # default for S3 URLs
+      # Replace with your built image containing /stellar-operator snapshot-bootstrap.
+      restoreImage: "ghcr.io/stellar/stellar-k8s:0.1.0"
 
   validatorConfig:
     seedSecretRef: "validator-mainnet-seed"

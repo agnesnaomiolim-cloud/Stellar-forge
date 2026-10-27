@@ -7,9 +7,13 @@ URLs. This replaces that reconciler’s sequential archive body fetch. It does n
 replace Stellar Core’s internal history command configuration: the repository
 has no operator-owned HTTP history fetcher wired into Core. Callers downloading
 history archives can use the same `Downloader` API with trusted manifest hashes.
-The main node reconciliation loop currently bootstraps through OCI pull Jobs;
-it does not invoke the S3 `SnapshotReconciler` API. Its download path must be
-adopted by a caller before it affects that caller's bootstrap performance.
+For live node bootstrap, `spec.storage.snapshotRef.backupUrl` now injects
+`/stellar-operator snapshot-bootstrap` before other init containers. It executes
+this downloader on the actual data PVC and gates Core startup on verified,
+completed extraction. Supply a trusted `stellar.org/snapshot-sha256` annotation
+and a rebuilt operator restore image; see [verified bootstrap](verified-bootstrap.md).
+OCI image pulling remains a separate restore mechanism. The verified backup path
+rejects combining both mechanisms; Core's internal history commands are unchanged.
 History Archive State JSON is usually small; range splitting targets large
 compressed history objects, not an assumption that HAS JSON is large.
 
@@ -41,9 +45,17 @@ operator process; blocking extraction retains this lock and its staged archive
 even if its awaiting future is cancelled. Independent processes must have
 exclusive ownership of their data directories. Extraction uses unique temporary
 directories and cleans partial output on failure. Replacement keeps the previous
-data at an appended `.old` path and restores it if publication fails. Replacement
-uses two renames, so a process crash between them can still require restoring the
-backup manually; this does not provide atomic directory exchange across crashes.
+data at an appended `.old` path (or a unique backup when that name is occupied).
+A synced publication journal records the prepared directory before live renames.
+Reconciliation recovers this journal before checking completion: it resumes an
+interrupted install or restores the previous data when staging is lost. Fresh
+completion metadata is installed with the prepared data; archive-provided old
+sentinels cannot establish success. This closes the process-crash rename gap.
+Both restore paths sync staged files, journal records and directory changes on
+Linux before publishing completion. Non-Unix directory flushing is best effort;
+Storage must honor filesystem sync semantics. Separate processes still require
+exclusive data-directory ownership
+for the S3 API; the PVC init command uses a cross-process file lock.
 
 Requests retry transport connection/timeouts and HTTP 5xx/429 responses with
 250 ms exponential delays capped at eight seconds (four retries by default).

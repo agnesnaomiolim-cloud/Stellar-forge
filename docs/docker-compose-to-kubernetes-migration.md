@@ -197,15 +197,25 @@ Choose one of these paths:
 Example archive-based bootstrap:
 
 ```yaml
+metadata:
+  annotations:
+    # Replace with the trusted SHA-256 of the compressed archive.
+    stellar.org/snapshot-sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 spec:
+  replicas: 1
   storage:
     storageClass: "ssd-premium"
     size: "500Gi"
     retentionPolicy: Retain
     snapshotRef:
-      backupUrl: "s3://stellar-migration/validator-mainnet-ledger.tar.zst"
+      backupUrl: "s3://stellar-migration/validator-mainnet-ledger.tar.gz"
+      restoreImage: "ghcr.io/stellar/stellar-k8s:verified-bootstrap"
       credentialsSecretRef: "migration-backup-creds"
 ```
+
+Use a rebuilt operator image containing `snapshot-bootstrap` for `restoreImage`.
+See [verified bootstrap](development/verified-bootstrap.md) for checksum trust,
+credentials, restore limits, and crash recovery.
 
 Before taking the validator copy:
 

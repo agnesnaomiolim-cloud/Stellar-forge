@@ -1,0 +1,29 @@
+# Optional finalizer recovery reads, separate from the strict baseline.
+# Replace resourceNames with the actual bound PV names reviewed for stellar.
+# Requires an operator image containing AWS CLI v2 and/or gcloud and existing
+# read-only provider identity. The stock distroless image lacks these CLIs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: stellar-operator-cloud-volume-recovery
+rules:
+  - apiGroups: [""]
+    resources: [persistentvolumes]
+    resourceNames: [replace-with-bound-pv-name]
+    verbs: [get]
+  - apiGroups: [storage.k8s.io]
+    resources: [volumeattachments]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: stellar-operator-cloud-volume-recovery
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: stellar-operator-cloud-volume-recovery
+subjects:
+  - kind: ServiceAccount
+    name: stellar-operator
+    namespace: stellar-system
