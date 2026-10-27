@@ -47,11 +47,14 @@
 //! - All downloads stream ranges directly to disk; no in-memory
 //!   buffering of the archive body.
 //! - SHA-256 verification is mandatory; extraction is skipped on mismatch.
-//! - Extraction is atomic: performed into a `.tmp` directory, then renamed.
+//! - Extraction completes in a temporary directory before publication.
+//!   Replacing existing data uses two renames with rollback on install errors;
+//!   a process crash between renames can leave the data at its `.old` backup.
 //! - A `bootstrapped` sentinel file prevents re-extraction on restarts.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use std::sync::Arc;
 
 use aws_sdk_s3::Client as S3Client;
 use chrono::Utc;
@@ -107,7 +110,7 @@ pub struct SnapshotReconcilerConfig {
     pub data_dir: PathBuf,
     /// AWS region for the S3 client.
     pub aws_region: String,
-    /// Maximum number of snapshots to list when discovering the latest.
+    /// Maximum objects per discovery page; every page is searched.
     pub list_max_keys: i32,
     /// If true, skip extraction if the `bootstrapped` sentinel file already exists.
     pub skip_if_bootstrapped: bool,
@@ -169,6 +172,11 @@ impl SnapshotReconciler {
     /// Initialises the AWS SDK from the ambient environment (IAM instance role,
     /// `AWS_*` env vars, or `~/.aws/credentials`).
     pub async fn new(config: SnapshotReconcilerConfig) -> Result<Self> {
+        if config.s3_api_timeout.is_zero() || !(1..=1000).contains(&config.list_max_keys) {
+            return Err(Error::ValidationError(
+                "Snapshot API timeout must be positive and listing page size must be 1..=1000".into()
+            ));
+        }
         let sdk_config = aws_config::from_env()
             .region(
                 aws_config::meta::region::RegionProviderChain::default_provider()
@@ -187,10 +195,11 @@ impl SnapshotReconciler {
     /// 2. Discover the most recent snapshot in S3.
     /// 3. Download the archive to `staging_dir`.
     /// 4. Verify SHA-256 integrity.
-    /// 5. Extract to `data_dir` (atomic via temp directory).
+    /// 5. Extract fully into a temporary directory, then publish into `data_dir`.
     /// 6. Write sentinel and return outcome.
     #[instrument(skip(self), fields(bucket = %self.config.bucket, prefix = %self.config.key_prefix))]
     pub async fn reconcile(&self) -> Result<ReconcileOutcome> {
+        let publication_guard = lock_bootstrap_destination(&self.config.data_dir).await?;
         // Step 0 — check sentinel
         let sentinel = self.config.data_dir.join(".bootstrapped");
         if self.config.skip_if_bootstrapped && sentinel.exists() {
@@ -220,7 +229,7 @@ impl SnapshotReconciler {
 
         // Resolve a trusted digest before downloading; publication requires verification.
         let expected_hex = self.resolve_checksum(&snapshot_ref).await?;
-        let archive_path = self.download_archive(&snapshot_ref, &expected_hex).await?;
+        let (archive_path, archive_guard) = self.download_archive(&snapshot_ref, &expected_hex).await?;
         let downloaded_bytes = fs::metadata(&archive_path).await?.len();
         info!(
             path = %archive_path.display(),
@@ -238,7 +247,12 @@ impl SnapshotReconciler {
         );
 
         // Step 5 — extract
-        self.extract_archive(&archive_path, &self.config.data_dir)
+        self.extract_archive(
+            &archive_path,
+            &self.config.data_dir,
+            publication_guard.clone(),
+            archive_guard.clone(),
+        )
             .await?;
         info!(
             data_dir = %self.config.data_dir.display(),
@@ -275,40 +289,42 @@ impl SnapshotReconciler {
     /// modified one.
     #[instrument(skip(self))]
     async fn discover_latest_snapshot(&self) -> Result<SnapshotRef> {
-        let resp = self
-            .s3
-            .list_objects_v2()
-            .bucket(&self.config.bucket)
-            .prefix(&self.config.key_prefix)
-            .max_keys(self.config.list_max_keys)
-            .send()
-            .await
-            .map_err(|e| Error::ConfigError(format!("S3 ListObjectsV2 failed: {e}")))?;
+        let mut continuation = None;
+        let mut latest = None;
+        loop {
+            let resp = tokio::time::timeout(self.config.s3_api_timeout, self
+                .s3
+                .list_objects_v2()
+                .bucket(&self.config.bucket)
+                .prefix(&self.config.key_prefix)
+                .max_keys(self.config.list_max_keys)
+                .set_continuation_token(continuation.clone())
+                .send())
+                .await
+                .map_err(|_| Error::ConfigError("S3 ListObjectsV2 timed out".into()))?
+                .map_err(|e| Error::ConfigError(format!("S3 ListObjectsV2 failed: {e}")))?;
 
-        let objects = resp.contents.unwrap_or_default();
-        if objects.is_empty() {
-            return Err(Error::NotFound {
-                kind: "S3Object".to_string(),
-                name: self.config.key_prefix.clone(),
-                namespace: self.config.bucket.clone(),
-            });
+            latest = latest_snapshot(resp.contents.unwrap_or_default().into_iter().chain(latest));
+            if !resp.is_truncated.unwrap_or(false) {
+                break;
+            }
+            let next = resp.next_continuation_token
+                .filter(|token| !token.is_empty())
+                .ok_or_else(|| Error::ConfigError(
+                    "Truncated S3 listing has no continuation token".into()
+                ))?;
+            if continuation.as_ref() == Some(&next) {
+                return Err(Error::ConfigError(
+                    "S3 listing repeated its continuation token".into()
+                ));
+            }
+            continuation = Some(next);
         }
-
-        // Pick the most recently modified `.tar.gz` object
-        let latest = objects
-            .iter()
-            .filter(|o| {
-                o.key
-                    .as_deref()
-                    .map(|k| k.ends_with(".tar.gz"))
-                    .unwrap_or(false)
-            })
-            .max_by_key(|o| o.last_modified.as_ref().map(|t| t.secs()).unwrap_or(0))
-            .ok_or_else(|| Error::NotFound {
-                kind: "S3Snapshot".to_string(),
-                name: self.config.key_prefix.clone(),
-                namespace: self.config.bucket.clone(),
-            })?;
+        let latest = latest.ok_or_else(|| Error::NotFound {
+            kind: "S3Snapshot".to_string(),
+            name: self.config.key_prefix.clone(),
+            namespace: self.config.bucket.clone(),
+        })?;
 
         let key = latest.key.clone().unwrap_or_default();
         let size_bytes = latest.size.map(|s| s as u64);
@@ -335,12 +351,20 @@ impl SnapshotReconciler {
 
     /// Fetch and verify ranges using the process-wide worker and egress budget.
     #[instrument(skip(self, snap, expected_sha256), fields(key = %snap.key))]
-    async fn download_archive(&self, snap: &SnapshotRef, expected_sha256: &str) -> Result<PathBuf> {
+    async fn download_archive(
+        &self, snap: &SnapshotRef, expected_sha256: &str,
+    ) -> Result<(PathBuf, Arc<tempfile::TempPath>)> {
         use crate::catchup::{Archive, DownloadConfig, Downloader, WorkerPool};
         use aws_sdk_s3::presigning::PresigningConfig;
 
         let filename = snapshot_staging_filename(&snap.bucket, &snap.key);
-        let dest = self.config.staging_dir.join(filename);
+        fs::create_dir_all(&self.config.staging_dir).await?;
+        let staging_dir = self.config.staging_dir.clone();
+        let temporary = tokio::task::spawn_blocking(move || {
+            tempfile::Builder::new().prefix(&filename)
+                .tempfile_in(staging_dir).map(|file| file.into_temp_path())
+        }).await.map_err(|error| Error::InternalError(format!("Staging file creation failed: {error}")))??;
+        let dest = temporary.to_path_buf();
         // A GET signature allows ranges without exposing permanent cloud credentials.
         let signing = PresigningConfig::expires_in(Duration::from_secs(7 * 24 * 60 * 60))
             .map_err(|_| Error::ConfigError("Invalid presigning duration".into()))?;
@@ -355,14 +379,15 @@ impl SnapshotReconciler {
         let pool = WorkerPool::shared_from_env().map_err(|e| Error::ConfigError(e.to_string()))?;
         let downloader = Downloader::new(pool, DownloadConfig::default())
             .map_err(|e| Error::ConfigError(e.to_string()))?;
-        downloader
+        let path = downloader
             .download(Archive {
                 url: signed.uri().to_string(),
                 destination: dest,
                 sha256: expected_sha256.to_owned(),
             })
             .await
-            .map_err(|e| Error::ConfigError(format!("Snapshot download failed: {e}")))
+            .map_err(|e| Error::ConfigError(format!("Snapshot download failed: {e}")))?;
+        Ok((path, Arc::new(temporary)))
     }
     /// Resolve the expected SHA-256 checksum for `snap`.
     ///
@@ -380,18 +405,19 @@ impl SnapshotReconciler {
 
         // 2. Sidecar
         let sidecar_key = format!("{}.sha256", snap.key);
-        if let Ok(resp) = self
+        if let Ok(Ok(resp)) = tokio::time::timeout(self.config.s3_api_timeout, self
             .s3
             .get_object()
             .bucket(&snap.bucket)
             .key(&sidecar_key)
-            .send()
+            .send())
             .await
         {
-            let bytes = resp
+            let bytes = tokio::time::timeout(self.config.s3_api_timeout, resp
                 .body
-                .collect()
+                .collect())
                 .await
+                .map_err(|_| Error::ConfigError("Snapshot checksum sidecar read timed out".into()))?
                 .map_err(|e| Error::ConfigError(format!("sidecar read error: {e}")))?
                 .into_bytes();
             let contents = String::from_utf8_lossy(&bytes);
@@ -402,12 +428,12 @@ impl SnapshotReconciler {
         }
 
         // 3. Object metadata
-        if let Ok(head) = self
+        if let Ok(Ok(head)) = tokio::time::timeout(self.config.s3_api_timeout, self
             .s3
             .head_object()
             .bucket(&snap.bucket)
             .key(&snap.key)
-            .send()
+            .send())
             .await
         {
             if let Some(meta) = head.metadata() {
@@ -424,22 +450,30 @@ impl SnapshotReconciler {
         )))
     }
 
-    /// Extract a `.tar.gz` archive into `dest_dir` atomically.
+    /// Extract a `.tar.gz` archive completely before publishing into `dest_dir`.
     ///
-    /// Extracts into a `.tmp.<archive_name>` sibling directory first, then
+    /// Extracts into a unique temporary sibling directory first, then
     /// renames it into place. This prevents partially-extracted data from being
     /// used if the process is interrupted.
-    #[instrument(skip(self, archive_path, dest_dir), fields(archive = %archive_path.as_ref().display()))]
+    #[instrument(skip(self, archive_path, dest_dir, publication_guard, archive_guard), fields(archive = %archive_path.as_ref().display()))]
     async fn extract_archive(
         &self,
         archive_path: impl AsRef<Path>,
         dest_dir: impl AsRef<Path>,
+        publication_guard: Arc<tokio::sync::OwnedMutexGuard<()>>,
+        archive_guard: Arc<tempfile::TempPath>,
     ) -> Result<()> {
         let archive_path = archive_path.as_ref().to_owned();
         let dest_dir = dest_dir.as_ref().to_owned();
 
         // Extraction is CPU-bound and blocking — spawn on the blocking thread pool.
-        tokio::task::spawn_blocking(move || extract_tar_gz(&archive_path, &dest_dir))
+        tokio::task::spawn_blocking(move || {
+            // Blocking work survives future cancellation. Retain the destination
+            // lock until that work stops, so another reconciliation cannot race it.
+            let _guard = publication_guard;
+            let _archive_guard = archive_guard;
+            extract_tar_gz(&archive_path, &dest_dir)
+        })
             .await
             .map_err(|e| Error::InternalError(format!("spawn_blocking panicked: {e}")))??;
 
@@ -475,49 +509,110 @@ fn snapshot_staging_filename(bucket: &str, key: &str) -> String {
     format!("snapshot-{}.tar.gz", hex::encode(digest.finalize()))
 }
 
+/// Serialize writers to one canonical destination across reconciler instances.
+/// Independent operator processes must still have exclusive ownership of data.
+async fn lock_bootstrap_destination(
+    destination: &Path,
+) -> Result<Arc<tokio::sync::OwnedMutexGuard<()>>> {
+    use std::{collections::HashMap, sync::{Mutex, OnceLock, Weak}};
+    type Gates = HashMap<PathBuf, Weak<tokio::sync::Mutex<()>>>;
+    static GATES: OnceLock<Mutex<Gates>> = OnceLock::new();
+    let parent = destination.parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let name = destination.file_name()
+        .ok_or_else(|| Error::ValidationError("Snapshot destination needs a directory name".into()))?;
+    fs::create_dir_all(parent).await?;
+    let key = fs::canonicalize(parent).await?.join(name);
+    let gate = {
+        let mut gates = GATES.get_or_init(|| Mutex::new(HashMap::new())).lock()
+            .map_err(|_| Error::InternalError("Snapshot destination lock poisoned".into()))?;
+        gates.retain(|_, gate| gate.strong_count() > 0);
+        match gates.get(&key).and_then(Weak::upgrade) {
+            Some(gate) => gate,
+            None => {
+                let gate = Arc::new(tokio::sync::Mutex::new(()));
+                gates.insert(key, Arc::downgrade(&gate));
+                gate
+            }
+        }
+    };
+    Ok(Arc::new(gate.lock_owned().await))
+}
+
+fn latest_snapshot(
+    objects: impl IntoIterator<Item = aws_sdk_s3::types::Object>,
+) -> Option<aws_sdk_s3::types::Object> {
+    objects
+        .into_iter()
+        .filter(|object| object.key.as_deref().is_some_and(|key| key.ends_with(".tar.gz")))
+        .max_by_key(|object| object.last_modified.as_ref().map(|time| time.secs()))
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Blocking extraction helper (runs inside spawn_blocking)
 // ──────────────────────────────────────────────────────────────────────────────
 
-/// Decompress and extract a `.tar.gz` file into `dest_dir` using an atomic
-/// rename strategy to ensure `dest_dir` is never left partially extracted.
+/// Decompress fully before publication; roll back failed replacement renames.
+/// A crash between backup and installation can require restoring `.old`.
 fn extract_tar_gz(archive_path: &Path, dest_dir: &Path) -> Result<()> {
-    let tmp_dir = dest_dir.with_extension(format!(
-        "tmp.{}",
-        archive_path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("snap")
-    ));
-
-    if tmp_dir.exists() {
-        std::fs::remove_dir_all(&tmp_dir)?;
-    }
-    std::fs::create_dir_all(&tmp_dir)?;
+    let parent = dest_dir
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let mut old_name = dest_dir.file_name()
+        .ok_or_else(|| Error::ValidationError("Snapshot destination needs a directory name".into()))?
+        .to_os_string();
+    old_name.push(".old");
+    let old_dir = parent.join(old_name);
+    std::fs::create_dir_all(parent)?;
+    // Separate attempts must never delete each other's in-progress files.
+    // RAII also removes partial extraction output when unpacking fails.
+    let temporary = tempfile::Builder::new()
+        .prefix(".stellar-extract-")
+        .tempdir_in(parent)?;
+    let tmp_dir = temporary.path();
 
     let file = std::fs::File::open(archive_path)?;
     let gz = GzDecoder::new(file);
     let mut archive = TarArchive::new(gz);
     archive.set_overwrite(true);
     archive.set_preserve_permissions(true);
-    archive.unpack(&tmp_dir)?;
+    archive.unpack(tmp_dir)?;
 
-    // Atomic rename: move tmp → dest
+    // Each rename is atomic, but replacement has a gap between these renames.
+    let mut backup = None;
     if dest_dir.exists() {
         // Keep old data as `.old` for emergency rollback
-        let old_dir = dest_dir.with_extension("old");
         if old_dir.exists() {
             std::fs::remove_dir_all(&old_dir)?;
         }
         std::fs::rename(dest_dir, &old_dir)?;
+        backup = Some(old_dir);
     }
-    std::fs::rename(&tmp_dir, dest_dir)?;
+    publish_extraction(tmp_dir, dest_dir, backup.as_deref())?;
 
     info!(
         archive = %archive_path.display(),
         dest = %dest_dir.display(),
         "Extraction complete"
     );
+    Ok(())
+}
+
+/// Restore the previous data if installing the completed extraction fails.
+fn publish_extraction(temporary: &Path, destination: &Path, backup: Option<&Path>) -> Result<()> {
+    if let Err(publish_error) = std::fs::rename(temporary, destination) {
+        if let Some(backup) = backup {
+            std::fs::rename(backup, destination).map_err(|rollback_error| {
+                Error::InternalError(format!(
+                    "Snapshot install failed: {publish_error}; restoring {} failed: {rollback_error}",
+                    backup.display()
+                ))
+            })?;
+        }
+        return Err(publish_error.into());
+    }
     Ok(())
 }
 
@@ -530,6 +625,92 @@ mod tests {
     use super::*;
     use std::io::Write;
     use tempfile::TempDir;
+
+    #[tokio::test]
+    async fn destination_lock_survives_retained_blocking_worker_guard() {
+        let directory = TempDir::new().unwrap();
+        let destination = directory.path().join("data");
+        let guard = lock_bootstrap_destination(&destination).await.unwrap();
+        let blocking_worker_guard = guard.clone();
+        drop(guard);
+        assert!(tokio::time::timeout(
+            Duration::from_millis(25), lock_bootstrap_destination(&destination),
+        ).await.is_err());
+        drop(blocking_worker_guard);
+        assert!(tokio::time::timeout(
+            Duration::from_secs(1), lock_bootstrap_destination(&destination),
+        ).await.unwrap().is_ok());
+    }
+
+    #[tokio::test]
+    async fn invalid_api_timeout_is_rejected_before_loading_aws_configuration() {
+        let config = SnapshotReconcilerConfig {
+            s3_api_timeout: Duration::ZERO,
+            ..Default::default()
+        };
+        assert!(SnapshotReconciler::new(config).await.is_err());
+    }
+
+    #[test]
+    fn discovery_keeps_the_latest_snapshot_across_pages() {
+        use aws_sdk_s3::{primitives::DateTime, types::Object};
+        let object = |key: &str, seconds| Object::builder()
+            .key(key)
+            .last_modified(DateTime::from_secs(seconds))
+            .build();
+        let first = latest_snapshot([
+            object("first.tar.gz", 10),
+            object("first.tar.gz.sha256", 100),
+        ]);
+        let second = latest_snapshot([object("second.tar.gz", 20)].into_iter().chain(first));
+        let final_page = latest_snapshot([object("older.tar.gz", 5)].into_iter().chain(second));
+        assert_eq!(final_page.unwrap().key.as_deref(), Some("second.tar.gz"));
+    }
+
+    #[test]
+    fn failed_publication_restores_previous_data() {
+        let directory = TempDir::new().unwrap();
+        let destination = directory.path().join("data");
+        let backup = directory.path().join("data.old");
+        std::fs::create_dir(&backup).unwrap();
+        std::fs::write(backup.join("ledger"), b"previous data").unwrap();
+        assert!(publish_extraction(
+            &directory.path().join("missing-extraction"),
+            &destination,
+            Some(&backup),
+        ).is_err());
+        assert_eq!(std::fs::read(destination.join("ledger")).unwrap(), b"previous data");
+        assert!(!backup.exists());
+    }
+
+    #[test]
+    fn failed_extraction_cleans_up_without_touching_existing_data() {
+        let directory = TempDir::new().unwrap();
+        let destination = directory.path().join("data");
+        let archive = directory.path().join("invalid.tar.gz");
+        std::fs::create_dir(&destination).unwrap();
+        std::fs::write(destination.join("ledger"), b"previous data").unwrap();
+        std::fs::write(&archive, b"not a gzip archive").unwrap();
+        assert!(extract_tar_gz(&archive, &destination).is_err());
+        assert_eq!(std::fs::read(destination.join("ledger")).unwrap(), b"previous data");
+        assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn destination_named_old_is_not_deleted_as_its_own_backup() {
+        let directory = TempDir::new().unwrap();
+        let destination = directory.path().join("data.old");
+        let archive = directory.path().join("archive.tar.gz");
+        std::fs::create_dir(&destination).unwrap();
+        std::fs::write(destination.join("ledger"), b"previous data").unwrap();
+        std::fs::write(&archive, make_test_tar_gz("ledger", b"new data")).unwrap();
+        extract_tar_gz(&archive, &destination).unwrap();
+        assert_eq!(std::fs::read(destination.join("ledger")).unwrap(), b"new data");
+        assert_eq!(
+            std::fs::read(directory.path().join("data.old.old/ledger")).unwrap(),
+            b"previous data"
+        );
+    }
 
     #[test]
     fn cloud_keys_cannot_escape_or_alias_staging_paths() {

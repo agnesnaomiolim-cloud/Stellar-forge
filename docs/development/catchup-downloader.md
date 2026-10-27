@@ -7,6 +7,9 @@ URLs. This replaces that reconciler’s sequential archive body fetch. It does n
 replace Stellar Core’s internal history command configuration: the repository
 has no operator-owned HTTP history fetcher wired into Core. Callers downloading
 history archives can use the same `Downloader` API with trusted manifest hashes.
+The main node reconciliation loop currently bootstraps through OCI pull Jobs;
+it does not invoke the S3 `SnapshotReconciler` API. Its download path must be
+adopted by a caller before it affects that caller's bootstrap performance.
 History Archive State JSON is usually small; range splitting targets large
 compressed history objects, not an assumption that HAS JSON is large.
 
@@ -20,15 +23,27 @@ size and trusted digest match. A checksum must come from a trusted manifest or
 archive metadata/sidecar obtained through an authenticated source. Snapshot
 extraction now explicitly rejects a failed second verifier result as well.
 
-Snapshot staging names hash the bucket and complete object key instead of
+Snapshot staging prefixes hash the bucket and complete object key instead of
 interpreting cloud keys as local paths. This prevents Windows path separators,
 drive/stream syntax and reserved filenames from escaping the staging directory,
-and distinguishes objects with the same basename. Temporary-file creation runs
+and distinguish objects with the same basename. A unique temporary suffix also
+isolates simultaneous downloads of the same object. Temporary-file creation runs
 on Tokio's blocking pool. Failed range workers abort and reap their sibling
 tasks before returning; cancellation cleanup is still best effort on Windows
 while a filesystem operation holds an open handle. Transparent HTTP
 decompression is disabled explicitly even when another dependency enables
 reqwest compression features.
+
+S3 discovery searches every listing page. The configured S3 API timeout applies
+to discovery and checksum requests, including reading checksum sidecar bodies.
+Snapshot writers to the same canonical destination are serialized within an
+operator process; blocking extraction retains this lock and its staged archive
+even if its awaiting future is cancelled. Independent processes must have
+exclusive ownership of their data directories. Extraction uses unique temporary
+directories and cleans partial output on failure. Replacement keeps the previous
+data at an appended `.old` path and restores it if publication fails. Replacement
+uses two renames, so a process crash between them can still require restoring the
+backup manually; this does not provide atomic directory exchange across crashes.
 
 Requests retry transport connection/timeouts and HTTP 5xx/429 responses with
 250 ms exponential delays capped at eight seconds (four retries by default).

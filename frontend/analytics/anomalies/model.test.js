@@ -80,6 +80,9 @@ test('chart aggregation bounds render work while preserving a single-sample spik
   assert.ok(result.current.length <= MAX_CHART_POINTS);
   assert.equal(result.breachCount, 1);
   assert.ok(result.current.some((point) => point.value === 100));
+  assert.equal(result.current[0].timestamp, 10000);
+  assert.equal(result.current.at(-1).timestamp, 19999);
+  assert.equal(result.current.at(-1).value, result.latest);
 });
 
 test('invalid windows cannot contaminate historical baselines', () => {
@@ -95,7 +98,39 @@ test('Prometheus adapter uses bounded range requests and preserves missing data'
   } });
   assert.equal(result.length, 4);
   assert.equal(result[0].points.length, 0);
+  assert.equal(urls.length, 8);
   assert.ok(urls.every((url) => url.pathname === '/api/prometheus/api/v1/query_range' && Number(url.searchParams.get('step')) >= 15));
+});
+
+test('yesterday comparison queries equal-resolution windows without fetching the intervening day', async () => {
+  const urls = [];
+  const settings = { end: 200000, duration: 900, baselineOffset: 86400 };
+  await loadSeries({ ...settings, fetcher: async (url) => {
+    urls.push(new URL(url, 'http://localhost'));
+    return { ok: true, json: async () => ({ status: 'success', data: { resultType: 'matrix', result: [] } }) };
+  } });
+  assert.equal(urls.length, 8);
+  for (const url of urls) {
+    const start = Number(url.searchParams.get('start'));
+    const end = Number(url.searchParams.get('end'));
+    assert.equal(end - start, 900);
+    assert.ok(end === settings.end || end === settings.end - 86400);
+    assert.equal(Number(url.searchParams.get('step')), 15);
+  }
+});
+
+test('adjacent Prometheus windows do not duplicate their shared boundary sample', async () => {
+  const results = await loadSeries({ ...options, fetcher: async (url) => {
+    const params = new URL(url, 'http://localhost').searchParams;
+    const start = Number(params.get('start'));
+    const end = Number(params.get('end'));
+    return { ok: true, json: async () => ({ status: 'success', data: { resultType: 'matrix', result: [
+      { values: [[start, '10'], [end, '10']] },
+    ] } }) };
+  } });
+  assert.deepEqual(results[0].points.map(({ timestamp }) => timestamp), [90, 100]);
+  assert.equal(analyzeSeries(results[0], options).historical.count, 1);
+  await assert.rejects(loadSeries({ ...options, baselineOffset: 5 }), /non-overlapping/);
 });
 
 test('Prometheus errors are surfaced instead of silently replacing data with synthetic values', async () => {

@@ -1947,16 +1947,19 @@ fn build_pod_template(
         }
     }
 
-    // Add mTLS certificate volume
+    // Only require the certificate Secret when reconciliation provisions mTLS.
+    // A required Secret volume otherwise leaves every baseline Pod Pending.
     let volumes = pod_spec.volumes.get_or_insert_with(Vec::new);
-    volumes.push(Volume {
-        name: "tls".to_string(),
-        secret: Some(k8s_openapi::api::core::v1::SecretVolumeSource {
-            secret_name: Some(format!("{}-client-cert", node.name_any())),
+    if enable_mtls {
+        volumes.push(Volume {
+            name: "tls".to_string(),
+            secret: Some(k8s_openapi::api::core::v1::SecretVolumeSource {
+                secret_name: Some(format!("{}-client-cert", node.name_any())),
+                ..Default::default()
+            }),
             ..Default::default()
-        }),
-        ..Default::default()
-    });
+        });
+    }
 
     // Add Cloud HSM sidecar and volumes
     if let NodeType::Validator = node.spec.node_type {
@@ -2967,13 +2970,14 @@ fn build_container(node: &StellarNode, enable_mtls: bool) -> Container {
         }
     }
 
-    // Mount mTLS certificates
-    volume_mounts.push(VolumeMount {
-        name: "tls".to_string(),
-        mount_path: "/etc/stellar/tls".to_string(),
-        read_only: Some(true),
-        ..Default::default()
-    });
+    if enable_mtls {
+        volume_mounts.push(VolumeMount {
+            name: "tls".to_string(),
+            mount_path: "/etc/stellar/tls".to_string(),
+            read_only: Some(true),
+            ..Default::default()
+        });
+    }
 
     // Add extra mounts (HSM)
     volume_mounts.extend(extra_volume_mounts);
@@ -4273,6 +4277,45 @@ pub(crate) fn build_pod_template_for_test(node: &StellarNode) -> PodTemplateSpec
         None,
         node.spec.pod_anti_affinity.clone(),
     )
+}
+
+#[cfg(test)]
+mod tls_volume_tests {
+    use super::*;
+    use crate::crd::StellarNodeSpec;
+
+    #[test]
+    fn certificate_secret_is_required_only_when_mtls_is_enabled() {
+        for node_type in [NodeType::Validator, NodeType::Horizon, NodeType::SorobanRpc] {
+            let node = StellarNode::new(
+                "security-fixture",
+                StellarNodeSpec {
+                    node_type,
+                    ..Default::default()
+                },
+            );
+            for enable_mtls in [false, true] {
+                let template = build_pod_template(
+                    &node,
+                    &standard_labels(&node),
+                    enable_mtls,
+                    None,
+                    node.spec.pod_anti_affinity.clone(),
+                );
+                let pod = template.spec.expect("pod spec");
+                let tls = pod.volumes.as_ref().unwrap().iter().find(|v| v.name == "tls");
+                assert_eq!(tls.is_some(), enable_mtls);
+                if let Some(volume) = tls {
+                    assert_eq!(
+                        volume.secret.as_ref().unwrap().secret_name.as_deref(),
+                        Some("security-fixture-client-cert")
+                    );
+                }
+                let mounts = pod.containers[0].volume_mounts.as_ref().unwrap();
+                assert_eq!(mounts.iter().any(|m| m.name == "tls"), enable_mtls);
+            }
+        }
+    }
 }
 
 #[cfg(test)]

@@ -5,6 +5,7 @@ OPERATOR_NAMESPACE="${OPERATOR_NAMESPACE:-stellar-system}"
 MANAGED_NAMESPACE="${MANAGED_NAMESPACE:-stellar}"
 SERVICE_ACCOUNT="${SERVICE_ACCOUNT:-stellar-operator}"
 DEPLOYMENT_NAME="${DEPLOYMENT_NAME:-stellar-operator}"
+AUDIT_NODE="${AUDIT_NODE:-validator-0}"
 MANIFEST="${MANIFEST:-examples/security/strict-rbac.yaml}"
 AS="system:serviceaccount:${OPERATOR_NAMESPACE}:${SERVICE_ACCOUNT}"
 
@@ -233,8 +234,22 @@ fi
 
 echo "== Operator reconciliation log gate =="
 if kubectl get deployment -n "$OPERATOR_NAMESPACE" "$DEPLOYMENT_NAME" >/dev/null 2>&1; then
+  operator_sa="$(kubectl get deployment -n "$OPERATOR_NAMESPACE" "$DEPLOYMENT_NAME" -o jsonpath='{.spec.template.spec.serviceAccountName}')"
+  if [[ "$operator_sa" == "$SERVICE_ACCOUNT" ]]; then
+    pass "operator deployment uses the audited ServiceAccount"
+  else
+    fail_check "operator deployment does not use ServiceAccount/$SERVICE_ACCOUNT"
+  fi
+  operator_ready="$(kubectl get deployment -n "$OPERATOR_NAMESPACE" "$DEPLOYMENT_NAME" -o jsonpath='{.status.readyReplicas}')"
+  if [[ "$operator_ready" =~ ^[1-9][0-9]*$ ]]; then
+    pass "operator has ready replicas"
+  else
+    fail_check "operator has no ready replicas"
+  fi
   if ! operator_logs="$(kubectl logs -n "$OPERATOR_NAMESPACE" deployment/"$DEPLOYMENT_NAME" --all-pods=true --all-containers=true --since=5m 2>&1)"; then
     fail_check "could not retrieve operator logs"
+  elif [[ -z "$operator_logs" ]]; then
+    fail_check "operator logs are empty; no recent reconciliation evidence"
   elif grep -Eqi 'forbidden|permission denied|cannot (get|list|watch|create|update|patch|delete)' <<<"$operator_logs"; then
     fail_check "operator logs contain RBAC/permission errors in the last 5 minutes"
   else
@@ -242,6 +257,27 @@ if kubectl get deployment -n "$OPERATOR_NAMESPACE" "$DEPLOYMENT_NAME" >/dev/null
   fi
 else
   fail_check "deployment/$DEPLOYMENT_NAME not found; set DEPLOYMENT_NAME for the log gate"
+fi
+
+echo "== Reconciled validator fixture =="
+# A cluster with no workload or with stale Ready status is not audit evidence.
+# The documented fixture is an active validator whose StatefulSet shares its name.
+if kubectl wait -n "$MANAGED_NAMESPACE" --for=condition=Ready "stellarnode/$AUDIT_NODE" --timeout=120s; then
+  fixture_generations="$(kubectl get stellarnode "$AUDIT_NODE" -n "$MANAGED_NAMESPACE" -o jsonpath='{.metadata.generation}{" "}{.status.observedGeneration}')"
+  read -r desired_generation observed_generation <<<"$fixture_generations"
+  if [[ "$desired_generation" =~ ^[0-9]+$ && "$desired_generation" == "$observed_generation" ]]; then
+    pass "validator fixture Ready at the current generation"
+  else
+    fail_check "validator fixture Ready status is stale or lacks observedGeneration"
+  fi
+  fixture_ready="$(kubectl get statefulset "$AUDIT_NODE" -n "$MANAGED_NAMESPACE" -o jsonpath='{.status.readyReplicas}')"
+  if [[ "$fixture_ready" =~ ^[1-9][0-9]*$ ]]; then
+    pass "validator fixture has running ready replicas"
+  else
+    fail_check "validator fixture StatefulSet has no ready replicas"
+  fi
+else
+  fail_check "active validator fixture/$AUDIT_NODE missing or not Ready"
 fi
 
 if [[ $fail -ne 0 ]]; then

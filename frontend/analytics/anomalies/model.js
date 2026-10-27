@@ -22,8 +22,10 @@ function validPoint(point) {
 // Buckets retain extrema, including narrow spikes, while bounding SVG work.
 function chartPoints(points) {
   if (points.length <= MAX_CHART_POINTS) return points;
-  const output = [];
-  const size = Math.ceil(points.length / (MAX_CHART_POINTS / 2));
+  const output = [points[0]];
+  // Reserve the endpoints so a recovered/latest sample cannot disappear when
+  // it is not an extremum in its bucket.
+  const size = Math.ceil(points.length / Math.floor((MAX_CHART_POINTS - 2) / 2));
   for (let start = 0; start < points.length; start += size) {
     let min = points[start];
     let max = min;
@@ -31,8 +33,11 @@ function chartPoints(points) {
       if (points[i].value < min.value) min = points[i];
       if (points[i].value > max.value) max = points[i];
     }
-    output.push(...(min.timestamp <= max.timestamp ? [min, max] : [max, min]));
+    for (const point of min.timestamp <= max.timestamp ? [min, max] : [max, min]) {
+      if (output.at(-1) !== point) output.push(point);
+    }
   }
+  if (output.at(-1) !== points.at(-1)) output.push(points.at(-1));
   return output;
 }
 

@@ -27,9 +27,12 @@ compare the normal series.
 
 Statistical evaluation, sorting, breach detection, and chart reduction run in a
 dedicated module worker. A changed control terminates prior work and ignores
-stale results. Prometheus requests are limited to four aggregate series with
-approximately 1,500 samples each. SVG output is bounded to 240 extrema-preserving
-points per line. Every sample still participates in calculations and breach counts.
+stale results. Each of the four aggregate series uses two range requests, one per
+comparison window, with approximately 750 samples per window (minimum step 15
+seconds). Yesterday comparisons do not fetch the intervening day. Adjacent windows
+exclude the shared start boundary to avoid duplicate historical samples. SVG output
+is bounded to 240 extrema-preserving points per line, including the first and
+latest sample. Every sample still participates in calculations and breach counts.
 
 A 15-second deadline covers fetching, worker startup, and analysis. Failures abort
 outstanding requests and terminate the worker; Refresh retries the full snapshot.

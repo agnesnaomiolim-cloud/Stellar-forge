@@ -888,7 +888,7 @@ pub fn build_colored_statefulset_for_test(
     publish_rollout: Option<&str>,
 ) -> StatefulSet {
     let labels = color_labels(node, color, role);
-    let mut sts = build_statefulset(node, false, None);
+    let mut sts = build_statefulset(node, false, None, node.spec.pod_anti_affinity.clone());
     set_sts_identity(
         &mut sts,
         sts_name,
@@ -929,7 +929,12 @@ async fn ensure_colored_statefulset(
     let namespace = node.namespace().unwrap_or_else(|| "default".to_string());
     let api: Api<StatefulSet> = Api::namespaced(client.clone(), &namespace);
     let labels = color_labels(node, color, role);
-    let mut sts = build_statefulset(node, enable_mtls, seed_injection);
+    let mut sts = build_statefulset(
+        node,
+        enable_mtls,
+        seed_injection,
+        node.spec.pod_anti_affinity.clone(),
+    );
     set_sts_identity(
         &mut sts,
         sts_name,
