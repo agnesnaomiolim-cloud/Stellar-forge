@@ -19,28 +19,41 @@ export default function Workbench() {
   useEffect(() => {
     const id = ++generation.current;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
     const end = Math.floor(Date.now() / 1000);
     const options = { end, duration, baselineOffset: baseline === 'previous' ? duration : 86400, sigma };
     setState({ loading: true, results: [], error: null });
     let disposed = false;
+    let settled = false;
     let activeWorker;
+    let timeout;
     const fail = (error) => {
-      if (!disposed) setState({ loading: false, results: [], error: error.message || 'Analysis worker failed' });
+      if (disposed || settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      controller.abort();
+      activeWorker?.terminate();
+      setState({ loading: false, results: [], error: error.message || 'Analysis worker failed' });
     };
+    // Bound the entire request, including worker startup and analysis.
+    timeout = setTimeout(() => fail(new Error('Metric analysis timed out. Refresh to retry.')), 15000);
     (async () => {
       try {
         activeWorker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
         activeWorker.onmessage = ({ data }) => {
-          if (disposed || data.id !== generation.current) return;
+          if (disposed || settled || data.id !== generation.current) return;
           if (data.error) fail(new Error(data.error));
-          else setState({ loading: false, results: data.results, error: null });
+          else {
+            settled = true;
+            clearTimeout(timeout);
+            activeWorker.terminate();
+            setState({ loading: false, results: data.results, error: null });
+          }
         };
         activeWorker.onerror = () => fail(new Error('Anomaly worker unavailable. Check browser worker support and retry.'));
+        activeWorker.onmessageerror = () => fail(new Error('Could not read anomaly analysis results. Refresh to retry.'));
         const series = source === 'synthetic' ? syntheticSeries(end, spikes) : await loadSeries({ ...options, signal: controller.signal });
-        if (!disposed) activeWorker.postMessage({ id, series, options });
+        if (!disposed && !settled) activeWorker.postMessage({ id, series, options });
       } catch (error) { fail(error); }
-      finally { clearTimeout(timeout); }
     })();
     return () => {
       disposed = true;

@@ -14,7 +14,18 @@ export async function loadSeries({ end, duration, baselineOffset, signal, fetche
     }
     const result = payload.data.result;
     if (!Array.isArray(result) || result.length > 1) throw new Error(`${metric.label}: expected one aggregated series`);
-    const points = (result[0]?.values ?? []).map(([timestamp, value]) => ({ timestamp: Number(timestamp), value: Number(value) }));
+    const values = result.length ? result[0]?.values : [];
+    if (!Array.isArray(values)) throw new Error(`${metric.label}: expected metric samples`);
+    const points = values.map((sample) => {
+      // Null and empty strings coerce to zero, which would hide missing data or
+      // create a false throughput dip. Reject malformed samples explicitly.
+      if (!Array.isArray(sample) || sample.length !== 2
+        || typeof sample[0] !== 'number' || !Number.isFinite(sample[0])
+        || typeof sample[1] !== 'string' || sample[1].trim() === '') {
+        throw new Error(`${metric.label}: malformed metric sample`);
+      }
+      return { timestamp: sample[0], value: Number(sample[1]) };
+    });
     return { ...metric, points };
   }));
 }

@@ -47,7 +47,7 @@ pub const PSS_VERSION: &str = "latest";
 
 /// Ensure the given namespace carries the full set of PSS `restricted` labels.
 ///
-/// Uses a strategic-merge patch so that other labels on the namespace are
+/// Uses a JSON merge patch so that other labels on the namespace are
 /// preserved. Safe to call on every reconcile — it is idempotent.
 #[instrument(skip(client), fields(namespace = %namespace))]
 pub async fn ensure_namespace_pss_labels(client: &Client, namespace: &str) -> Result<()> {
@@ -73,8 +73,8 @@ pub async fn ensure_namespace_pss_labels(client: &Client, namespace: &str) -> Re
     match api
         .patch(
             namespace,
-            &PatchParams::apply("stellar-operator-pss").force(),
-            &Patch::Apply(&patch),
+            &PatchParams::default(),
+            &Patch::Merge(&patch),
         )
         .await
     {

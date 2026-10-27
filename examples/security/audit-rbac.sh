@@ -77,6 +77,11 @@ else
   fail_check "expected ALLOW: patch stellarnodes.stellar.org/status in $MANAGED_NAMESPACE"
 fi
 expect_yes_ns patch deployments.apps "$MANAGED_NAMESPACE"
+# Apply creation requires create in addition to patch. Check each resource so
+# a profile that only works for existing children cannot pass this gate.
+for created_resource in deployments.apps statefulsets.apps services persistentvolumeclaims configmaps networkpolicies.networking.k8s.io ingresses.networking.k8s.io poddisruptionbudgets.policy horizontalpodautoscalers.autoscaling; do
+  expect_yes_ns create "$created_resource" "$MANAGED_NAMESPACE"
+done
 expect_yes_ns delete statefulsets.apps "$MANAGED_NAMESPACE"
 expect_yes_ns get secrets "$MANAGED_NAMESPACE"
 expect_yes_ns patch networkpolicies.networking.k8s.io "$MANAGED_NAMESPACE"
@@ -88,6 +93,11 @@ expect_yes_ns list deployments.apps "$OPERATOR_NAMESPACE"
 expect_yes_ns list configmaps "$OPERATOR_NAMESPACE"
 expect_yes_ns watch configmaps/stellar-operator-config "$OPERATOR_NAMESPACE"
 expect_yes_ns patch configmaps/stellar-peers "$OPERATOR_NAMESPACE"
+if kubectl get configmap stellar-peers -n "$OPERATOR_NAMESPACE" --as="$AS" >/dev/null; then
+  pass "administrator-provisioned stellar-peers ConfigMap exists"
+else
+  fail_check "stellar-peers missing; reapply the strict manifest as administrator"
+fi
 expect_yes_ns list leases.coordination.k8s.io "$OPERATOR_NAMESPACE"
 expect_yes_ns patch leases.coordination.k8s.io/stellar-operator-leader "$OPERATOR_NAMESPACE"
 
@@ -123,6 +133,8 @@ expect_no_ns create secrets "$MANAGED_NAMESPACE"
 expect_no_ns update secrets "$MANAGED_NAMESPACE"
 expect_no_ns patch secrets "$MANAGED_NAMESPACE"
 expect_no_ns create pods "$OPERATOR_NAMESPACE"
+expect_no_ns create pods "$MANAGED_NAMESPACE"
+expect_no_ns create configmaps "$OPERATOR_NAMESPACE"
 expect_no_cluster create clusterroles.rbac.authorization.k8s.io
 expect_no_cluster create clusterrolebindings.rbac.authorization.k8s.io
 expect_no_cluster create namespaces
@@ -221,7 +233,7 @@ fi
 
 echo "== Operator reconciliation log gate =="
 if kubectl get deployment -n "$OPERATOR_NAMESPACE" "$DEPLOYMENT_NAME" >/dev/null 2>&1; then
-  if ! operator_logs="$(kubectl logs -n "$OPERATOR_NAMESPACE" deployment/"$DEPLOYMENT_NAME" --all-containers=true --since=5m 2>&1)"; then
+  if ! operator_logs="$(kubectl logs -n "$OPERATOR_NAMESPACE" deployment/"$DEPLOYMENT_NAME" --all-pods=true --all-containers=true --since=5m 2>&1)"; then
     fail_check "could not retrieve operator logs"
   elif grep -Eqi 'forbidden|permission denied|cannot (get|list|watch|create|update|patch|delete)' <<<"$operator_logs"; then
     fail_check "operator logs contain RBAC/permission errors in the last 5 minutes"

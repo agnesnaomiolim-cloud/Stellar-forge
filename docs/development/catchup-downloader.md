@@ -35,8 +35,10 @@ Requests retry transport connection/timeouts and HTTP 5xx/429 responses with
 Interrupted chunk bodies retry from the beginning of that range; deterministic
 protocol and checksum failures do not retry. Full-body fallback retries
 interrupted bodies too. Header retries and body retries each have their own
-bounded counters. Individual requests time out after 300 seconds; retries can
-extend total archive time. Signed URLs cannot outlive the backing credentials.
+bounded counters. Connections and inactive network reads time out after 300
+seconds. Intentional egress pacing does not consume this timeout, so large
+objects can finish at low bandwidth allocations; retries can extend total
+archive time. Signed URLs cannot outlive the backing credentials.
 Expired credentials require a new reconciliation/signature.
 
 ## Egress allocation
@@ -65,7 +67,8 @@ the task instruction. The 50% speedup target remains unverified. No measured
 performance data is claimed. Test source covers real local HTTP requests,
 chunk reassembly, service-error retry, ignored-range fallback, incorrect ranges,
 checksum rejection, interrupted probe/chunk body retry, concurrent request bounds,
-capped backoff, and aggregate bandwidth accounting.
+capped backoff, aggregate bandwidth accounting, and paced downloads lasting
+longer than the network inactivity timeout.
 Concurrency coverage uses a barrier between two HTTP handlers rather than
 timing assumptions; test-server handlers are owned and cancelled together.
 Regression source also covers safe staging names, encoded responses and

@@ -25,6 +25,7 @@ pub struct DownloadConfig {
     pub retries: u32,
     pub initial_backoff: Duration,
     pub max_backoff: Duration,
+    /// Maximum connection or network-read inactivity; excludes egress pacing.
     pub request_timeout: Duration,
 }
 
@@ -65,7 +66,11 @@ impl Downloader {
         // Feature unification may enable compression through another reqwest
         // user. Range offsets and the trusted digest refer to wire bytes.
         let client = Client::builder()
-            .timeout(config.request_timeout)
+            // A total request deadline also counts deliberate limiter waits.
+            // Large fallback bodies must be allowed to outlive that deadline
+            // while each network operation still has a finite timeout.
+            .connect_timeout(config.request_timeout)
+            .read_timeout(config.request_timeout)
             .no_gzip()
             .no_brotli()
             .no_deflate()
@@ -500,6 +505,39 @@ mod tests {
     #[tokio::test]
     async fn supports_servers_ignoring_initial_range() {
         assert_eq!(check("fallback", true).await, (true, 1, true));
+    }
+
+    #[tokio::test]
+    async fn egress_pacing_can_outlive_the_network_timeout() {
+        let (url, requests, _, server) = server("fallback").await;
+        let directory = tempfile::tempdir().unwrap();
+        let destination = directory.path().join("archive");
+        let downloader = Downloader::new(
+            WorkerPool::new(1, 16).unwrap(),
+            DownloadConfig {
+                retries: 0,
+                request_timeout: Duration::from_millis(200),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        // A sixteen-byte response takes at least a second under this budget,
+        // even though the local peer sends every byte immediately.
+        let result = tokio::time::timeout(
+            Duration::from_secs(10),
+            downloader.download(Archive {
+                url,
+                destination: destination.clone(),
+                sha256: hex::encode(Sha256::digest(b"abcdefghijklmnop")),
+            }),
+        )
+        .await
+        .expect("paced download timed out");
+        server.abort();
+        assert!(server.await.unwrap_err().is_cancelled());
+        result.unwrap();
+        assert_eq!(fs::read(destination).await.unwrap(), b"abcdefghijklmnop");
+        assert_eq!(requests.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]

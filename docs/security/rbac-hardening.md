@@ -30,7 +30,7 @@ Exec and attach expose both GET/WebSocket and POST API transports. The optional 
 
 ## Exact baseline permission map
 
-`patch` includes server-side apply creation at a named URL; a separate `create` verb is required only for actual POST requests. The following tables describe every rule in the companion manifest; optional extensions are separate below.
+Server-side apply needs `patch` for existing objects and **also `create` for new objects**, even though both requests use HTTP PATCH. See the official [apply authorization contract](https://kubernetes.io/docs/reference/using-api/server-side-apply/#access-control-and-permissions). Creation cannot be limited with `resourceNames`. The following tables describe every rule in the companion manifest; optional extensions are separate below.
 
 ### Role `stellar/stellar-operator`
 
@@ -39,16 +39,15 @@ Exec and attach expose both GET/WebSocket and POST API transports. The optional 
 | `stellar.org/stellarnodes` | `get,list,watch,patch` | `reconciler.rs`: desired-state watch, metadata/finalizer patches; network-isolation sibling checks. No user CR creation/deletion. |
 | `stellar.org/stellarnodes/status` | `patch` | Reconcile health, conditions and phases. |
 | `stellar.org/stellarnodes/finalizers` | `update` | Owner-reference admission and finalizer authorization; metadata patches use the main resource permission. |
-| `apps/deployments,statefulsets` | `get,list,watch,patch,delete` | `resources.rs`, `remediation.rs`: owned watches, apply, canary updates, restarts, teardown. |
-| core `services,persistentvolumeclaims` | `get,list,watch,patch,delete` | Owned watches, service routing, PVC expansion, lifecycle cleanup. |
-| core `persistentvolumeclaims` | `create` | `resources::ensure_pvc` explicitly POSTs the first PVC. |
-| core `configmaps` | `get,patch,delete` | Node config, alert rules and cleanup, using apply. |
+| `apps/deployments,statefulsets` | `get,list,watch,create,patch,delete` | `resources.rs`, `remediation.rs`: owned watches, apply creation, canary updates, restarts, teardown. |
+| core `services,persistentvolumeclaims` | `get,list,watch,create,patch,delete` | Owned watches, service apply creation, PVC POST creation/expansion, lifecycle cleanup. |
+| core `configmaps` | `get,create,patch,delete` | Node config, alert rules and cleanup, using apply. |
 | core `pods` | `get,list,patch,delete` | Health checks, traffic labels and remediation; workload controllers create actual Pods. Observer role additionally supplies list/watch. |
 | core `pods/eviction` | `create` | Node-drain worker eviction, only in this namespace; PDB admission still applies. |
 | core `secrets` | `get,list,watch` | Primary controller's unfiltered Secret watch, cert/version and seed-related readers; no mutation. |
-| `networking.k8s.io/networkpolicies,ingresses` | `patch,delete` | Apply isolation/ingress and remove obsolete resources. |
-| `policy/poddisruptionbudgets` | `get,list,watch,patch,delete` | Owned watch, apply and cleanup of node availability policy. |
-| `autoscaling/horizontalpodautoscalers` | `patch,delete` | Apply configured HPA; cleanup on node deletion. |
+| `networking.k8s.io/networkpolicies,ingresses` | `create,patch,delete` | Apply isolation/ingress and remove obsolete resources. |
+| `policy/poddisruptionbudgets` | `get,list,watch,create,patch,delete` | Owned watch, apply and cleanup of node availability policy. |
+| `autoscaling/horizontalpodautoscalers` | `create,patch,delete` | Apply configured HPA; cleanup on node deletion. |
 | `autoscaling.k8s.io/verticalpodautoscalers` | `delete` | `delete_vpa` runs even when `vpaConfig` is absent; missing CRD/object 404 is tolerated. |
 | core and `events.k8s.io/events` | `create,patch` | Legacy Event publication and kube runtime recorder. |
 
@@ -58,7 +57,7 @@ Exec and attach expose both GET/WebSocket and POST API transports. The optional 
 | --- | --- | --- |
 | `apps/deployments` | `list` | Startup preflight. |
 | core `configmaps` | `list`; `watch` only on `stellar-operator-config` | Unfiltered preflight list and a feature-flag watch that uses a matching `metadata.name` field selector. |
-| core `configmaps` | `get,patch`, name `stellar-peers` | Peer discovery applies and reads its runtime ConfigMap. |
+| core `configmaps` | `get,patch`, name `stellar-peers` | Peer discovery updates and reads the runtime ConfigMap pre-created by the administrator through `strict-rbac.yaml`. If deleted, reapply that manifest; the operator intentionally cannot recreate it. |
 | `coordination.k8s.io/leases` | `list,create` | Preflight list and initial leader-lease POST. `create` cannot be restricted with `resourceNames`; it is confined to this namespace. |
 | `coordination.k8s.io/leases` | `get,patch`, name `stellar-operator-leader` | Acquire, renew and release lease. |
 
@@ -72,7 +71,7 @@ Exec and attach expose both GET/WebSocket and POST API transports. The optional 
 | core `nodes` | `get` | Infrastructure lookup for metrics. |
 | core `services` | `get` | Peer-discovery lookup in each discovered node's namespace. |
 | core `namespaces` | `get`, names `stellar-system,stellar` | Startup preflight and network-safety checks. |
-| core `namespaces` | `patch`, name `stellar` | `pss.rs` reconciles restricted labels; namespace must already exist. RBAC constrains the object, not label keys, so this allows changing any label on `stellar`. |
+| core `namespaces` | `patch`, name `stellar` | `pss.rs` reconciles restricted labels using a merge patch; namespace must already exist. RBAC constrains the object, not label keys, so this allows changing any label on `stellar`. |
 | `storage.k8s.io/storageclasses` | `get`, names `local-path,local-storage` | Local-storage detection. For automatic expansion add only the actual PVC StorageClass names to this rule; storage-class queries are otherwise denied. |
 
 ## Optional feature rules
@@ -82,15 +81,15 @@ Add rules only after identifying the enabled feature and namespace. Use a Role/R
 | Feature | Additional API rules | Scope / notes |
 | --- | --- | --- |
 | Disk probes | core `pods/exec: get,create` | `disk-probe-rbac.yaml`; GET/WebSocket and POST authorization differ by client/server version. Both verbs permit arbitrary commands; see the tradeoff above. |
-| ESO seeds | `external-secrets.io/externalsecrets: get,patch` | `eso-rbac.yaml`; ESO owns target Secret writes using its own identity. No SecretStore mutation needed by Stellar. |
-| VPA enabled | `autoscaling.k8s.io/verticalpodautoscalers: patch` | Baseline already permits delete; apply is sufficient. |
-| CloudNativePG | `postgresql.cnpg.io/clusters,poolers: patch,delete` | `resources.rs` applies/cleans up; CNPG has its own identity. |
-| mTLS / cert-manager | core `secrets: get,patch`; `cert-manager.io/certificates: patch` | Named operator CA/server Secrets in `stellar-system`, named node cert Secrets in `stellar`. Apply of generated certificates needs patch. Review names in `mtls.rs`; no broad Secret delete needed. |
-| Benchmark execution | core `pods: create,get`; `pods/log: get`; `stellar.org/stellarbenchmarks/status: patch`; `stellar.org/benchmarkreports: patch`; core `configmaps: patch` | `benchmark/reconciler.rs`, `collector.rs`. Grant in benchmark namespace only. Generated benchmark Pods must separately pass PSS. |
+| ESO seeds | `external-secrets.io/externalsecrets: get,create,patch` | `eso-rbac.yaml`; ESO owns target Secret writes using its own identity. No SecretStore mutation needed by Stellar. |
+| VPA enabled | `autoscaling.k8s.io/verticalpodautoscalers: create,patch` | Baseline already permits delete; apply creation requires create. |
+| CloudNativePG | `postgresql.cnpg.io/clusters,poolers: create,patch,delete` | `resources.rs` applies/cleans up; CNPG has its own identity. |
+| mTLS / cert-manager | core `secrets: get,create,patch`; `cert-manager.io/certificates: create,patch` | Pre-create reviewed operator CA/server Secrets in `stellar-system` and node cert Secrets in `stellar` to omit Secret create. Otherwise create grants cover all Secrets in the namespace. Restrict get/patch to reviewed names in `mtls.rs`; no broad Secret delete needed. |
+| Benchmark execution | core `pods: create,get`; `pods/log: get`; `stellar.org/stellarbenchmarks/status: patch`; `stellar.org/stellarbenchmarks/finalizers: update`; `stellar.org/benchmarkreports: create,patch`; core `configmaps: create,patch` | `benchmark/reconciler.rs`, `collector.rs`. Report owner references set `blockOwnerDeletion`, requiring owner finalizer authorization. Grant in benchmark namespace only. Generated benchmark Pods must separately pass PSS. |
 | CSI snapshots | `snapshot.storage.k8s.io/volumesnapshots: get,list,create,delete` | `snapshot.rs` / `csi_snapshot.rs`, in each selected node namespace. CSI controller owns snapshot contents. |
 | OCI snapshots | `batch/jobs: get,create` | `oci_snapshot.rs` applies push/pull Jobs and polls completion; review registry credentials and any separate cleanup workflow independently. Generated root-running helper containers can fail restricted PSS. |
-| Istio | `security.istio.io/peerauthentications,requestauthentications: patch,delete`; `networking.istio.io/destinationrules,virtualservices: patch,delete` | `service_mesh.rs`; canary routing also applies VirtualServices. |
-| Linkerd | `policy.linkerd.io/servers,serverauthorizations: patch` | `service_mesh.rs`; service-mesh controllers have separate identities. |
+| Istio | `security.istio.io/peerauthentications,requestauthentications: create,patch,delete`; `networking.istio.io/destinationrules,virtualservices: create,patch,delete` | `service_mesh.rs`; canary routing also applies VirtualServices. |
+| Linkerd | `policy.linkerd.io/servers,serverauthorizations: create,patch` | `service_mesh.rs`; service-mesh controllers have separate identities. |
 | Spot drain (`NODE_NAME` set) | core `nodes: patch`; core `pods/eviction: create`; node/Pod reads | `spot_drain.rs`; baseline supports in-namespace eviction but not cluster node cordoning. Keep `NODE_NAME` unset in the baseline. |
 | REST Kubernetes bearer auth | `authentication.k8s.io/tokenreviews: create`; `authorization.k8s.io/subjectaccessreviews: create` | ClusterRole required because reviews are cluster-scoped. Needed for that auth mode, not controller reconciliation. |
 | Forensics | core `pods/ephemeralcontainers: get,patch,update`; relevant logs | Break-glass only; forensic capabilities can be rejected by restricted PSS. |

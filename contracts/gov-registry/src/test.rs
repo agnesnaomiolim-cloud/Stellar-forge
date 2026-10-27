@@ -168,3 +168,78 @@ fn outsiders_cannot_exhaust_membership_by_delegating_or_receiving_dust() {
     env.mock_auths(&[]);
     assert!(client.try_register(&c).is_err());
 }
+
+#[test]
+fn shared_delegation_paths_and_subtree_moves_conserve_total_votes() {
+    let (env, id, a, b, c) = setup();
+    let client = GovernanceClient::new(&env, &id);
+    client.mint(&a, &20);
+    client.mint(&b, &30);
+    client.mint(&c, &50);
+    client.delegate(&a, &Some(b.clone()));
+    client.delegate(&b, &Some(c.clone()));
+
+    // Both transfer paths end at C. Only owned balances move; A's incoming
+    // delegation must remain attached to B when B transfers its own tokens.
+    client.transfer(&b, &a, &10);
+    client.transfer(&a, &c, &5);
+    env.ledger().set_sequence_number(11);
+    assert_eq!(client.balance_at(&a, &10), 25);
+    assert_eq!(client.balance_at(&b, &10), 20);
+    assert_eq!(client.balance_at(&c, &10), 55);
+    assert_eq!(client.votes_at(&c, &10), 100);
+
+    // A moves directly beneath its existing ancestor without changing C's
+    // combined weight. Removing B's delegation then releases only B's balance.
+    client.delegate(&a, &Some(c.clone()));
+    client.delegate(&b, &None);
+    env.ledger().set_sequence_number(12);
+    assert_eq!(client.votes_at(&a, &11), 0);
+    assert_eq!(client.votes_at(&b, &11), 20);
+    assert_eq!(client.votes_at(&c, &11), 80);
+    assert_eq!(client.votes_at(&c, &10), 100);
+}
+
+#[test]
+fn checkpoint_count_coalesces_and_new_mints_wait_for_a_closed_ledger() {
+    let (env, id, a, b, _) = setup();
+    let client = GovernanceClient::new(&env, &id);
+    client.mint(&a, &100);
+    client.register(&b);
+    assert_eq!(client.try_propose(&a, &BytesN::from_array(&env, &[6; 32])),
+        Err(Ok(Error::Threshold)));
+    client.transfer(&a, &b, &70);
+    client.transfer(&b, &a, &20);
+    env.as_contract(&id, || {
+        let count: u32 = env.storage().persistent()
+            .get(&Key::Count(Series::Balance(a.clone()))).unwrap();
+        assert_eq!(count, 1);
+        let count: u32 = env.storage().persistent()
+            .get(&Key::Count(Series::Votes(a.clone()))).unwrap();
+        assert_eq!(count, 1);
+    });
+    env.ledger().set_sequence_number(11);
+    let p = client.propose(&a, &BytesN::from_array(&env, &[6; 32]));
+    assert_eq!(client.state(&p), Outcome::Pending);
+    env.ledger().set_sequence_number(12);
+    assert_eq!(client.state(&p), Outcome::Active);
+    assert_eq!(client.vote(&p, &a, &Choice::For), 50);
+}
+
+#[test]
+fn supply_overflow_rolls_back_recipient_balance_and_checkpoints() {
+    let (env, id, a, b, _) = setup();
+    let client = GovernanceClient::new(&env, &id);
+    client.mint(&a, &i128::MAX);
+    client.register(&b);
+    assert_eq!(client.try_mint(&b, &1), Err(Ok(Error::Overflow)));
+    env.ledger().set_sequence_number(11);
+    assert_eq!(client.balance_at(&b, &10), 0);
+    assert_eq!(client.votes_at(&b, &10), 0);
+    assert_eq!(client.supply_at(&10), i128::MAX);
+    let p = client.propose(&a, &BytesN::from_array(&env, &[7; 32]));
+    env.ledger().set_sequence_number(12);
+    assert_eq!(client.vote(&p, &a, &Choice::For), i128::MAX);
+    env.ledger().set_sequence_number(17);
+    assert_eq!(client.finalize(&p), Outcome::Succeeded);
+}

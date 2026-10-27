@@ -31,6 +31,11 @@ stale results. Prometheus requests are limited to four aggregate series with
 approximately 1,500 samples each. SVG output is bounded to 240 extrema-preserving
 points per line. Every sample still participates in calculations and breach counts.
 
+A 15-second deadline covers fetching, worker startup, and analysis. Failures abort
+outstanding requests and terminate the worker; Refresh retries the full snapshot.
+Malformed Prometheus samples produce a visible error rather than being coerced to
+zero. Prometheus `NaN` values remain missing samples during analysis.
+
 ## Deferred validation
 
 Per `task.txt`, no dependencies, application code, builds, or tests were executed

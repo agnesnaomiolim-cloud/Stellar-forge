@@ -102,3 +102,30 @@ test('Prometheus errors are surfaced instead of silently replacing data with syn
   await assert.rejects(loadSeries({ ...options, fetcher: async () => ({ ok: false, status: 503 }) }), /503/);
   await assert.rejects(loadSeries({ ...options, fetcher: async () => ({ ok: true, json: async () => ({ status: 'error', error: 'query unavailable' }) }) }), /query unavailable/);
 });
+
+test('malformed Prometheus samples are rejected instead of coerced to zero', async () => {
+  for (const result of [
+    [{}], [{ values: null }], [{ values: [[100, null]] }],
+    [{ values: [[100, '']] }], [{ values: [[null, '10']] }],
+    [{ values: [[100]] }], [{ values: [null] }],
+  ]) {
+    await assert.rejects(loadSeries({ ...options, fetcher: async () => ({
+      ok: true,
+      json: async () => ({ status: 'success', data: { resultType: 'matrix', result } }),
+    }) }), /expected metric samples|malformed metric sample/);
+  }
+});
+
+test('Prometheus nonfinite values remain missing and numeric samples retain their timestamps', async () => {
+  const results = await loadSeries({ ...options, fetcher: async () => ({
+    ok: true,
+    json: async () => ({ status: 'success', data: { resultType: 'matrix', result: [
+      { values: [[99, '12.5'], [100, 'NaN']] },
+    ] } }),
+  }) });
+  assert.deepEqual(results[0].points[0], { timestamp: 99, value: 12.5 });
+  assert.ok(Number.isNaN(results[0].points[1].value));
+  const analyzed = analyzeSeries(results[0], options);
+  assert.equal(analyzed.discarded, 1);
+  assert.equal(analyzed.latest, 12.5);
+});
