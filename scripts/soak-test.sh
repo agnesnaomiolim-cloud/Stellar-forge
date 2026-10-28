@@ -29,7 +29,7 @@ THRESHOLD_KB=5120                              # 5 MB growth limit
 NODE_COUNT="${NODE_COUNT:-100}"
 TEST_NAMESPACE="${TEST_NAMESPACE:-soak-test}"
 CLEANUP_NAMESPACE_ON_EXIT="${CLEANUP_NAMESPACE_ON_EXIT:-false}"
-RESULTS_FILE="${RESULTS_FILE:-/tmp/soak-memory.log}"
+RESULTS_FILE="${RESULTS_FILE:-$(mktemp)}"
 CLEANUP_DONE=false
 CLEANUP_TIMEOUT_SECONDS="${CLEANUP_TIMEOUT_SECONDS:-120}"
 RETRY_DELAY_SECONDS="${RETRY_DELAY_SECONDS:-15}"
@@ -199,7 +199,6 @@ cleanup_namespace() {
 }
 trap cleanup_namespace EXIT
 
-OPERATOR_POD=$(get_operator_pid)
 validate_positive_integer "RETRY_DELAY_SECONDS" "$RETRY_DELAY_SECONDS"
 echo "Retry delay: ${RETRY_DELAY_SECONDS}s"
 

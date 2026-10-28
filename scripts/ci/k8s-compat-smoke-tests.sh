@@ -13,6 +13,10 @@
 # limitations under the License.
 set -euo pipefail
 
+RENDERED_CHART="$(mktemp)"
+cleanup() { rm -f "${RENDERED_CHART}"; }
+trap cleanup EXIT
+
 echo "========================================"
 echo "Kubernetes Compatibility Smoke Tests..."
 echo "========================================"
@@ -32,11 +36,11 @@ ERRORS=0
 echo "Rendering Helm Chart..."
 # Ensure chart dependencies are present (harmless if none)
 helm dependency update charts/stellar-operator || true
-helm template stellar-operator charts/stellar-operator > /tmp/rendered-chart.yaml
+helm template stellar-operator charts/stellar-operator > "${RENDERED_CHART}"
 
 echo "Validating Helm Chart output against k8s v${TARGET_VERSION}..."
 # Run kubeconform without -strict to avoid failing CI on non-critical warnings.
-if ! kubeconform -kubernetes-version "${TARGET_VERSION}" -ignore-missing-schemas /tmp/rendered-chart.yaml; then
+if ! kubeconform -kubernetes-version "${TARGET_VERSION}" -ignore-missing-schemas "${RENDERED_CHART}"; then
   echo "::error::Helm chart validation failed for Kubernetes v${TARGET_VERSION}"
   ERRORS=$((ERRORS + 1))
 fi
