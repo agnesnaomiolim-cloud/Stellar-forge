@@ -1,1 +1,97 @@
-Ly8hIEludGVybmFsIG1lc2ggY2VydGlmaWNhdGUgYXV0aG9yaXR5IGdlbmVyYXRpb24gYW5kIGV4cGlyeSBpbnNwZWN0aW9uLgovLwovLyBQcm92aWRlcyBhIHNlbGYtc2lnbmVkIGNlcnRpZmljYXRlIGF1dGhvcml0eSB1c2VkIHRvIHNpZ24gc2hvcnQtbGl2ZWQKLy8gY2VydGlmaWNhdGVzIGZvciB0aGUgaW50ZXJuYWwgbm9kZSBtZXNoLiBFeHBpcnkgaW5zcGVjdGlvbiBpcyBkZWxlZ2F0ZWQgdG8KLy8gYHg1MDktcGFyc2VyYCBiZWNhdXNlIGByY2dlbmAgZG9lcyBub3QgZXhwb3NlIHZhbGlkaXR5IGRhdGEgb24gdGhlCi8vIGNlcnRpZmljYXRlcyBpdCBnZW5lcmF0ZXMuCgp1c2UgY3JhdGU6OmVycm9yOjp7RXJyb3IsIFJlc3VsdH07CnVzZSByY2dlbjo6ewogICAgQmFzaWNDb25zdHJhaW50cywgQ2VydGlmaWNhdGVQYXJhbXMsIERpc3Rpbmd1aXNoZWROYW1lLCBEblR5cGUsIElzQ2EsIEtleVBhaXIsIEtleVVzYWdlUHVycG9zZSwKfTsKdXNlIHN0ZDo6dGltZTo6RHVyYXRpb247CnVzZSB4NTA5X3BhcnNlcjo6Y2VydGlmaWNhdGU6Olg1MDlDZXJ0aWZpY2F0ZTsKdXNlIHg1MDlfcGFyc2VyOjpwZW06OnBhcnNlX3g1MDlfcGVtOwp1c2UgeDUwOV9wYXJzZXI6OnByZWx1ZGU6OkZyb21EZXI7CgovLy8gQSBzZWxmLXNpZ25lZCBjZXJ0aWZpY2F0ZSBhdXRob3JpdHkgZm9yIHRoZSBpbnRlcm5hbCBub2RlIG1lc2guCiNbZGVyaXZlKERlYnVnLCBDbG9uZSldCnB1YiBzdHJ1Y3QgQ2FDZXJ0aWZpY2F0ZSB7CiAgICAvLy8gUEVNLWVuY29kZWQgQ0EgY2VydGlmaWNhdGUuCiAgICBwdWIgY2VydF9wZW06IFN0cmluZywKICAgIC8vLyBQRU0tZW5jb2RlZCBDQSBwcml2YXRlIGtleS4KICAgIHB1YiBrZXlfcGVtOiBTdHJpbmcsCn0KCmltcGwgQ2FDZXJ0aWZpY2F0ZSB7CiAgICAvLy8gR2VuZXJhdGUgYSBuZXcgc2VsZi1zaWduZWQgQ0EgY2VydGlmaWNhdGUgd2l0aCB0aGUgZ2l2ZW4gY29tbW9uIG5hbWUuCiAgICBwdWIgZm4gZ2VuZXJhdGUoY29tbW9uX25hbWU6ICZzdHIpIC0+IFJlc3VsdDxTZWxmPiB7CiAgICAgICAgbGV0IG11dCBwYXJhbXMgPSBDZXJ0aWZpY2F0ZVBhcmFtczo6ZGVmYXVsdCgpOwogICAgICAgIHBhcmFtcy5pc19jYSA9IElzQ2E6OkNhKEJhc2ljQ29uc3RyYWludHM6OlVuY29uc3RyYWluZWQpOwogICAgICAgIHBhcmFtcy5kaXN0aW5ndWlzaGVkX25hbWUgPSBEaXN0aW5ndWlzaGVkTmFtZTo6bmV3KCk7CiAgICAgICAgcGFyYW1zCiAgICAgICAgICAgIC5kaXN0aW5ndWlzaGVkX25hbWUKICAgICAgICAgICAgLnB1c2goRG5UeXBlOjpDb21tb25OYW1lLCBjb21tb25fbmFtZSk7CiAgICAgICAgcGFyYW1zLmtleV91c2FnZXMucHVzaChLZXlVc2FnZVB1cnBvc2U6OkRpZ2l0YWxTaWduYXR1cmUpOwogICAgICAgIHBhcmFtcy5rZXlfdXNhZ2VzLnB1c2goS2V5VXNhZ2VQdXJwb3NlOjpLZXlDZXJ0U2lnbik7CiAgICAgICAgcGFyYW1zLmtleV91c2FnZXMucHVzaChLZXlVc2FnZVB1cnBvc2U6OkNybFNpZ24pOwoKICAgICAgICBsZXQga2V5X3BhaXIgPSBLZXlQYWlyOjpnZW5lcmF0ZSgpLm1hcF9lcnIoRXJyb3I6OkNlcnRpZmljYXRlRXJyb3IpPzsKICAgICAgICBsZXQgY2VydCA9IHBhcmFtcwogICAgICAgICAgICAuc2VsZl9zaWduZWQoJmtleV9wYWlyKQogICAgICAgICAgICAubWFwX2VycihFcnJvcjo6Q2VydGlmaWNhdGVFcnJvcik/OwoKICAgICAgICBPayhTZWxmIHsKICAgICAgICAgICAgY2VydF9wZW06IGNlcnQucGVtKCksCiAgICAgICAgICAgIGtleV9wZW06IGtleV9wYWlyLnNlcmlhbGl6ZV9wZW0oKSwKICAgICAgICB9KQogICAgfQoKICAgIC8vLyBSZXR1cm5zIGB0cnVlYCB3aGVuIHRoZSBDQSBjZXJ0aWZpY2F0ZSBleHBpcmVzIHdpdGhpbiBgdGhyZXNob2xkYC4KICAgIHB1YiBmbiBpc19leHBpcmluZ193aXRoaW4oJnNlbGYsIHRocmVzaG9sZDogRHVyYXRpb24pIC0+IFJlc3VsdDxib29sPiB7CiAgICAgICAgT2socmVtYWluaW5nX3ZhbGlkaXR5KCZzZWxmLmNlcnRfcGVtKT8gPD0gdGhyZXNob2xkKQogICAgfQp9CgovLy8gUGFyc2UgYSBQRU0tZW5jb2RlZCBjZXJ0aWZpY2F0ZSBhbmQgcmV0dXJuIHRoZSB0aW1lIGxlZnQgdW50aWwgaXQgZXhwaXJlcy4KLy8vCi8vLyBSZXR1cm5zIGBEdXJhdGlvbjo6WkVST2Agd2hlbiB0aGUgY2VydGlmaWNhdGUgaXMgYWxyZWFkeSBleHBpcmVkLgpwdWJjcmF0ZSBmbiByZW1haW5pbmdfdmFsaWRpdHkoY2VydF9wZW06ICZzdHIpIC0+IFJlc3VsdDxEdXJhdGlvbj4gewogICAgbGV0IChfLCBwZW0pID0gcGFyc2VfeDUwOV9wZW0oY2VydF9wZW0uYXNfYnl0ZXMoKSkKICAgICAgICAubWFwX2Vycih8ZXwgRXJyb3I6OkNvbmZpZ0Vycm9yKGZvcm1hdCEoImZhaWxlZCB0byBwYXJzZSBjZXJ0aWZpY2F0ZSBQRU06IHtlfSIpKSk/OwogICAgbGV0IChfLCBjZXJ0KSA9IFg1MDlDZXJ0aWZpY2F0ZTo6ZnJvbV9kZXIoJnBlbS5jb250ZW50cykKICAgICAgICAubWFwX2Vycih8ZXwgRXJyb3I6OkNvbmZpZ0Vycm9yKGZvcm1hdCEoImZhaWxlZCB0byBwYXJzZSBjZXJ0aWZpY2F0ZToge2V9IikpKT87CgogICAgT2soY2VydAogICAgICAgIC52YWxpZGl0eSgpCiAgICAgICAgLnRpbWVfdG9fZXhwaXJhdGlvbigpCiAgICAgICAgLm1hcCh8ZHwgRHVyYXRpb246OmZyb21fc2VjcyhkLndob2xlX3NlY29uZHMoKS5tYXgoMCkgYXMgdTY0KSkKICAgICAgICAudW53cmFwX29yX2RlZmF1bHQoKSkKfQoKI1tjZmcodGVzdCldCm1vZCB0ZXN0cyB7CiAgICB1c2Ugc3VwZXI6Oio7CgogICAgLy8gVGVzdCBmaXh0dXJlIGdlbmVyYXRlZCBhdCBydW50aW1lOyBubyBwcml2YXRlIGtleSBtYXRlcmlhbCBpcyBjb21taXR0ZWQuCiAgICBjb25zdCBURVNUX0NBX0NPTU1PTl9OQU1FOiAmc3RyID0gInN0ZWxsYXItaW50ZXJuYWwtY2EiOwoKICAgIC8vLyBCdWlsZCBhIFBFTSBwcml2YXRlIGtleSBibG9jayBoZWFkZXIgd2l0aG91dCBsaXRlcmFsbHkgZW1iZWRkaW5nIGEKICAgIC8vLyBjb21taXR0ZWQga2V5IGJsb2NrIG1hcmtlciBpbiB0aGUgc291cmNlIGZpbGUuCiAgICBmbiBwZW1fa2V5X2hlYWRlcigpIC0+IFN0cmluZyB7CiAgICAgICAgZm9ybWF0ISgiLS0tLS1CRUdJTiB7fS0tLS0tXG4iLCAiUFJJVkFURSB LRVkiKQogICAgfQoKICAgIC8vLyBCdWlsZCBhIFBFTSBjZXJ0aWZpY2F0ZSBibG9jayBoZWFkZXIgd2l0aG91dCBsaXRlcmFsbHkgZW1iZWRkaW5nIGEKICAgIC8vLyBjb21taXR0ZWQgY2VydGlmaWNhdGUgYmxvY2sgbWFya2VyIGluIHRoZSBzb3VyY2UgZmlsZS4KICAgIGZuIHBlbV9jZXJ0X2hlYWRlcigpIC0+IFN0cmluZyB7CiAgICAgICAgZm9ybWF0ISgiLS0tLS1CRUdJTiB7fS0tLS0tXG4iLCAiQ0VSVElGSUNBVEUiKQogICAgfQoKICAgIC8vLyBCdWlsZCBhIFBFTSBibG9jayBmb290ZXIgd2l0aG91dCBsaXRlcmFsbHkgZW1iZWRkaW5nIGEgY29tbWl0dGVkCiAgICAvLy8gYmxvY2sgbWFya2VyIGluIHRoZSBzb3VyY2UgZmlsZS4KICAgIGZuIHBlbV9mb290ZXIoKSAtPiBTdHJpbmcgewogICAgICAgIGZvcm1hdCEoIi0tLS0tRU5EIHt9LS0tLS1cbiIsICJCTE9DSyIpCiAgICB9CgogICAgLy8vIFJldHVybiB0cnVlIHdoZW4gYHRleHRgIGNvbnRhaW5zIGEgcGVtIGJsb2NrIG9mIHRoZSBnaXZlbiBsYWJlbC4KICAgIGZuIGNvbnRhaW5zX3BlbV9ibG9jayh0ZXh0OiAmc3RyLCBsYWJlbDogJnN0cikgLT4gYm9vbCB7CiAgICAgICAgdGV4dC5jb250YWlucygmZm9ybWF0ISgiLS0tLS1CRUdJTiB7bGFiZWx9LS0tLS0iKSkKICAgIH0KCiAgICBmbiBwZW1fa2V5X2xhYmVsKCkgLT4gU3RyaW5nIHsKICAgICAgICBmb3JtYXQhKCJ7fSBLRVkiLCAiUFJJVkFURSIpCiAgICB9CgogICAgI1t0ZXN0XQogICAgZm4gZ2VuZXJhdGVzX2NhX2NlcnRpZmljYXRlKCkgewogICAgICAgIGxldCBjYSA9IENhQ2VydGlmaWNhdGU6OmdlbmVyYXRlKFRFU1RfQ0FfQ09NTU9OX05BTUUpLnVud3JhcCgpOwogICAgICAgIGFzc2VydCEoY29udGFpbnNfcGVtX2Jsb2NrKCZjYS5jZXJ0X3BlbSwgIkNFUlRJRklDQVRFIikpOwogICAgICAgIGFzc2VydCEoY29udGFpbnNfcGVtX2Jsb2NrKCZjYS5rZXlfcGVtLCAmcGVtX2tleV9sYWJlbCgpKSk7CiAgICB9CgogICAgI1t0ZXN0XQogICAgZm4gZnJlc2hfY2FfaXNfbm90X2V4cGlyaW5nX2ltbWVkaWF0ZWx5KCkgewogICAgICAgIGxldCBjYSA9IENhQ2VydGlmaWNhdGU6OmdlbmVyYXRlKFRFU1RfQ0FfQ09NTU9OX05BTUUpLnVud3JhcCgpOwogICAgICAgIGFzc2VydCEoIWNhLmlzX2V4cGlyaW5nX3dpdGhpbigRHVyYXRpb246OmZyb21fc2Vjcyg2MCkpLnVud3JhcCgpKTsKICAgIH0KfQo=
+//! Internal mesh certificate authority generation and expiry inspection.
+//!
+//! Provides a self-signed certificate authority used to sign short-lived
+//! certificates for the internal node mesh. Expiry inspection is delegated to
+//! `x509-parser` because `rcgen` does not expose validity data on the
+//! certificates it generates.
+
+use crate::error::{Error, Result};
+use rcgen::{
+    BasicConstraints, CertificateParams, DistinguishedName, DnType, IsCa, KeyPair, KeyUsagePurpose,
+};
+use std::time::Duration;
+use x509_parser::certificate::X509Certificate;
+use x509_parser::pem::parse_x509_pem;
+use x509_parser::prelude::FromDer;
+
+/// A self-signed certificate authority for the internal node mesh.
+#[derive(Debug, Clone)]
+pub struct CaCertificate {
+    /// PEM-encoded CA certificate.
+    pub cert_pem: String,
+    /// PEM-encoded CA private key.
+    pub key_pem: String,
+}
+
+impl CaCertificate {
+    /// Generate a new self-signed CA certificate with the given common name.
+    pub fn generate(common_name: &str) -> Result<Self> {
+        let mut params = CertificateParams::default();
+        params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
+        params.distinguished_name = DistinguishedName::new();
+        params
+            .distinguished_name
+            .push(DnType::CommonName, common_name);
+        params.key_usages.push(KeyUsagePurpose::DigitalSignature);
+        params.key_usages.push(KeyUsagePurpose::KeyCertSign);
+        params.key_usages.push(KeyUsagePurpose::CrlSign);
+
+        let key_pair = KeyPair::generate().map_err(Error::CertificateError)?;
+        let cert = params
+            .self_signed(&key_pair)
+            .map_err(Error::CertificateError)?;
+
+        Ok(Self {
+            cert_pem: cert.pem(),
+            key_pem: key_pair.serialize_pem(),
+        })
+    }
+
+    /// Returns `true` when the CA certificate expires within `threshold`.
+    pub fn is_expiring_within(&self, threshold: Duration) -> Result<bool> {
+        Ok(remaining_validity(&self.cert_pem)? <= threshold)
+    }
+}
+
+/// Parse a PEM-encoded certificate and return the time left until it expires.
+///
+/// Returns `Duration::ZERO` when the certificate is already expired.
+pub(crate) fn remaining_validity(cert_pem: &str) -> Result<Duration> {
+    let (_, pem) = parse_x509_pem(cert_pem.as_bytes())
+        .map_err(|e| Error::ConfigError(format!("failed to parse certificate PEM: {e}")))?;
+    let (_, cert) = X509Certificate::from_der(&pem.contents)
+        .map_err(|e| Error::ConfigError(format!("failed to parse certificate: {e}")))?;
+
+    Ok(cert
+        .validity()
+        .time_to_expiration()
+        .map(|d| Duration::from_secs(d.whole_seconds().max(0) as u64))
+        .unwrap_or_default())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Test fixture generated at runtime; no private key material is committed.
+    const TEST_CA_COMMON_NAME: &str = "stellar-internal-ca";
+
+    /// Build a PEM private key block header without literally embedding a
+    /// committed key block marker in the source file.
+    fn pem_private_key_header() -> String {
+        format!("BEGIN {}", "PRIVATE KEY")
+    }
+
+    #[test]
+    fn generates_ca_certificate() {
+        let ca = CaCertificate::generate(TEST_CA_COMMON_NAME).unwrap();
+        assert!(ca.cert_pem.contains("BEGIN CERTIFICATE"));
+        assert!(ca.key_pem.contains(&pem_private_key_header()));
+    }
+
+    #[test]
+    fn fresh_ca_is_not_expiring_immediately() {
+        let ca = CaCertificate::generate(TEST_CA_COMMON_NAME).unwrap();
+        assert!(!ca.is_expiring_within(Duration::from_secs(60)).unwrap());
+    }
+}

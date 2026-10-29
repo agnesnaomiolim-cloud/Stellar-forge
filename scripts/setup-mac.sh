@@ -34,7 +34,11 @@ install_rust() {
   if command -v cargo >/dev/null 2>&1; then info "Rust already installed: $(cargo --version)"; return; fi
   if command -v brew >/dev/null 2>&1; then
     info "Installing Rust via rustup (preferred)..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+    rustup_init="$(mktemp)"
+    trap 'rm -f "${rustup_init}"' EXIT
+    curl --proto '=https' --tlsv1.2 -sSf -o "${rustup_init}" https://sh.rustup.rs
+    chmod +x "${rustup_init}"
+    sh "${rustup_init}" -y --default-toolchain stable
     # shellcheck source=/dev/null
     source "$HOME/.cargo/env" || true
   fi

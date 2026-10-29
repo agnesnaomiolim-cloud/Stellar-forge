@@ -32,7 +32,10 @@ detect_os() {
 install_rust() {
   if command -v cargo >/dev/null 2>&1; then info "Rust already installed: $(cargo --version)"; return; fi
   info "Installing Rust via rustup..."
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+  local tmp_dir; tmp_dir="$(mktemp -d)"; trap 'rm -rf "${tmp_dir}"' RETURN
+  curl --proto '=https' --tlsv1.2 -sSf -o "${tmp_dir}/rustup-init.sh" https://sh.rustup.rs
+  chmod +x "${tmp_dir}/rustup-init.sh"
+  sh "${tmp_dir}/rustup-init.sh" -y --default-toolchain stable
   # shellcheck source=/dev/null
   source "$HOME/.cargo/env" || true
   rustup component add clippy rustfmt || true
@@ -53,29 +56,32 @@ install_system_deps() {
 
 install_kubectl() {
   if command -v kubectl >/dev/null 2>&1; then info "kubectl already installed: $(kubectl version --client 2>&1 | head -1)"; return; fi
-  info "Installing kubectl v${KUBCTL_VERSION:-${KUBECTL_VERSION}}..."
+  info "Installing kubectl v${KUBECTL_VERSION}..."
+  local tmp_dir; tmp_dir="$(mktemp -d)"; trap 'rm -rf "${tmp_dir}"' RETURN
   # Use version from versions.sh
   local ver="${KUBECTL_VERSION}"
-  curl -fsSL -o /tmp/kubectl "https://dl.k8s.io/release/v${ver}/bin/linux/amd64/kubectl"
-  chmod +x /tmp/kubectl
-  sudo mv /tmp/kubectl /usr/local/bin/kubectl
+  curl -fsSL -o "${tmp_dir}/kubectl" "https://dl.k8s.io/release/v${ver}/bin/linux/amd64/kubectl"
+  chmod +x "${tmp_dir}/kubectl"
+  sudo mv "${tmp_dir}/kubectl" /usr/local/bin/kubectl
   info "kubectl installed: $(kubectl version --client 2>&1 | head -1)"
 }
 
 install_kind() {
   if command -v kind >/dev/null 2>&1; then info "kind already installed: $(kind version)"; return; fi
   info "Installing kind v${KIND_VERSION}..."
-  curl -fsSL -o /tmp/kind "https://kind.sigs.k8s.io/dl/v${KIND_VERSION}/kind-linux-amd64"
-  chmod +x /tmp/kind
-  sudo mv /tmp/kind /usr/local/bin/kind
+  local tmp_dir; tmp_dir="$(mktemp -d)"; trap 'rm -rf "${tmp_dir}"' RETURN
+  curl -fsSL -o "${tmp_dir}/kind" "https://kind.sigs.k8s.io/dl/v${KIND_VERSION}/kind-linux-amd64"
+  chmod +x "${tmp_dir}/kind"
+  sudo mv "${tmp_dir}/kind" /usr/local/bin/kind
   info "kind installed: $(kind version)"
 }
 
 install_helm() {
   if command -v helm >/dev/null 2>&1; then info "helm already installed: $(helm version --short 2>&1 | head -1)"; return; fi
   info "Installing helm v${HELM_VERSION}..."
-  curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" | tar xz -C /tmp
-  sudo mv /tmp/linux-amd64/helm /usr/local/bin/helm
+  local tmp_dir; tmp_dir="$(mktemp -d)"; trap 'rm -rf "${tmp_dir}"' RETURN
+  curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" | tar xz -C "${tmp_dir}"
+  sudo mv "${tmp_dir}/linux-amd64/helm" /usr/local/bin/helm
   info "helm installed: $(helm version --short 2>&1 | head -1)"
 }
 

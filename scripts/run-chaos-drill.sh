@@ -25,6 +25,13 @@ RESULTS_DIR="${RESULTS_DIR:-./results/chaos}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 RESULTS_FILE="${RESULTS_DIR}/drill_${DRILL_TYPE}_${TIMESTAMP}.json"
 
+# Temporary workspace, always removed on exit
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "${TMP_DIR}"' EXIT
+
+# Path of the disk-fill file inside the target pod, unique per run
+FILL_FILE="/tmp/fill.$(date +%s).$$"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -101,7 +108,7 @@ inject_fault() {
             ;;
         disk)
             # Fill disk to specified percentage
-            kubectl exec -n ${NAMESPACE} ${TARGET} -- dd if=/dev/zero of=/tmp/fill bs=1M count=8192 2>/dev/null || true
+            kubectl exec -n ${NAMESPACE} ${TARGET} -- dd if=/dev/zero of="${FILL_FILE}" bs=1M count=8192 2>/dev/null || true
             ;;
         dns)
             # Block DNS resolution
@@ -139,7 +146,7 @@ recover_fault() {
             kubectl exec -n ${NAMESPACE} ${TARGET} -- tc qdisc del dev eth0 root 2>/dev/null || true
             ;;
         disk)
-            kubectl exec -n ${NAMESPACE} ${TARGET} -- rm -f /tmp/fill 2>/dev/null || true
+            kubectl exec -n ${NAMESPACE} ${TARGET} -- rm -f "${FILL_FILE}" 2>/dev/null || true
             ;;
         dns)
             kubectl exec -n ${NAMESPACE} ${TARGET} -- sed -i '/invalid.dns.local/d' /etc/hosts 2>/dev/null || true
