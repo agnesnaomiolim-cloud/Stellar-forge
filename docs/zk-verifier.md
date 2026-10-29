@@ -1,8 +1,8 @@
 # ZKP Verifier for Private Transfers
 
-> **Contract:** `contracts/zk-verifier`  
-> **Issues:** [#301](https://github.com/agnesnaomiolim-cloud/Stellar-K8s/issues/301), [#456](https://github.com/agnesnaomiolim-cloud/Stellar-forge/issues/456)  
-> **Status:** Implemented  
+> **Contract:** `contracts/zk-verifier`\
+> **Issues:** [#301](https://github.com/agnesnaomiolim-cloud/Stellar-K8s/issues/301), [#456](https://github.com/agnesnaomiolim-cloud/Stellar-forge/issues/456)\
+> **Status:** Implemented\
 > **Complexity:** High (200 Points)
 
 ## Curve, VK, and proof format (#456)
@@ -105,7 +105,7 @@ The dominant cost in both Groth16 and PLONK is the bilinear pairing `e: G1 × G2
 | **Total per pairing** | | **3 482 800** |
 
 These estimates use Soroban's synthetic instruction model where:
-- 1 field multiplication (Fp) ≈ 840 instructions  
+- 1 field multiplication (Fp) ≈ 840 instructions\
 - Source: `stellar-contract-env` benchmark suite on BN254
 
 #### G1 Scalar Multiplication

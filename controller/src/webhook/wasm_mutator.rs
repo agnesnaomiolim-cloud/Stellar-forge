@@ -195,7 +195,7 @@ pub struct AdmissionStatus {
 /// ```ignore
 /// router.route("/mutate/wasm", post(wasm_mutate_handler))
 /// ```
-
+#[instrument(skip(state, review), fields(uid = tracing::field::Empty))]
 pub async fn wasm_mutate_handler(
     State(state): State<Arc<WasmMutatorState>>,
     Json(review): Json<AdmissionReview>,

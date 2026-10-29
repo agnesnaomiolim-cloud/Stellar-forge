@@ -100,6 +100,8 @@ pub mod byzantine;
 pub mod canary_deployment;
 pub mod capacity_planning;
 pub mod carbon_aware;
+#[path = "../controller/src/catchup/mod.rs"]
+pub mod catchup;
 
 pub mod controller;
 pub mod cost_optimization;

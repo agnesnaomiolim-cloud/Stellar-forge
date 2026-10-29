@@ -369,13 +369,22 @@ pub async fn run_cleanup(args: CleanupArgs) -> Result<()> {
 }
 
 fn collect_files(path: &PathBuf) -> Result<Vec<PathBuf>> {
+    collect_files_inner(path, true)
+}
+
+fn collect_files_inner(path: &PathBuf, data_root: bool) -> Result<Vec<PathBuf>> {
     let mut files = Vec::new();
     if path.is_dir() {
         for entry in fs::read_dir(path)? {
             let entry = entry?;
+            // Restore locks, journals and completion markers belong to this
+            // volume, never to the portable snapshot's data payload.
+            if data_root && entry.file_name().to_string_lossy().starts_with(".stellar-bootstrap-") {
+                continue;
+            }
             let path = entry.path();
             if path.is_dir() {
-                files.extend(collect_files(&path)?);
+                files.extend(collect_files_inner(&path, false)?);
             } else {
                 files.push(path);
             }
@@ -655,6 +664,22 @@ async fn cleanup_from_filecoin(_args: &CleanupArgs) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn portable_backups_omit_restore_state_but_keep_nested_application_files() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path().to_path_buf();
+        fs::create_dir_all(root.join(".stellar-bootstrap-work/content")).unwrap();
+        fs::create_dir(root.join("ledger")).unwrap();
+        fs::write(root.join(".stellar-bootstrap-work/content/partial.db"), b"partial").unwrap();
+        fs::write(root.join(".stellar-bootstrap-complete"), b"local marker").unwrap();
+        fs::write(root.join(".stellar-bootstrap-lock"), b"").unwrap();
+        fs::write(root.join("ledger/db"), b"ledger data").unwrap();
+        fs::write(root.join("ledger/.stellar-bootstrap-user-field"), b"application data").unwrap();
+        let mut files = collect_files(&root).unwrap();
+        files.sort();
+        assert_eq!(files, vec![root.join("ledger/.stellar-bootstrap-user-field"), root.join("ledger/db")]);
+    }
     use crate::error::diagnostic;
 
     #[test]

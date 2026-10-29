@@ -367,4 +367,3 @@ mod tests {
         client.transfer_from(&spender, &alice, &bob, &50);
     }
 }
-

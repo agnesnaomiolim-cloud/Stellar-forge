@@ -1,42 +1,5 @@
 # Copyright 2024 Stellar-K8s Contributors
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# APIService registration for the Stellar custom metrics server
-#
-# This resource tells the Kubernetes API aggregation layer that any request for
-# the `custom.metrics.k8s.io/v1beta2` API group should be forwarded to the
-# stellar-operator Service, which runs the custom metrics API server.
-#
-# Prerequisites:
-#   - The stellar-operator Service must exist in the stellar-system namespace
-#     and expose port 9090 (or whatever REST_API_PORT is set to).
-#   - The operator must present a TLS certificate that the API server can verify.
-#     Use `.insecureSkipTLSVerify: true` during development; in production supply
-#     the CA bundle via `.caBundle`.
-#
-# Apply:
-#   kubectl apply -f config/custom-metrics-apiservice.yaml
-#
-# Verify registration:
-#   kubectl get apiservice v1beta2.custom.metrics.k8s.io
-#
-# Test the discovery endpoint:
-#   kubectl get --raw /apis/custom.metrics.k8s.io/v1beta2 | jq .
-#
-# Test a metric value:
-#   kubectl get --raw \
-#     "/apis/custom.metrics.k8s.io/v1beta2/namespaces/stellar-system/stellarnodes.stellar.org/horizon/stellar_horizon_tps" \
-#     | jq .
----
+# SPDX-License-Identifier: Apache-2.0
 apiVersion: apiregistration.k8s.io/v1
 kind: APIService
 metadata:
@@ -65,7 +28,6 @@ spec:
   #   caBundle: <base64-encoded-CA-cert>
   #
   insecureSkipTLSVerify: true
-
 ---
 # RBAC: Allow the Kubernetes controller-manager (which runs the HPA controller)
 # to call the custom metrics API on behalf of service accounts.
@@ -84,7 +46,6 @@ rules:
     verbs:
       - get
       - list
-
 ---
 # Bind the custom metrics reader role to the HPA controller's service account.
 apiVersion: rbac.authorization.k8s.io/v1
@@ -102,7 +63,6 @@ subjects:
   - kind: ServiceAccount
     name: horizontal-pod-autoscaler
     namespace: kube-system
-
 ---
 # Allow the API server's aggregation layer to authenticate to our metrics service.
 apiVersion: rbac.authorization.k8s.io/v1

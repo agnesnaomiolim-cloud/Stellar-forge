@@ -188,7 +188,7 @@ pub fn build_snapshot_push_job(
         args: Some(vec![format!(
             "set -e; \
              echo 'Packaging ledger snapshot...'; \
-             tar -czf {SCRATCH_MOUNT_PATH}/snapshot.tar.gz -C {DATA_MOUNT_PATH} .; \
+             tar --exclude='./.stellar-bootstrap-*' -czf {SCRATCH_MOUNT_PATH}/snapshot.tar.gz -C {DATA_MOUNT_PATH} .; \
              echo 'Pushing to OCI registry: {image_ref}'; \
              crane push {SCRATCH_MOUNT_PATH}/snapshot.tar.gz {image_ref}; \
              echo 'Push complete.'"

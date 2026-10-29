@@ -4,6 +4,7 @@ kind: StellarNode
 metadata:
   name: horizon
 spec:
+  nodeType: Horizon
   network: testnet
   version: "v2.29.0"
   resources:

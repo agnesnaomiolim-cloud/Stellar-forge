@@ -40,35 +40,35 @@ spec:
             runAsUser: 65532
             fsGroup: 65532
           containers:
-          - name: chaos-drill
-            image: ghcr.io/stellar/stellar-k8s:0.1.0
-            command: ["/scripts/run-chaos-drill.sh"]
-            args: ["node-kill", "60", "validator"]
-            securityContext:
-              allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: true
-              capabilities:
-                drop:
-                  - ALL
-            env:
-            - name: NAMESPACE
-              value: "stellar"
-            - name: RESULTS_DIR
-              value: "/results/chaos"
-            volumeMounts:
-            - name: results
-              mountPath: /results
-            resources:
-              requests:
-                cpu: 100m
-                memory: 128Mi
-              limits:
-                cpu: 500m
-                memory: 256Mi
+            - name: chaos-drill
+              image: ghcr.io/stellar/stellar-k8s:0.1.0
+              command: ["/scripts/run-chaos-drill.sh"]
+              args: ["node-kill", "60", "validator"]
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              env:
+                - name: NAMESPACE
+                  value: "stellar"
+                - name: RESULTS_DIR
+                  value: "/results/chaos"
+              volumeMounts:
+                - name: results
+                  mountPath: /results
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
           volumes:
-          - name: results
-            persistentVolumeClaim:
-              claimName: chaos-results-pvc
+            - name: results
+              persistentVolumeClaim:
+                claimName: chaos-results-pvc
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -100,35 +100,35 @@ spec:
             runAsUser: 65532
             fsGroup: 65532
           containers:
-          - name: chaos-drill
-            image: ghcr.io/stellar/stellar-k8s:0.1.0
-            command: ["/scripts/run-chaos-drill.sh"]
-            args: ["network", "120", "stellar-validator-0"]
-            securityContext:
-              allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: true
-              capabilities:
-                drop:
-                  - ALL
-            env:
-            - name: NAMESPACE
-              value: "stellar"
-            - name: RESULTS_DIR
-              value: "/results/chaos"
-            volumeMounts:
-            - name: results
-              mountPath: /results
-            resources:
-              requests:
-                cpu: 100m
-                memory: 128Mi
-              limits:
-                cpu: 500m
-                memory: 256Mi
+            - name: chaos-drill
+              image: ghcr.io/stellar/stellar-k8s:0.1.0
+              command: ["/scripts/run-chaos-drill.sh"]
+              args: ["network", "120", "stellar-validator-0"]
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              env:
+                - name: NAMESPACE
+                  value: "stellar"
+                - name: RESULTS_DIR
+                  value: "/results/chaos"
+              volumeMounts:
+                - name: results
+                  mountPath: /results
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
           volumes:
-          - name: results
-            persistentVolumeClaim:
-              claimName: chaos-results-pvc
+            - name: results
+              persistentVolumeClaim:
+                claimName: chaos-results-pvc
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -175,36 +175,36 @@ spec:
             runAsUser: 65532
             fsGroup: 65532
           containers:
-          - name: chaos-drill
-            image: ghcr.io/stellar/stellar-k8s:0.1.0
-            command: ["/scripts/run-chaos-drill.sh"]
-            args: ["disk", "180", "stellar-validator-0"]
-            securityContext:
-              allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: true
-              capabilities:
-                drop:
-                  - ALL
-            env:
-            - name: NAMESPACE
-              value: "stellar"
-            - name: RESULTS_DIR
-              value: "/results/chaos"
-            - name: DRILL_TYPE
-              value: "storage-failure"
-            - name: RTO_TARGET_SECONDS
-              value: "900"
-            volumeMounts:
-            - name: results
-              mountPath: /results
-            resources:
-              requests:
-                cpu: 100m
-                memory: 128Mi
-              limits:
-                cpu: 500m
-                memory: 256Mi
+            - name: chaos-drill
+              image: ghcr.io/stellar/stellar-k8s:0.1.0
+              command: ["/scripts/run-chaos-drill.sh"]
+              args: ["disk", "180", "stellar-validator-0"]
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              env:
+                - name: NAMESPACE
+                  value: "stellar"
+                - name: RESULTS_DIR
+                  value: "/results/chaos"
+                - name: DRILL_TYPE
+                  value: "storage-failure"
+                - name: RTO_TARGET_SECONDS
+                  value: "900"
+              volumeMounts:
+                - name: results
+                  mountPath: /results
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
           volumes:
-          - name: results
-            persistentVolumeClaim:
-              claimName: chaos-results-pvc
+            - name: results
+              persistentVolumeClaim:
+                claimName: chaos-results-pvc

@@ -1,0 +1,26 @@
+apiVersion: stellar.org/v1alpha1
+kind: StellarNode
+metadata:
+  name: verified-bootstrap
+  annotations:
+    # Replace with the trusted publisher's SHA-256 of snapshot.tar.gz.
+    stellar.org/snapshot-sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+spec:
+  nodeType: SorobanRpc
+  network: testnet
+  replicas: 1
+  version: latest
+  sorobanConfig:
+    stellarCoreUrl: http://validator-testnet:11626
+    captiveCoreStructuredConfig:
+      historyArchiveUrls:
+        - https://history.stellar.org/prd/core-testnet/core_testnet_001
+  storage:
+    storageClass: standard
+    size: 100Gi
+    retentionPolicy: Retain
+    snapshotRef:
+      backupUrl: https://backups.example/snapshot.tar.gz
+      # Publish the rebuilt operator first; pin its actual digest in production.
+      restoreImage: ghcr.io/stellar/stellar-k8s:verified-bootstrap
+      credentialsSecretRef: snapshot-download-credentials

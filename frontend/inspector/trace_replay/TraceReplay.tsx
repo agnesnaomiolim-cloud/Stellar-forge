@@ -187,7 +187,7 @@ export const TraceReplay: React.FC<{
                 {/* Simple visualization - more instructions = darker */}
                 <div className="mt-3 h-2 bg-blue-500 rounded-w-full overflow-hidden" style={{ width: `${Math.min(
                   100,
-                  (traceData.steps[currentStepIndex].instructionCount / 
+                  (traceData.steps[currentStepIndex].instructionCount /
                   Math.max(...traceData.steps.map(s => s.instructionCount)) || 1) * 100
                 }%` }} />
               </div>

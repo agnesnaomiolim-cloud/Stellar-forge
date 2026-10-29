@@ -31,5 +31,18 @@
 //!   orphaned finalizers without risking data loss.
 //! - [`quorum`] — Quorum-set graph analysis utilities.
 
-
+pub mod deployment;
+pub mod catchup;
+pub mod apis;
+#[cfg(unix)]
+pub mod captive;
+#[cfg(feature = "testnet")]
+pub mod crd;
+pub mod finalizers;
+pub mod ingestion;
+pub mod pdb;
 pub mod quorum;
+pub mod snapshots;
+#[cfg(feature = "testnet")]
+pub mod testnet;
+pub mod webhook;

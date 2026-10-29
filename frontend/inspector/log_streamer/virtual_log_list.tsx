@@ -48,11 +48,11 @@ const LogRow = ({ index, style, data }: { index: number; style: React.CSSPropert
  * Fixed row height of 28px with 6-row overscan above and below the viewport.
  * Provides color-coded highlights for critical consensus events.
  */
-export function VirtualLogList({ 
-  logLines, 
-  patternRules, 
+export function VirtualLogList({
+  logLines,
+  patternRules,
   onLineClick,
-  autoScroll 
+  autoScroll
 }: VirtualLogListProps) {
   const containerRef = useRef<HTMLDivElement>(null!);
 

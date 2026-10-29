@@ -49,6 +49,10 @@ done
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# Local dependency/tool caches are generated third-party inputs, like target/.
+# Keep source scans independent of whether a developer has bootstrapped tools.
+SOURCE_EXCLUDES=(--exclude-dir=.git --exclude-dir=target --exclude-dir=.tools --exclude-dir=.ci-tooling --exclude-dir=node_modules)
+
 BOLD='\033[1m'
 RED='\033[0;31m'
 YELLOW='\033[0;33m'
@@ -69,7 +73,7 @@ separator
 echo -e "${BOLD}Check 1 — Hard-coded credential patterns${RESET}"
 separator
 
-# Stellar seed: 'S' + 55 base58 chars (56 total).
+# Stellar secret StrKey: 56 uppercase Base32 characters, starting with S.
 # Exclude known test fixtures that carry safe-looking placeholder seeds.
 while IFS=: read -r file lineno content; do
     # Skip files that are deliberately testing the scrubber / pipeline redaction.
@@ -80,9 +84,8 @@ while IFS=: read -r file lineno content; do
     [[ "$file" == *gitops_secrets* ]] && continue
     finding "$file" "$lineno" "Possible Stellar seed (S...56 chars)"
 done < <(grep -rn --include="*.rs" --include="*.sh" --include="*.yaml" --include="*.yml" \
-    -E "S[A-Za-z0-9]{54}[^A-Za-z0-9]" . \
-    --exclude-dir=.git \
-    --exclude-dir=target \
+    -E '(^|[^A-Z2-7])S[A-Z2-7]{55}([^A-Z2-7]|$)' . \
+    "${SOURCE_EXCLUDES[@]}" \
     | grep -v "# test\|// test\|FIXTURE\|placeholder\|EXAMPLE" \
     || true)
 
@@ -94,7 +97,7 @@ while IFS=: read -r file lineno content; do
     finding "$file" "$lineno" "Possible AWS Access Key ID (AKIA...)"
 done < <(grep -rn --include="*.rs" --include="*.sh" --include="*.yaml" --include="*.yml" \
     -E "AKIA[A-Z0-9]{16}" . \
-    --exclude-dir=.git --exclude-dir=target \
+    "${SOURCE_EXCLUDES[@]}" \
     || true)
 
 # PEM private key block
@@ -106,8 +109,8 @@ while IFS=: read -r file lineno _; do
     [[ "$file" == *tls/rotator* || "$file" == *tls/ca* ]] && continue
     finding "$file" "$lineno" "PEM private key block committed to repository"
 done < <(grep -rn --include="*.rs" --include="*.pem" --include="*.key" \
-    "BEGIN.*PRIVATE KEY" . \
-    --exclude-dir=.git --exclude-dir=target \
+    "${SOURCE_EXCLUDES[@]}" \
+    -E -- "-----BEGIN ([A-Z0-9]+ )?PRIVATE KEY-----" . \
     || true)
 
 # Generic password= / secret= / token= with non-placeholder values
@@ -118,7 +121,7 @@ while IFS=: read -r file lineno content; do
     finding "$file" "$lineno" "Possible inline secret assignment (password=/secret=/token=)"
 done < <(grep -rni --include="*.rs" --include="*.sh" --include="*.yaml" --include="*.yml" \
     -E "(password|secret|token)\s*=\s*['\"][^'\"]{8,}" . \
-    --exclude-dir=.git --exclude-dir=target \
+    "${SOURCE_EXCLUDES[@]}" \
     || true)
 
 if [[ $findings -eq 0 ]]; then
@@ -141,7 +144,7 @@ while IFS=: read -r file lineno content; do
     finding "$file" "$lineno" "Possible echo of a secret env-var"
 done < <(grep -rn --include="*.sh" \
     -E "(echo|printf)\s+[\"']?\\\$\{?${SECRET_VAR_PATTERN}" scripts/ .github/ \
-    --exclude-dir=.git \
+    "${SOURCE_EXCLUDES[@]}" \
     || true)
 
 # Detect live `set -x` / `set -o xtrace` (would leak secrets in CI logs).
@@ -152,7 +155,7 @@ while IFS=: read -r file lineno content; do
     echo "$content" | grep -qE '^\s*#' && continue
     finding "$file" "$lineno" "'set -x' found in script — may leak secrets to CI logs"
 done < <(grep -rn --include="*.sh" 'set -x\|set -o xtrace' scripts/ .github/ \
-    --exclude-dir=.git \
+    "${SOURCE_EXCLUDES[@]}" \
     || true)
 
 if [[ $findings -eq $shell_findings_before ]]; then
@@ -205,7 +208,7 @@ while IFS=: read -r file lineno content; do
     finding "$file" "$lineno" "Dockerfile ENV/ARG with secret-like name bakes value into image layer"
 done < <(grep -rn --include="Dockerfile" --include="*.Dockerfile" \
     -E "^(ENV|ARG)\s+(SECRET|PASSWORD|TOKEN|KEY|SEED|PRIVATE)" . \
-    --exclude-dir=.git \
+    "${SOURCE_EXCLUDES[@]}" \
     || true)
 
 if [[ $findings -eq $dockerfile_findings_before ]]; then
@@ -226,7 +229,7 @@ while IFS=: read -r file lineno content; do
     echo "$content" | grep -q 'FIXTURE\|placeholder\|example' && continue
     finding "$file" "$lineno" "Possible Stellar seed literal in non-test Rust source"
 done < <(grep -rn --include="*.rs" \
-    -E '"S[A-Za-z0-9]{54}"' src/ \
+    -E '"S[A-Z2-7]{55}"' src/ \
     | grep -v '#\[cfg(test)\]\|mod tests\|test_' \
     || true)
 

@@ -133,7 +133,6 @@ Every PR touching rotation or ESO integration must include a security review of 
 - [ ] Automated 30-day rotation validated on a 5-node testnet without halting ledger advancement
 - [ ] Horizon ingestion workers updated to reflect rotated keys
 - [ ] Audit logging enabled for secret access
-=======
 
 ### Container Security
 

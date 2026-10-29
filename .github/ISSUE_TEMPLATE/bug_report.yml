@@ -6,8 +6,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        > **Security vulnerability?** Use [GitHub Security Advisories](../../security/advisories/new) — do **not** open a public issue.
-
+        > **Security vulnerability?** Use [GitHub Security Advisories](../../security/advisories/new) — do **not**
+        open a public issue.
   - type: textarea
     id: description
     attributes:

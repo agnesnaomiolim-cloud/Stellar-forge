@@ -60,10 +60,14 @@ SCHEMA_FLAGS=(
   -summary
   -kubernetes-version "${KUBERNETES_VERSION}"
   -schema-location default
+  -schema-location "${ROOT}/schemas/kubernetes/{{ .ResourceKind }}.json"
   -schema-location "${ROOT}/schemas/crd/{{ .ResourceKind }}{{ .KindSuffix }}"
 )
 kubeconform "${SCHEMA_FLAGS[@]}" "$RENDERED"
-kubeconform -strict -summary -kubernetes-version "${KUBERNETES_VERSION}" config/crd/*.yaml
+kubeconform -strict -summary -kubernetes-version "${KUBERNETES_VERSION}" \
+  -schema-location default \
+  -schema-location "${ROOT}/schemas/kubernetes/{{ .ResourceKind }}.json" \
+  config/crd/*.yaml
 echo "✓ kubeconform passed"
 
 echo "✓ YAML / schema validation passed"

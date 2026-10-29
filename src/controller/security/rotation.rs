@@ -1,3 +1,15 @@
+// Copyright 2024 Stellar-K8s Contributors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //! Validator key rotation worker and daemon.
 //!
 //! Rotation is deliberately default-off. When enabled, the daemon only targets
@@ -32,7 +44,6 @@ const KEY_ROTATION_JOB_KIND: &str = "validator_key_rotation";
 const STELLAR_CORE_HTTP_PORT: u16 = 11626;
 const DEFAULT_ROTATION_PERIOD_DAYS: u64 = 30;
 const SECONDS_PER_DAY: u64 = 86_400;
-=======
 
 /// Operator-level configuration for automated validator key rotation.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
@@ -76,7 +87,6 @@ pub struct ValidatorKeyRotationConfig {
     #[serde(default = "default_update_horizon")]
     pub update_horizon: bool,
 }
-=======
 
 impl Default for ValidatorKeyRotationConfig {
     fn default() -> Self {
@@ -96,7 +106,6 @@ impl Default for ValidatorKeyRotationConfig {
         }
     }
 }
-=======
 
 fn default_interval_secs() -> u64 {
     86_400
@@ -133,7 +142,6 @@ fn default_stagger_delay_secs() -> u64 {
 fn default_update_horizon() -> bool {
     true
 }
-=======
 
 /// One consensus observation from Stellar Core.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -216,7 +224,6 @@ impl HorizonKeyUpdater for NoopHorizonKeyUpdater {
         Ok(())
     }
 }
-=======
 
 /// HTTP implementation for Stellar Core's local admin API.
 #[derive(Clone)]
@@ -428,7 +435,6 @@ pub struct KeyRotationWorker {
     seed_generator: Arc<dyn SeedGenerator>,
     horizon_updater: Arc<dyn HorizonKeyUpdater>,
 }
-=======
 
 impl KeyRotationWorker {
     pub fn new(
@@ -458,7 +464,6 @@ impl KeyRotationWorker {
         self.horizon_updater = updater;
         self
     }
-=======
 
     pub async fn rotate_once(&self) -> Result<KeyRotationReport> {
         let mut report = KeyRotationReport::started(
@@ -533,7 +538,6 @@ impl KeyRotationWorker {
             "node rejoined consensus network with candidate seed",
             None,
         );
-=======
 
         match self
             .validate_consensus_window(&preflight, &mut report)
@@ -575,7 +579,6 @@ impl KeyRotationWorker {
                         ),
                     }
                 }
-=======
                 report.push(
                     RotationStage::Completed,
                     "validator key rotation completed without consensus outage",
@@ -596,7 +599,6 @@ impl KeyRotationWorker {
                     self.admin.unpeer().await?;
                     self.admin.rollback_to_previous(&previous).await?;
                     self.admin.rejoin().await?;
-=======
                     report.rollback_performed = true;
                     report.push(
                         RotationStage::Rollback,
@@ -841,7 +843,6 @@ impl KeyRotationDaemon {
 
         Ok(())
     }
-=======
 
     async fn backend_for_node(
         &self,
@@ -903,7 +904,6 @@ impl KeyRotationDaemon {
 
         Ok(None)
     }
-=======
 
     async fn admin_for_node(
         &self,
@@ -986,7 +986,6 @@ impl StaggeredRotationCoordinator {
 }
 
 fn validation_sample_count(window_secs: u64, interval_secs: u64) -> u32 {
-=======
     if window_secs == 0 || interval_secs == 0 {
         return 1;
     }
@@ -1393,4 +1392,3 @@ mod tests {
         }
     }
 }
-=======

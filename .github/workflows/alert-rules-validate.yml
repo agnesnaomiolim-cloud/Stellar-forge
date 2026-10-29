@@ -38,7 +38,8 @@ jobs:
       - name: Install Prometheus (for promtool)
         run: |
           PROM_VERSION="2.55.1"
-          curl -sL "https://github.com/prometheus/prometheus/releases/download/v${PROM_VERSION}/prometheus-${PROM_VERSION}.linux-amd64.tar.gz" -o prometheus.tar.gz
+          release_host=https://github.com/prometheus/prometheus/releases/download
+          curl -sL "${release_host}/v${PROM_VERSION}/prometheus-${PROM_VERSION}.linux-amd64.tar.gz" -o prometheus.tar.gz
           tar xzf prometheus.tar.gz
           sudo mv "prometheus-${PROM_VERSION}.linux-amd64/promtool" /usr/local/bin/promtool
           promtool --version
@@ -88,7 +89,8 @@ jobs:
               rules: [{
                 name: 'StellarWatcherPollErrorSpike',
                 condition: { comparisons: [
-                  { metric: 'stellar_watcher_poll_errors_total', operator: '>', threshold: 10, useIncrease: true, rangeWindow: '15m' },
+                  { metric: 'stellar_watcher_poll_errors_total', operator: '>', threshold: 10,
+                    useIncrease: true, rangeWindow: '15m' },
                 ]},
                 forDuration: '0m', severity: 'warning', team: 'stellar-infra', component: 'watcher',
                 summary: 'Watcher poll error spike detected',
@@ -102,12 +104,14 @@ jobs:
               rules: [{
                 name: 'StellarCriticalCVEWithAnchorsDown',
                 condition: { joiner: 'or', comparisons: [
-                  { metric: 'stellar_cve_critical_alerts_total', operator: '>', threshold: 0, useIncrease: true, rangeWindow: '1h' },
+                  { metric: 'stellar_cve_critical_alerts_total', operator: '>', threshold: 0,
+                    useIncrease: true, rangeWindow: '1h' },
                   { metric: 'stellar_fork_detector_responding_anchors', operator: '==', threshold: 0 },
                 ]},
                 forDuration: '0m', severity: 'critical', team: 'stellar-infra', component: 'cve-scanner',
                 summary: 'Critical CVE detected or all anchors unreachable',
-                description: 'Either a critical CVE was found in the last hour, or the fork detector cannot reach any anchor nodes.',
+                description: 'Either a critical CVE was found in the last hour, ' +
+                  'or the fork detector cannot reach any anchor nodes.',
               }],
             },
             {

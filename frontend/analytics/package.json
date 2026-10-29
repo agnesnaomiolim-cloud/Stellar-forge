@@ -4,15 +4,20 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "test": "npm run test:anomalies",
     "dev": "vite",
     "build": "vite build",
+    "build:anomalies": "vite build --mode anomalies --outDir dist-anomalies",
+    "test:anomalies": "node --test anomalies/model.test.js anomalies/component.test.js",
     "preview": "vite preview",
-
+    "mock:stream": "node scripts/mock-kafka-stream.mjs --serve",
+    "mock:prometheus": "node scripts/mock-prometheus.mjs",
+    "matrix:perf": "node scripts/matrix-perf.mjs",
     "stream:kafka": "node scripts/kafka-websocket-bridge.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.7.0",
-
+    "kafkajs": "^2.2.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.171.0",

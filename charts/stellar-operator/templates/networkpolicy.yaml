@@ -3,11 +3,12 @@
 {{- $operatorRestApiPort := .Values.operator.restApiPort | default 8080 -}}
 {{- $webhookPort := .Values.webhook.port | default 8443 -}}
 {{- $webhookMetricsPort := .Values.webhook.metricsPort | default 9090 -}}
-{{- $shaperEnabled := .Values.security.egressShaper.enabled | default false -}}
-{{- $shaperInternalRate := .Values.security.egressShaper.internalRate | default "10gbit" -}}
-{{- $shaperExternalRate := .Values.security.egressShaper.externalRate | default "1gbit" -}}
-{{- $shaperBurst := .Values.security.egressShaper.burst | default "32kb" -}}
-{{- $shaperInternalSubnets := .Values.security.egressShaper.internalSubnets | default (list "10.0.0.0/8" "172.16.0.0/12" "192.168.0.0/16") -}}
+{{- $egressShaper := .Values.security.egressShaper | default dict -}}
+{{- $shaperEnabled := $egressShaper.enabled | default false -}}
+{{- $shaperInternalRate := $egressShaper.internalRate | default "10gbit" -}}
+{{- $shaperExternalRate := $egressShaper.externalRate | default "1gbit" -}}
+{{- $shaperBurst := $egressShaper.burst | default "32kb" -}}
+{{- $shaperInternalSubnets := $egressShaper.internalSubnets | default (list "10.0.0.0/8" "172.16.0.0/12" "192.168.0.0/16") -}}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

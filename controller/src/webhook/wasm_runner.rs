@@ -230,7 +230,7 @@ impl WasmRunner {
     /// * `name`       – A human-readable name used in logs.
     /// * `wasm_bytes` – Raw `.wasm` binary (not WAT text format).
     /// * `fail_open`  – If `true`, runtime errors allow the request through.
-    #[instrument(skip(self, wasm_bytes), fields(plugin = %name))]
+    #[instrument(skip(self, name, wasm_bytes), fields(plugin = tracing::field::Empty))]
     pub fn compile(
         &self,
         name: impl Into<String>,
@@ -238,6 +238,7 @@ impl WasmRunner {
         fail_open: bool,
     ) -> anyhow::Result<CompiledPlugin> {
         let name = name.into();
+        tracing::Span::current().record("plugin", tracing::field::display(&name));
         let module =
             Module::from_binary(&self.engine, wasm_bytes).context("Failed to compile WASM module")?;
 
@@ -293,12 +294,14 @@ impl WasmRunner {
 
         struct HostState {
             wasi: WasiP1Ctx,
+            limiter: StoreLimiter,
             input: Arc<std::sync::Mutex<Vec<u8>>>,
             output: Arc<std::sync::Mutex<Vec<u8>>>,
         }
 
         let state = HostState {
             wasi: wasi_ctx,
+            limiter: StoreLimiter,
             input: Arc::clone(&input_buf),
             output: Arc::clone(&output_buf),
         };
@@ -307,11 +310,11 @@ impl WasmRunner {
 
         // Cap instructions (fuel).
         store
-            .add_fuel(DEFAULT_FUEL)
+            .set_fuel(DEFAULT_FUEL)
             .map_err(|e| WasmRunnerError::Compile(e))?;
 
         // Cap linear memory growth.
-        store.limiter(|_state| &mut StoreLimiter);
+        store.limiter(|state| &mut state.limiter);
 
         // ── 4. Build the linker with WASI and the host ABI ────────────────────
         let mut linker: Linker<HostState> = Linker::new(&plugin.engine);
@@ -502,9 +505,9 @@ impl wasmtime::ResourceLimiter for StoreLimiter {
 
     fn table_growing(
         &mut self,
-        _current: u32,
-        _desired: u32,
-        _maximum: Option<u32>,
+        _current: usize,
+        _desired: usize,
+        _maximum: Option<usize>,
     ) -> anyhow::Result<bool> {
         Ok(true)
     }

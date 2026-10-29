@@ -59,12 +59,18 @@
 //!  Kubernetes API Server
 //! ```
 
+#[cfg(feature = "admission-webhook")]
 pub mod admission;
+pub mod auth;
+pub mod vault_injector;
 pub mod wasm_mutator;
+#[cfg(feature = "admission-webhook")]
 pub mod wasm_runner;
 
+#[cfg(feature = "admission-webhook")]
 pub use admission::{
     AdmissionServer, AdmissionServerState, RegisterPluginRequest, PluginInfo, PluginListResponse,
 };
 pub use wasm_mutator::{wasm_mutate_handler, WasmMutatorState};
+#[cfg(feature = "admission-webhook")]
 pub use wasm_runner::{CompiledPlugin, PolicyInput, PolicyOutput, WasmRunner, WasmRunnerError, WEBHOOK_TIMEOUT};

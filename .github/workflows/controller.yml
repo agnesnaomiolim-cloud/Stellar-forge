@@ -13,7 +13,7 @@
 
 name: Testnet Operator (controller)
 
-# The controller/ crate is its own Cargo workspace, so it is not covered by
+# The controller/ crate shares the root lockfile. This feature-specific job complements
 # the operator jobs in ci.yml. This gates the StellarTestnet operator
 # (issue #246): unit tests, release binary build and CRD drift.
 on:
@@ -21,11 +21,15 @@ on:
     branches: [main]
     paths:
       - "controller/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
       - "scripts/test-ephemeral-testnet.sh"
       - ".github/workflows/controller.yml"
   pull_request:
     paths:
       - "controller/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
       - "scripts/test-ephemeral-testnet.sh"
       - ".github/workflows/controller.yml"
 
@@ -55,7 +59,7 @@ jobs:
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: controller
+          workspaces: "."
           shared-key: "ci-controller"
 
       - name: Check formatting (testnet operator modules)
@@ -64,19 +68,19 @@ jobs:
             src/crd/*.rs src/testnet/*.rs src/bin/stellar-testnet-operator.rs
 
       - name: Run tests
-        run: cargo test --locked
+        run: cargo test --locked --features testnet
 
       - name: Build operator binary
-        run: cargo build --locked --release --bin stellar-testnet-operator
+        run: cargo build --locked --release --features testnet --bin stellar-testnet-operator
 
       - name: Check CRD manifest is up to date
         run: |
           set -euo pipefail
-          ./target/release/stellar-testnet-operator crd > /tmp/crd.yaml
+          ../target/release/stellar-testnet-operator crd > /tmp/crd.yaml
           diff <(sed -n '/^apiVersion/,$p' deploy/stellartestnets.yaml) /tmp/crd.yaml \
             || {
               echo "::error::deploy/stellartestnets.yaml is stale; regenerate it with" \
-                "'cargo run --bin stellar-testnet-operator -- crd'"
+                "'cargo run --features testnet --bin stellar-testnet-operator -- crd'"
               exit 1
             }
 

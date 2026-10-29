@@ -1,3 +1,15 @@
+# Copyright 2024 Stellar-K8s Contributors
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 # Default values for stellar-operator
 # This is a YAML-formatted file.
 
@@ -105,7 +117,8 @@ monitoring:
 scpAnalytics:
   enabled: false
   kafka:
-    bootstrapServers: []
+    bootstrapServers: ""
+    brokers: []
     topic: ""
     schemaRegistryUrl: ""
     pollIntervalSecs: 5
@@ -114,6 +127,9 @@ scpAnalytics:
     compression: snappy
     format: json
     enableDeduplication: true
+    partitioningEnabled: true
+    partitionCount: 25
+    partitionSeed: "0x123456789abcdef"
     sasl:
       mechanism: PLAIN
       username: ""
@@ -134,18 +150,23 @@ scpAnalytics:
 # GitOps secret sidecar toggle (deployment.yaml templates).
 gitopsSecrets:
   enabled: false
-
-# Custom WASM-based HPA for Horizon nodes (hpa-horizon.yaml).
+  tmpfsSizeLimit: "16Mi"
+  mountPath: "/var/run/stellar/gitops-secrets"
 horizonHpa:
   enabled: false
-
+  namespace: "stellar"
+  stellarNodeName: ""
+  targetDeployment: ""
+  minReplicas: 1
+  maxReplicas: 10
+  tpsTargetPerReplica: 100
+  queueLengthTarget: 10
+  scaleUpStabilizationSeconds: 60
+  scaleDownStabilizationSeconds: 300
 mtls:
   enabled: false
 
 certManagement:
-  enabled: false
-
-horizon-hpa:
   enabled: false
 
 rateLimiting:
@@ -263,7 +284,8 @@ arch: ""
 #   - key: "kubernetes.io/arch"
 #     operator: "Equal"
 #     value: "arm64"
-#     effect: "NoSchedule"# Namespace watch scoping used by rbac.yaml (empty = cluster-wide).
+#     effect: "NoSchedule"
+# Namespace watch scoping used by rbac.yaml (empty = cluster-wide).
 watchNamespace: ""
 
 # PodDisruptionBudget configuration for operator deployment
@@ -367,6 +389,7 @@ defaultResources:
 
 # Feature flags — toggle operator capabilities at runtime without restart.
 featureFlags:
+  rollouts: false
   enableCveScanning: false
   enableReadPool: false
   enableDr: false
@@ -555,12 +578,11 @@ otel:
   # When enabled, OTEL_EXPORTER_OTLP_ENDPOINT must be set to a valid collector address.
   enabled: false
   endpoint: ""
-  # Bundled OpenTelemetry Collector (otel-collector.yaml).
   collector:
     enabled: false
     image:
-      repository: "otel/opentelemetry-collector-contrib"
-      tag: ""
+      repository: otel/opentelemetry-collector-contrib
+      tag: "0.99.0"
       pullPolicy: IfNotPresent
     resources:
       limits:
@@ -570,6 +592,10 @@ otel:
         cpu: 100m
         memory: 128Mi
     config:
+      honeycomb:
+        enabled: false
+        endpoint: "api.honeycomb.io:443"
+        apiKeySecretRef: ""
       jaeger:
         enabled: false
         endpoint: ""
@@ -579,14 +605,10 @@ otel:
       loki:
         enabled: false
         endpoint: ""
-      honeycomb:
-        enabled: false
-        endpoint: ""
-        apiKeySecretRef: ""
       elasticsearch:
         enabled: false
         endpoint: ""
-        index: ""
+        index: "stellar-logs"
 
 # Multi-Cluster Active-Passive Failover Operator
 #
@@ -596,7 +618,7 @@ otel:
 #
 # The operator polls the primary cluster's health endpoints every 500ms, and
 # once the anti-flapping threshold is met, promotes the Patroni replica and
-
+# remaps the global DNS record to the passive cluster.
 #
 # Quick start:
 #   1. Set failover.enabled=true
@@ -640,7 +662,6 @@ failover:
     region: "us-east-1"
     # Health endpoints that the global watcher polls.
     healthEndpoints:
-      - "https://primary.stellar.org/health"
       - "https://primary.stellar.org/health"
     # Patroni REST API endpoint for the primary PostgreSQL cluster.
     patroniEndpoint: "https://patroni-primary.stellar.org"
@@ -693,86 +714,9 @@ failover:
       cpu: 50m
       memory: 64Mi
 
-# SCP Analytics / Kafka streaming (disabled by default)
-scpAnalytics:
-  enabled: false
-
-# Horizon HPA (disabled by default)
-horizonHpa:
-  enabled: false
-
-# Byzantine Watcher (disabled by default)
-byzantineWatcher:
-  enabled: false
-
-# GitOps Secrets (SOPS/SealedSecrets injection, disabled by default)
-gitopsSecrets:
-  enabled: false
-  tmpfsSizeLimit: "16Mi"
-  mountPath: "/var/run/stellar/gitops-secrets"
-
 # Cross-region failover settings (disabled by default)
 crossRegion:
   enabled: false
 
-# Feature flags (runtime toggles)
-featureFlags:
-  rollouts: false
-
 # Extra pod annotations
 extraAnnotations: {}
-
-# OTel Collector sidecar (disabled by default)
-# otel.collector sub-section — main otel.enabled is defined above
-# These are evaluated only when otel.collector.enabled is true
-
-# Monitoring stack (Prometheus/ServiceMonitor, disabled by default)
-monitoring:
-  enabled: false
-  serviceMonitor:
-    enabled: false
-  prometheusRule:
-    enabled: false
-    certAlerts: false
-
-# Horizon HPA (auto-scaling for Horizon nodes, disabled by default)
-horizonHpa:
-  enabled: false
-  namespace: "stellar"
-  stellarNodeName: ""
-  targetDeployment: ""
-  minReplicas: 1
-  maxReplicas: 10
-  tpsTargetPerReplica: 100
-  queueLengthTarget: 10
-  scaleUpStabilizationSeconds: 60
-  scaleDownStabilizationSeconds: 300
-
-# Byzantine Watcher (cross-node anomaly detection, disabled by default)
-byzantineWatcher:
-  enabled: false
-  defaultNetwork: "testnet"
-  logLevel: "info"
-  metricsPort: 9091
-  pollIntervalSecs: 30
-  requestTimeoutSecs: 10
-  regions: []
-  image:
-    repository: "ghcr.io/otowoorg/stellar-k8s/byzantine-watcher"
-    tag: "latest"
-  resources:
-    limits:
-      cpu: 200m
-      memory: 128Mi
-    requests:
-      cpu: 50m
-      memory: 64Mi
-
-# SCP Analytics / Kafka streaming (disabled by default)
-scpAnalytics:
-  enabled: false
-  kafka:
-    brokers: []
-    topic: "stellar-scp"
-  consumer:
-    groupId: "stellar-scp-consumer"

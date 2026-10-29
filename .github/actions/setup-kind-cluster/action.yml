@@ -4,7 +4,7 @@ description: >
   into kind, install CRDs, and deploy the operator. Centralises all
   cluster-provisioning logic so every heavy-validation workflow shares identical
   setup steps.
-  
+
   When `skip-docker-build` is set to "true" the Docker build step is skipped and
   the caller is responsible for ensuring the image already exists locally (e.g.
   by running `docker build` or `docker load` before invoking this action).

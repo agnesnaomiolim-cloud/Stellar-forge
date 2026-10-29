@@ -1,4 +1,4 @@
-{{- if ((.Values.otel.collector).enabled) }}
+{{- if and .Values.otel .Values.otel.collector .Values.otel.collector.enabled }}
 # OTel Collector — receives OTLP spans from the operator and forwards them to
 # Honeycomb, Jaeger, or Grafana Tempo depending on values.yaml configuration.
 ---
@@ -10,6 +10,10 @@ metadata:
     {{- include "stellar-operator.labels" . | nindent 4 }}
 data:
   config.yaml: |
+    extensions:
+      health_check:
+        endpoint: "0.0.0.0:13133"
+
     receivers:
       otlp:
         protocols:
@@ -60,6 +64,7 @@ data:
         verbosity: basic
 
     service:
+      extensions: [health_check]
       pipelines:
         traces:
           receivers: [otlp]

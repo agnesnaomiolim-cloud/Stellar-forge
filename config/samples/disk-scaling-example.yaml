@@ -1,4 +1,3 @@
----
 # Example StellarNode with proactive disk scaling
 # This example demonstrates a validator node with storage configuration
 # that will benefit from automatic disk expansion as the ledger grows.
@@ -16,13 +15,13 @@ spec:
   # nodeType: Validator (requires persistent storage for ledger data)
   nodeType: Validator
 
-  # network configuration
+  # Network configuration
   network: testnet
 
   # Stellar Core version
   version: "v21.0.0"
 
-  # historyMode: Full history requires more storage
+  # History mode: Full history requires more storage
   historyMode: Full
 
   # Storage configuration
@@ -65,7 +64,7 @@ spec:
       - name: sdf1
         publicKey: "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH"
       - name: sdf2
-        publicKey: "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZMPBDSF3QZGV2G5QSTK"
+        publicKey: "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
       - name: sdf3
         publicKey: "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ"
 
@@ -117,7 +116,6 @@ parameters:
 allowVolumeExpansion: true  # Required for automatic disk scaling
 volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: Retain
-
 ---
 # PrometheusRule for disk scaling alerts
 
@@ -144,8 +142,9 @@ spec:
             description: |
               Disk usage is {{ $value }}% on {{ $labels.namespace }}/{{ $labels.name }}.
               Automatic expansion will trigger at 80%.
-              Current PVC size: {{ stellar_pvc_size_bytes{namespace="{{ $labels.namespace }}",name="{{ $labels.name }}"} | humanize }}
-        
+              Current PVC size:
+              {{ stellar_pvc_size_bytes{namespace="{{ $labels.namespace }}",name="{{ $labels.name }}"} | humanize }}
+
         - alert: StellarMaxExpansionsReached
           expr: stellar_pvc_expansion_count >= 10
           for: 5m
@@ -157,8 +156,9 @@ spec:
             description: |
               PVC has been expanded {{ $value }} times (maximum: 10).
               Manual intervention required to increase storage or adjust expansion limits.
-              Current disk usage: {{ stellar_pvc_disk_usage_percent{namespace="{{ $labels.namespace }}",name="{{ $labels.name }}"} }}%
-        
+              Current disk usage:
+              {{ stellar_pvc_disk_usage_percent{namespace="{{ $labels.namespace }}",name="{{ $labels.name }}"} }}%
+
         - alert: StellarDiskExpansionStalled
           expr: |
             stellar_pvc_disk_usage_percent > 80
@@ -173,7 +173,7 @@ spec:
             description: |
               Disk usage is {{ $value }}% (above 80% threshold) but no expansion occurred in the last 15 minutes.
               Check operator logs and PVC events for errors.
-        
+
         - alert: StellarRapidDiskGrowth
           expr: |
             rate(stellar_pvc_size_bytes[1h]) > 0

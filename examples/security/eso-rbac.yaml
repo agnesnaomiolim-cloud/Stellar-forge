@@ -1,0 +1,25 @@
+# Only needed for StellarNode.spec.validatorConfig.seedSecretSource.externalRef.
+# ESO's own deployment/RBAC is installed and maintained separately.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: stellar-operator-external-seed
+  namespace: stellar
+rules:
+  - apiGroups: [external-secrets.io]
+    resources: [externalsecrets]
+    verbs: [get, create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: stellar-operator-external-seed
+  namespace: stellar
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: stellar-operator-external-seed
+subjects:
+  - kind: ServiceAccount
+    name: stellar-operator
+    namespace: stellar-system

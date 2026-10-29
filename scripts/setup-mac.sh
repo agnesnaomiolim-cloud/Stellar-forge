@@ -34,7 +34,9 @@ install_rust() {
   if command -v cargo >/dev/null 2>&1; then info "Rust already installed: $(cargo --version)"; return; fi
   if command -v brew >/dev/null 2>&1; then
     info "Installing Rust via rustup (preferred)..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+    # Homebrew verifies its pinned formula checksum before installing rustup.
+    brew install rustup
+    rustup-init -y --default-toolchain "$RUST_TOOLCHAIN"
     # shellcheck source=/dev/null
     source "$HOME/.cargo/env" || true
   fi

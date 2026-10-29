@@ -2,25 +2,25 @@ import { defineConfig } from 'vite';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
-import { createRequire } from 'module';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const require = createRequire(import.meta.url);
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   build: {
     rollupOptions: {
       // perf.html mounts the matrix against the deterministic mock topology
       // for browser profiling; see scripts/browser-perf.mjs.
-      input: {
+      input: mode === 'anomalies' ? { anomalies: path.resolve(__dirname, 'anomalies.html') } : {
         main: path.resolve(__dirname, 'index.html'),
         perf: path.resolve(__dirname, 'perf.html'),
+        anomalies: path.resolve(__dirname, 'anomalies.html'),
       },
       external: ['d3'],
     },
   },
   resolve: {
+    dedupe: ['react', 'react-dom'],
     alias: {
       // Shared WebGL components live outside the analytics package root.
       '@webgl': path.resolve(__dirname, '../components/webgl'),
@@ -52,4 +52,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

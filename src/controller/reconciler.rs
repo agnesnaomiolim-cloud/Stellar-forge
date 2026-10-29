@@ -71,6 +71,7 @@ use super::archive_health::{
 use super::audit_worker::AuditWorker;
 use super::conditions;
 use super::cross_cloud_failover;
+use super::csi_snapshot as snapshot;
 use super::cve_reconciler;
 use super::disk_scaler;
 use super::dr;
@@ -88,12 +89,11 @@ use super::operator_config::{hardcoded_defaults, OperatorConfig};
 use super::peer_discovery;
 use super::phases::{PhaseMachine, ReconcilePhase};
 use super::pss;
-
 use super::remediation;
 use super::resources;
 use super::secret_watcher;
 use super::service_mesh;
-use super::snapshot;
+use super::upgrade_snapshot;
 use super::spot_drain;
 use super::sync_scale;
 use super::sync_state_monitor;
@@ -1518,6 +1518,12 @@ pub(crate) fn apply_stellar_node(
             emit_spec_validation_event(&client, &ctx.event_reporter, &node, &errors).await?;
             update_status(&client, &node, "Failed", Some(message.clone()), 0, true).await?;
             return Err(Error::ValidationError(message));
+        }
+
+        // Verify restore inputs before plugins, PVCs, workloads or restore Jobs.
+        if let Err(error) = resources::validate_snapshot_bootstrap(&node) {
+            update_status(&client, &node, "Failed", Some(error.to_string()), 0, true).await?;
+            return Err(error);
         }
 
         // Network safety check — must run before any resources are created.

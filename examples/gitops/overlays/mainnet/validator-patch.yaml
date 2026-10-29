@@ -6,6 +6,7 @@ kind: StellarNode
 metadata:
   name: validator
 spec:
+  nodeType: Validator
   network: mainnet
   # Pin to a reviewed release tag. Never use "latest" or a branch name here.
   version: "v21.0.0"

@@ -1,7 +1,7 @@
 # Finalizer Cleanup Recovery Controller
 
-**Component:** `controller/src/finalizers/`  
-**Status:** Implemented (Issue #46)  
+**Component:** `controller/src/finalizers/`\
+**Status:** Implemented (Issue #46)\
 **Complexity:** High (200 points)
 
 ---
@@ -108,12 +108,12 @@ and **must return `Ok(true)`** before any patch is issued.
 | `Ok(false)`      | Volume still attached → log info, retry later  |
 | `Err(_)`         | API error → log warning, retry later            |
 
-**AWS EBS verification** (`AwsEbsVerifier`):  
+**AWS EBS verification** (`AwsEbsVerifier`):\
 Calls the EC2 `DescribeVolumes` API and parses the XML response.  The volume
 is considered detached only when the `<attachmentSet>` is empty or all
 attachment entries have `<status>detached</status>`.
 
-**GCP Persistent Disk verification** (`GcpPdVerifier`):  
+**GCP Persistent Disk verification** (`GcpPdVerifier`):\
 Calls the Compute Engine `disks.get` REST API and inspects the `users` field.
 An empty `users` array (or its absence) confirms no VM instances are using
 the disk.  A 404 response means the disk no longer exists and is treated as

@@ -4,6 +4,7 @@ kind: StellarNode
 metadata:
   name: soroban-rpc
 spec:
+  nodeType: SorobanRpc
   network: futurenet
   version: "v22.0.0-preview"
   resources:

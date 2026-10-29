@@ -1,3 +1,15 @@
+// Copyright 2024 Stellar-K8s Contributors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //! Kubernetes resource builders for StellarNode
 //!
 //! This module creates and manages the underlying Kubernetes resources
@@ -211,6 +223,7 @@ pub async fn ensure_pvc(
     propagated_labels: &BTreeMap<String, String>,
     dry_run: bool,
 ) -> Result<()> {
+    validate_snapshot_bootstrap(node)?;
     let namespace = node.namespace().unwrap_or_else(|| "default".to_string());
     let api: Api<PersistentVolumeClaim> = Api::namespaced(client.clone(), &namespace);
     let name = resource_name(node, "data");
@@ -625,6 +638,7 @@ pub async fn ensure_deployment(
     propagated_labels: &BTreeMap<String, String>,
     dry_run: bool,
 ) -> Result<()> {
+    validate_snapshot_bootstrap(node)?;
     let namespace = node.namespace().unwrap_or_else(|| "default".to_string());
     let api: Api<Deployment> = Api::namespaced(client.clone(), &namespace);
     let name = node.name_any();
@@ -658,6 +672,7 @@ pub async fn ensure_canary_deployment(
     enable_mtls: bool,
     dry_run: bool,
 ) -> Result<()> {
+    validate_snapshot_bootstrap(node)?;
     let canary_version = match node
         .status
         .as_ref()
@@ -760,6 +775,7 @@ pub async fn ensure_statefulset(
     propagated_labels: &BTreeMap<String, String>,
     dry_run: bool,
 ) -> Result<()> {
+    validate_snapshot_bootstrap(node)?;
     let namespace = node.namespace().unwrap_or_else(|| "default".to_string());
     let api: Api<StatefulSet> = Api::namespaced(client.clone(), &namespace);
     let name = node.name_any();
@@ -803,7 +819,6 @@ pub async fn ensure_statefulset(
 
     Ok(())
 }
-
 pub fn build_statefulset(
     node: &StellarNode,
     enable_mtls: bool,
@@ -1855,7 +1870,8 @@ fn build_pod_template(
     if let Some(snapshot_ref) = &node.spec.storage.snapshot_ref {
         if let Some(backup_url) = &snapshot_ref.backup_url {
             let init_containers = pod_spec.init_containers.get_or_insert_with(Vec::new);
-            init_containers.push(build_snapshot_restore_container(
+            // Restore must precede migration and any other init that uses data.
+            init_containers.insert(0, build_snapshot_restore_container(
                 node,
                 backup_url,
                 snapshot_ref.credentials_secret_ref.as_deref(),
@@ -1936,16 +1952,19 @@ fn build_pod_template(
         }
     }
 
-    // Add mTLS certificate volume
+    // Only require the certificate Secret when reconciliation provisions mTLS.
+    // A required Secret volume otherwise leaves every baseline Pod Pending.
     let volumes = pod_spec.volumes.get_or_insert_with(Vec::new);
-    volumes.push(Volume {
-        name: "tls".to_string(),
-        secret: Some(k8s_openapi::api::core::v1::SecretVolumeSource {
-            secret_name: Some(format!("{}-client-cert", node.name_any())),
+    if enable_mtls {
+        volumes.push(Volume {
+            name: "tls".to_string(),
+            secret: Some(k8s_openapi::api::core::v1::SecretVolumeSource {
+                secret_name: Some(format!("{}-client-cert", node.name_any())),
+                ..Default::default()
+            }),
             ..Default::default()
-        }),
-        ..Default::default()
-    });
+        });
+    }
 
     // Add Cloud HSM sidecar and volumes
     if let NodeType::Validator = node.spec.node_type {
@@ -2956,13 +2975,14 @@ fn build_container(node: &StellarNode, enable_mtls: bool) -> Container {
         }
     }
 
-    // Mount mTLS certificates
-    volume_mounts.push(VolumeMount {
-        name: "tls".to_string(),
-        mount_path: "/etc/stellar/tls".to_string(),
-        read_only: Some(true),
-        ..Default::default()
-    });
+    if enable_mtls {
+        volume_mounts.push(VolumeMount {
+            name: "tls".to_string(),
+            mount_path: "/etc/stellar/tls".to_string(),
+            read_only: Some(true),
+            ..Default::default()
+        });
+    }
 
     // Add extra mounts (HSM)
     volume_mounts.extend(extra_volume_mounts);
@@ -3119,83 +3139,59 @@ pub(crate) fn build_horizon_migration_container(node: &StellarNode) -> Container
     container
 }
 
-/// Build the snapshot-restore init container for compressed DB backup bootstrapping.
-///
-/// This container runs before Stellar Core and:
-/// 1. Checks whether `/data` is already populated (idempotent — skips if data exists).
-/// 2. Downloads the archive from `backup_url` (S3 or HTTPS).
-/// 3. Extracts it into `/data`.
-///
-/// Supports `.tar.gz` and `.tar.zst` archives.
-/// For S3 URLs, AWS CLI credentials are injected from `credentials_secret_ref`.
+/// Fail before creating workloads or competing restore Jobs. The digest is an
+/// explicit trusted input rather than a checksum fetched beside an untrusted URL.
+pub(crate) fn validate_snapshot_bootstrap(node: &StellarNode) -> Result<()> {
+    let Some(snapshot) = node.spec.storage.snapshot_ref.as_ref() else { return Ok(()); };
+    let Some(source) = snapshot.backup_url.as_deref() else { return Ok(()); };
+    let digest = node.annotations().get(crate::commands::bootstrap::SHA_ANNOTATION)
+        .map(String::as_str).unwrap_or("");
+    crate::commands::bootstrap::validate_source(source, digest)
+        .map_err(|error| Error::ValidationError(format!("snapshot bootstrap: {error}")))?;
+    if snapshot.restore_image.as_ref().is_some_and(|image| image.trim().is_empty()) {
+        return Err(Error::ValidationError("snapshot restoreImage must name an image containing /stellar-operator".into()));
+    }
+    if snapshot.volume_snapshot_name.is_some() || node.spec.restore_from_snapshot.is_some()
+        || node.spec.oci_snapshot.as_ref().is_some_and(|config| config.enabled && config.pull) {
+        return Err(Error::ValidationError("backupUrl cannot be combined with CSI or OCI snapshot restore".into()));
+    }
+    if node.spec.replicas != 1 || node.spec.autoscaling.is_some() {
+        return Err(Error::ValidationError("backupUrl restore requires one replica without autoscaling to avoid concurrent PVC writers".into()));
+    }
+    Ok(())
+}
+
+/// Invoke the same bounded, verified Rust downloader inside the node pod, with
+/// the actual data PVC mounted. No shell or package installation is required.
 fn build_snapshot_restore_container(
-    _node: &StellarNode,
+    node: &StellarNode,
     backup_url: &str,
     credentials_secret_ref: Option<&str>,
     restore_image: Option<&str>,
 ) -> Container {
-    // Choose a sensible default image based on the URL scheme.
-    let image = restore_image.map(|s| s.to_string()).unwrap_or_else(|| {
-        if backup_url.starts_with("s3://") {
-            "amazon/aws-cli:latest".to_string()
-        } else {
-            "alpine:3".to_string()
-        }
-    });
-
-    // Determine the decompression command based on the file extension.
-    let decompress_flag = if backup_url.ends_with(".tar.zst") {
-        "--use-compress-program=zstd"
-    } else {
-        "-z" // default: gzip
-    };
-
-    // Build the shell script that runs inside the init container.
-    // The script is idempotent: if /data already has content it exits immediately.
-    let script = if backup_url.starts_with("s3://") {
-        format!(
-            r#"set -e
-# Skip restore if data volume already has content (idempotent)
-if [ "$(ls -A /data 2>/dev/null)" ]; then
-  echo "Data volume already populated, skipping snapshot restore."
-  exit 0
-fi
-echo "Restoring from S3 snapshot: {url}"
-aws s3 cp "{url}" /tmp/snapshot.archive
-echo "Extracting archive..."
-tar {decompress} -xf /tmp/snapshot.archive -C /data
-rm -f /tmp/snapshot.archive
-echo "Snapshot restore complete."
-"#,
-            url = backup_url,
-            decompress = decompress_flag,
-        )
-    } else {
-        format!(
-            r#"set -e
-# Skip restore if data volume already has content (idempotent)
-if [ "$(ls -A /data 2>/dev/null)" ]; then
-  echo "Data volume already populated, skipping snapshot restore."
-  exit 0
-fi
-echo "Restoring from backup: {url}"
-wget -q -O /tmp/snapshot.archive "{url}" || curl -fsSL -o /tmp/snapshot.archive "{url}"
-echo "Extracting archive..."
-tar {decompress} -xf /tmp/snapshot.archive -C /data
-rm -f /tmp/snapshot.archive
-echo "Snapshot restore complete."
-"#,
-            url = backup_url,
-            decompress = decompress_flag,
-        )
-    };
+    let image = restore_image.map(str::to_owned)
+        .or_else(|| std::env::var("STELLAR_SNAPSHOT_RESTORE_IMAGE").ok())
+        .unwrap_or_else(|| format!("ghcr.io/stellar/stellar-k8s:{}", env!("CARGO_PKG_VERSION")));
 
     // Build environment variables — inject AWS credentials if provided.
     let mut env: Vec<EnvVar> = vec![EnvVar {
         name: "BACKUP_URL".to_string(),
         value: Some(backup_url.to_string()),
         ..Default::default()
+    }, EnvVar {
+        name: "SNAPSHOT_SHA256".to_string(),
+        value: Some(node.annotations().get(crate::commands::bootstrap::SHA_ANNOTATION).cloned().unwrap_or_default()),
+        ..Default::default()
     }];
+    // Operator-level settings become explicit pod configuration, so rebuilding
+    // the pod preserves the intended per-bootstrap egress allocation.
+    for name in ["STELLAR_CATCHUP_WORKERS", "STELLAR_CATCHUP_BYTES_PER_SECOND",
+        "STELLAR_CATCHUP_RETRIES", "STELLAR_CATCHUP_CHUNK_BYTES",
+        "STELLAR_CATCHUP_TIMEOUT_SECONDS", "STELLAR_SNAPSHOT_MAX_UNPACKED_BYTES"] {
+        if let Ok(value) = std::env::var(name) {
+            env.push(EnvVar { name: name.into(), value: Some(value), ..Default::default() });
+        }
+    }
 
     if let Some(secret_name) = credentials_secret_ref {
         // AWS credentials
@@ -3203,6 +3199,8 @@ echo "Snapshot restore complete."
             "AWS_ACCESS_KEY_ID",
             "AWS_SECRET_ACCESS_KEY",
             "AWS_DEFAULT_REGION",
+            "AWS_REGION",
+            "AWS_SESSION_TOKEN",
         ] {
             env.push(EnvVar {
                 name: key.to_string(),
@@ -3235,16 +3233,17 @@ echo "Snapshot restore complete."
     Container {
         name: "snapshot-restore".to_string(),
         image: Some(image),
-        command: Some(vec!["/bin/sh".to_string(), "-c".to_string(), script]),
+        command: Some(vec!["/stellar-operator".to_string()]),
+        args: Some(vec!["snapshot-bootstrap".to_string(), "--data-dir".to_string(), "/data".to_string()]),
         env: Some(env),
         volume_mounts: Some(vec![VolumeMount {
             name: "data".to_string(),
             mount_path: "/data".to_string(),
             ..Default::default()
         }]),
-        // Security: run as non-root, read-only root filesystem except /tmp
         security_context: Some(SecurityContext {
-            run_as_non_root: Some(false), // aws-cli/alpine may need root for tar
+            run_as_non_root: Some(true),
+            read_only_root_filesystem: Some(true),
             allow_privilege_escalation: Some(false),
             capabilities: Some(Capabilities {
                 drop: Some(vec!["ALL".to_string()]),
@@ -4067,7 +4066,17 @@ pub(crate) fn build_network_policy(
         ports: None,
     };
 
-    let egress_rules = vec![same_network_egress, dns_egress, intra_namespace_egress];
+    let mut egress_rules = vec![same_network_egress, dns_egress, intra_namespace_egress];
+    // The restore init shares the node's NetworkPolicy. Permit its HTTPS
+    // object-store and AWS authentication requests before Core starts.
+    if node.spec.storage.snapshot_ref.as_ref().and_then(|snapshot| snapshot.backup_url.as_ref()).is_some() {
+        egress_rules.push(NetworkPolicyEgressRule {
+            to: None,
+            ports: Some(vec![NetworkPolicyPort {
+                port: Some(IntOrString::Int(443)), protocol: Some("TCP".into()), ..Default::default()
+            }]),
+        });
+    }
 
     NetworkPolicy {
         metadata: merge_resource_meta(
@@ -4262,6 +4271,117 @@ pub(crate) fn build_pod_template_for_test(node: &StellarNode) -> PodTemplateSpec
         None,
         node.spec.pod_anti_affinity.clone(),
     )
+}
+
+#[cfg(test)]
+mod snapshot_bootstrap_tests {
+    use super::*;
+    use crate::crd::types::SnapshotRef;
+
+    fn fixture() -> StellarNode {
+        let mut node = StellarNode::new("restore-fixture", StellarNodeSpec {
+            replicas: 1, node_type: NodeType::SorobanRpc, ..Default::default()
+        });
+        node.spec.storage.snapshot_ref = Some(SnapshotRef {
+            volume_snapshot_name: None, volume_snapshot_namespace: None,
+            backup_url: Some("https://backups.example/snapshot.tar.gz".into()),
+            credentials_secret_ref: Some("restore-credentials".into()),
+            restore_image: Some("registry.example/operator:verified-bootstrap".into()),
+        });
+        node.metadata.annotations = Some(BTreeMap::from([
+            (crate::commands::bootstrap::SHA_ANNOTATION.into(), "a".repeat(64))
+        ]));
+        node
+    }
+
+    #[test]
+    fn live_pod_restores_verified_archive_on_the_node_volume_before_startup() {
+        let node = fixture();
+        validate_snapshot_bootstrap(&node).unwrap();
+        let pod = build_pod_template_for_test(&node).spec.unwrap();
+        let init = &pod.init_containers.as_ref().unwrap()[0];
+        assert_eq!(init.name, "snapshot-restore");
+        assert_eq!(init.command.as_ref().unwrap().len(), 1);
+        assert_eq!(init.command.as_ref().unwrap()[0], "/stellar-operator");
+        assert_eq!(init.args.as_ref().unwrap()[0], "snapshot-bootstrap");
+        assert_eq!(init.image.as_deref(), Some("registry.example/operator:verified-bootstrap"));
+        assert_eq!(init.volume_mounts.as_ref().unwrap()[0].name, "data");
+        assert_eq!(init.volume_mounts.as_ref().unwrap()[0].mount_path, "/data");
+        assert!(pod.containers[0].volume_mounts.as_ref().unwrap().iter().any(|mount| mount.name == "data"));
+        let env = init.env.as_ref().unwrap();
+        assert!(env.iter().any(|var| var.name == "SNAPSHOT_SHA256" && var.value.as_deref() == Some("a".repeat(64).as_str())));
+        assert!(env.iter().any(|var| var.name == "BEARER_TOKEN" && var.value_from.is_some()));
+        assert!(init.security_context.as_ref().unwrap().run_as_non_root.unwrap());
+    }
+
+    #[test]
+    fn untrusted_digest_existing_snapshot_source_and_multiple_writers_are_rejected() {
+        let mut node = fixture();
+        node.metadata.annotations = None;
+        assert!(validate_snapshot_bootstrap(&node).is_err());
+        node = fixture();
+        node.spec.storage.snapshot_ref.as_mut().unwrap().volume_snapshot_name = Some("csi-source".into());
+        assert!(validate_snapshot_bootstrap(&node).is_err());
+        node = fixture();
+        node.spec.replicas = 2;
+        assert!(validate_snapshot_bootstrap(&node).is_err());
+        node = fixture();
+        node.spec.oci_snapshot = Some(serde_json::from_value(serde_json::json!({
+            "enabled": true, "registry": "registry.example", "image": "snapshot",
+            "credentialSecretName": "registry-auth", "pull": true
+        })).unwrap());
+        assert!(validate_snapshot_bootstrap(&node).is_err());
+    }
+
+    #[test]
+    fn restore_https_egress_is_present_in_the_generated_policy() {
+        let node = fixture();
+        let policy = build_network_policy(&node, &NetworkPolicyConfig::default());
+        assert!(policy.spec.unwrap().egress.unwrap().iter().any(|rule| {
+            rule.to.is_none() && rule.ports.as_ref().is_some_and(|ports| ports.iter().any(|port| {
+                port.port == Some(IntOrString::Int(443)) && port.protocol.as_deref() == Some("TCP")
+            }))
+        }));
+    }
+}
+
+#[cfg(test)]
+mod tls_volume_tests {
+    use super::*;
+    use crate::crd::StellarNodeSpec;
+
+    #[test]
+    fn certificate_secret_is_required_only_when_mtls_is_enabled() {
+        for node_type in [NodeType::Validator, NodeType::Horizon, NodeType::SorobanRpc] {
+            let node = StellarNode::new(
+                "security-fixture",
+                StellarNodeSpec {
+                    node_type,
+                    ..Default::default()
+                },
+            );
+            for enable_mtls in [false, true] {
+                let template = build_pod_template(
+                    &node,
+                    &standard_labels(&node),
+                    enable_mtls,
+                    None,
+                    node.spec.pod_anti_affinity.clone(),
+                );
+                let pod = template.spec.expect("pod spec");
+                let tls = pod.volumes.as_ref().unwrap().iter().find(|v| v.name == "tls");
+                assert_eq!(tls.is_some(), enable_mtls);
+                if let Some(volume) = tls {
+                    assert_eq!(
+                        volume.secret.as_ref().unwrap().secret_name.as_deref(),
+                        Some("security-fixture-client-cert")
+                    );
+                }
+                let mounts = pod.containers[0].volume_mounts.as_ref().unwrap();
+                assert_eq!(mounts.iter().any(|m| m.name == "tls"), enable_mtls);
+            }
+        }
+    }
 }
 
 #[cfg(test)]

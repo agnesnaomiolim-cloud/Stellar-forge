@@ -165,7 +165,10 @@ jobs:
             --namespace=${{ env.OPERATOR_NS }} \
             --timeout=${{ env.RECOVERY_TIMEOUT }}s
           START_NODE_WAIT=$(date +%s)
-          until [[ "$(kubectl get stellarnode chaos-test-horizon -n stellar-system -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}' 2>/dev/null)" == "True" ]]; do
+          until [[ "$(
+            kubectl get stellarnode chaos-test-horizon -n stellar-system \
+              -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}' 2>/dev/null
+          )" == "True" ]]; do
             if (( $(date +%s) - START_NODE_WAIT > $RECOVERY_TIMEOUT )); then
               echo "ERROR: StellarNode did not recover to Ready within timeout"
               kubectl get stellarnode chaos-test-horizon -n stellar-system -o yaml || true
@@ -197,7 +200,10 @@ jobs:
             --namespace=${{ env.OPERATOR_NS }} \
             --timeout=${{ env.RECOVERY_TIMEOUT }}s
           START_NODE_WAIT=$(date +%s)
-          until [[ "$(kubectl get stellarnode chaos-test-horizon -n stellar-system -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}' 2>/dev/null)" == "True" ]]; do
+          until [[ "$(
+            kubectl get stellarnode chaos-test-horizon -n stellar-system \
+              -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}' 2>/dev/null
+          )" == "True" ]]; do
             if (( $(date +%s) - START_NODE_WAIT > $RECOVERY_TIMEOUT )); then
               echo "ERROR: StellarNode did not recover to Ready within timeout"
               kubectl get stellarnode chaos-test-horizon -n stellar-system -o yaml || true
@@ -369,7 +375,10 @@ jobs:
             --namespace=${{ env.OPERATOR_NS }} \
             --timeout=${{ env.RECOVERY_TIMEOUT }}s
           START_NODE_WAIT=$(date +%s)
-          until [[ "$(kubectl get stellarnode chaos-test-horizon -n stellar-system -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}' 2>/dev/null)" == "True" ]]; do
+          until [[ "$(
+            kubectl get stellarnode chaos-test-horizon -n stellar-system \
+              -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}' 2>/dev/null
+          )" == "True" ]]; do
             if (( $(date +%s) - START_NODE_WAIT > $RECOVERY_TIMEOUT )); then
               echo "ERROR: StellarNode did not recover to Ready within timeout"
               kubectl get stellarnode chaos-test-horizon -n stellar-system -o yaml || true
@@ -898,8 +907,8 @@ jobs:
             echo "|-------|-------------|--------|"
             echo "| A — Kill & Network | 01 Pod Kill, 02 Network Partition | \`${GA}\` |"
             echo "| B — Latency & Disk | 03 API Latency, 04 Peer Partition, 05 Disk Fill | \`${GB}\` |"
-            echo "| C — Resource & Cascading | 06 CPU Stress, 07 Memory, 08 Validator Kill, 09 Cascading, 10 I/O | \`${GC}\` |"
-            echo "| D — Stellar Core Chaos | 11 Core Crash, 12 Ledger Reconnection, 13 Resource Exhaustion | \`${GD}\` |"
+            echo "| C — Resource & Cascading | 06 CPU, 07 Memory, 08 Kill, 09 Cascading, 10 I/O | \`${GC}\` |"
+            echo "| D — Stellar Core Chaos | 11 Crash, 12 Reconnect, 13 Exhaustion | \`${GD}\` |"
             echo ""
             echo "**Overall Resilience Score:** ${SCORE}/100"
             echo "**Commit:** \`${{ github.sha }}\`"

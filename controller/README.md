@@ -100,6 +100,6 @@ build the contract wasm if absent).
 ## Development
 
 ```bash
-cargo test
-cargo run --bin stellar-testnet-operator -- crd > deploy/stellartestnets.yaml  # after CRD changes
+cargo test --features testnet
+cargo run --features testnet --bin stellar-testnet-operator -- crd > deploy/stellartestnets.yaml  # after CRD changes
 ```

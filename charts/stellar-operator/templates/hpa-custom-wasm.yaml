@@ -1,4 +1,4 @@
-{{- if .Values.autoscaling.customWasm.enabled }}
+{{- if and .Values.autoscaling .Values.autoscaling.customWasm .Values.autoscaling.customWasm.enabled }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:

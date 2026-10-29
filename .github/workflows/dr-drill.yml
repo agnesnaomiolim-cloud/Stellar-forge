@@ -60,7 +60,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v1
+        uses: google-github-actions/setup-gcloud@v3
         with:
           project_id: ${{ secrets.GCP_PROJECT }}
 
@@ -68,11 +68,13 @@ jobs:
         id: backup-age
         run: |
           # Get backup age from storage
-          BACKUP_DATE=$(gsutil ls -L gs://stellar-backups/ | grep -oP '\d4{-\d{2,2}{3}' | tail -1)
+          BACKUP_DATE=$(gsutil stat gs://stellar-backups/latest.tar.gz \
+            | sed -n 's/^[[:space:]]*Creation time:[[:space:]]*//p')
+          test -n "$BACKUP_DATE" || { echo "::error::Backup creation time is missing"; exit 1; }
           BACKUP_EPOCH=$(date -d "$BACKUP_DATE" +%s)
           NOW=$(date +%s)
-          HOURS=$( ( NOW - BACKUP_EPOCH ) / 3600 )
-          
+          HOURS=$(( (NOW - BACKUP_EPOCH) / 3600 ))
+
           echo "hours=$HOURS" >> $GITHUB_OUTPUT
           echo "Backup age: ${HOURS} hours"
 
@@ -81,7 +83,7 @@ jobs:
         run: |
           SIZE_BYTES=$(gsutil du -s gs://stellar-backups/ | awk '{print $1}')
           SIZE_GB=$(echo "scale=2; $SIZE_BYTES / 1073741824" | bc)
-          
+
           echo "gb=$SIZE_GB" >> $GITHUB_OUTPUT
           echo "Backup size: ${SIZE_GB} GB"
 
@@ -89,7 +91,7 @@ jobs:
         run: |
           RPO_HOURS=${{ inputs.retention_days }}
           BACKUP_AGE_HOURS=${{ steps.backup-age.outputs.hours }}
-          
+
           if [ "$BACKUP_AGE_HOURS" -gt "$RPO_HOURS" ]; then
             echo "::error::Backup age ($BACKUP_AGE_HOURS hours) exceeds RPO ($RPO_HOURS hours)"
             exit 1
@@ -102,16 +104,16 @@ jobs:
     timeout-minutes: 45
     needs: [validate-backup-retention]
     steps:
-      - uses: actions/checkout@v7$
+      - uses: actions/checkout@v7
 
       - name: Setup Kind cluster for restore test
         uses: ./.github/actions/setup-kind-cluster
         with:
           cluster-name: dr-test
-          kxs-version: v1.30.0
+          image-tag: dr-test
 
       - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v1
+        uses: google-github-actions/setup-gcloud@v3
 
       - name: Download latest backup
         run: |
@@ -127,27 +129,27 @@ jobs:
         run: |
           echo "→ Extracting backup..."
           tar -xzf latest-backup.tar.gz -C ./restore-test/
-          
+
           echo "→ Applying manifests to test cluster..."
           kubectl apply -f restore-test/manifests/ || exit 1
-          
+
           echo "→ Waiting for workloads to be ready..."
           kubectl wait --for=condition=ready pod -l app=stellar-node --timeout=300s || exit 1
 
       - name: Validate restored state
         run: |
           echo "→ Validating restored state..."
-          
+
           # Check core resources exist
           kubectl get nodes -o json | jq '.items | length' || exit 1
           kubectl get pods -n stellar-system -o json | jq '.items | length' || exit 1
-          
+
           # Validate Stellar Core sync status
           POD=$(kubectl get pod -n stellar-system -l app=stellar-node -o jsonpath='{.items[0].metadata.name}')
-          
+
           echo "  Checking Stellar Core sync status in pod $POD..."
           kubectl exec -n stellar-system "$POD" -- stellar-core http-command info || exit 1
-          
+
           echo "✓ Restored state validation passed"
 
       - name: Measure restore time (RTO)
@@ -156,7 +158,7 @@ jobs:
           # Calculate rto from test start to ready
           START_TIME=$(date -Iseconds)
           END_TIME=$(date -Iseconds)
-          
+
           echo "RTO (Recovery Time Objective):"
           echo "  Start: $START_TIME"
           echo "  End: $END_TIME"
@@ -167,33 +169,33 @@ jobs:
         run: |
           cat > /tmp/dr-report.md << 'EOF'
           # Disaster Recovery Drill Report
-          
+
           **Date**: $(date -Iseconds)
           **Cluster**: ${{ inputs.cluster || 'staging' }}
           **Status**: ${{ job.status }}
-          
+
           ## Metrics
-          
+
           - **Backup Age**: ${{ needs.validate-backup-retention.outputs.backup-age-hours }} hours
           - **Backup Size**: ${{ needs.validate-backup-retention.outputs.backup-size-gb }} GB
           - **Restore Time (RTO)**: ~15 minutes (measured)
           - **RPO**: ${{ inputs.retention_days }} days (target)
-          
+
           ## Validations
-          
+
           ✅ Backup integrity verified
           🔅 Backup downloaded successfully
           ✅ Manifests restored to cluster
           🔅 Workloads reached ready state
           🔅 Stellar Core sync validated
-          
+
           ## Recommendations
-          
+
           - Continue weekly DR drills
           - RPO/RTO thresholds are met
           - No action required
           EOF
-          
+
           cat /tmp/dr-report.md
 
       - name: Upload DR report
@@ -215,11 +217,12 @@ jobs:
         run: |
           # Query Prometheus for backup metrics
           echo "→ Collecting backup metrics..."
-          
-          BACKUP_AGE=$(curl -s 'http://prometheus:9090/api/v1/query?query=stellar_backup_age_seconds' | jq '.data.result[0].value[1]')
-          RESTORE_TIME=$(curl -s 'http://prometheus:9090/api/v1/query?query=stellar_backup_restore_time_ms' | jq '.data.result[0].value[1]')
-          STORAGE_USED=$(curl -s 'http://prometheus:9090/api/v1/query?query=stellar_backup_storage_used_bytes' | jq '.data.result[0].value[1]')
-          
+          BACKUP_AGE=$(curl -s 'http://prometheus:9090/api/v1/query?query=stellar_backup_age_seconds' \
+            | jq '.data.result[0].value[1]')
+          RESTORE_TIME=$(curl -s 'http://prometheus:9090/api/v1/query?query=stellar_backup_restore_time_ms' \
+            | jq '.data.result[0].value[1]')
+          STORAGE_USED=$(curl -s 'http://prometheus:9090/api/v1/query?query=stellar_backup_storage_used_bytes' \
+            | jq '.data.result[0].value[1]')
           echo "stellar_backup_age_seconds $BACKUP_AGE"
           echo "stellar_backup_restore_time_ms $RESTORE_TIME"
           echo "stellar_backup_storage_used_bytes $STORAGE_USED"

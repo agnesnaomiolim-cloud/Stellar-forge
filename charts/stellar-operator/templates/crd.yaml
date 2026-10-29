@@ -332,34 +332,36 @@ spec:
                       nullable: true
                       description: Reference to a Cloud KMS key for encrypting the snapshot.
                 upgradeSafety:
-                  type: object
                   description: Snapshot-based upgrade safety. When enabled, the operator pauses the StatefulSet rollout, creates a CSI VolumeSnapshot of the data PVC, and resumes the image update only after ReadyToUse.
+                  nullable: true
                   properties:
                     enabled:
-                      type: boolean
                       default: false
                       description: Enable pre-upgrade PVC snapshot gating.
+                      type: boolean
                     volumeSnapshotClassName:
-                      type: string
                       description: VolumeSnapshotClass name. If unset, the default class for the PVC's driver is used.
-                    flushBeforeSnapshot:
-                      type: boolean
-                      default: false
-                      description: If true, attempt to flush/lock the Stellar DB briefly before creating the snapshot.
-                    readyTimeoutSeconds:
-                      type: integer
-                      format: int64
-                      default: 300
-                      minimum: 0
-                      description: Maximum time in seconds to wait for ReadyToUse before failing the upgrade.
-                    encryptionKeyRef:
-                      type: string
                       nullable: true
-                      description: Reference to a Cloud KMS key for encrypting the snapshot.
-                    haltOnCsiUnavailable:
+                      type: string
+                    flushBeforeSnapshot:
+                      default: false
+                      description: If true, the operator will attempt to flush/lock the Stellar database briefly before creating the snapshot.
                       type: boolean
+                    readyTimeoutSeconds:
+                      default: 300
+                      description: Maximum time in seconds to wait for ReadyToUse before failing the upgrade.
+                      format: uint64
+                      minimum: 0.0
+                      type: integer
+                    encryptionKeyRef:
+                      description: Reference to a Cloud KMS key for encrypting the snapshot.
+                      nullable: true
+                      type: string
+                    haltOnCsiUnavailable:
                       default: true
                       description: Halt the upgrade and emit a Warning event when the CSI snapshot driver is unavailable.
+                      type: boolean
+                  type: object
                 restoreFromSnapshot:
                   type: object
                   description: Bootstrap this node from an existing VolumeSnapshot (Validator only). PVC is created from the snapshot.

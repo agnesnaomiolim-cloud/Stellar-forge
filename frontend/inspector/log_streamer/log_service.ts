@@ -191,7 +191,7 @@ export class LogStreamService {
 
     // Update buffer (ring-buffer)
     this.pending = [];
-    
+
     // Trim to max buffer
     if (this.pending.length > this.maxBuffer) {
       // This shouldn't happen since we splice, but just in case

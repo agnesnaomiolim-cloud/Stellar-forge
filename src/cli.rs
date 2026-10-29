@@ -63,6 +63,8 @@ pub struct Args {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
+    /// Restore a verified snapshot on the local node data volume before startup
+    SnapshotBootstrap(crate::commands::bootstrap::BootstrapArgs),
     /// Run the operator reconciliation loop
     Run(RunArgs),
     /// Run the admission webhook server

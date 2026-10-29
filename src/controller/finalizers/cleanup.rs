@@ -1,4 +1,16 @@
 // Copyright 2024 Stellar-K8s Contributors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// Copyright 2024 Stellar-K8s Contributors
 // Licensed under the Apache License, Version 2.0 (the "License")
 //! Kubernetes Finalizer Cleanup Recovery Controller for Orphaned Volumes.
 //!
@@ -69,7 +81,7 @@ pub enum CleanupOutcome {
     VolumeStillAttached,
     /// Cloud API returned an error; retry later.
     CloudApiError(String),
-    /// No PVCs found — finalizer removed unconditionally.
+    /// Reserved legacy outcome; absence of PVCs alone no longer permits removal.
     NoPvcsFound,
     /// Resource is not stuck (no deletion timestamp or no finalizer).
     NotStuck,
@@ -142,9 +154,9 @@ pub async fn scan_and_recover(client: &Client, verifier: &CloudVerifier) -> Resu
                 info!(name, ns, "stuck finalizer removed — resource unblocked");
             }
             Ok(CleanupOutcome::NoPvcsFound) => {
-                info!(
+                warn!(
                     name,
-                    ns, "no PVCs found — finalizer removed unconditionally"
+                    ns, "no PVC evidence found — recovery requires manual review"
                 );
             }
             Ok(CleanupOutcome::VolumeStillAttached) => {
@@ -193,21 +205,11 @@ pub async fn attempt_recovery(
     let pvcs = find_owned_pvcs(client, node).await?;
 
     if pvcs.is_empty() {
-        // No PVCs to verify — strip the finalizer so the resource can be GC'd.
-        warn!(
-            name,
-            namespace, "no PVCs found for stuck StellarNode — removing finalizer"
-        );
-        strip_finalizer(client, node).await?;
-        emit_event(
-            client,
-            node,
-            "FinalizerRecovered",
-            "No PVCs found; finalizer removed by cleanup controller",
-            "Normal",
-        )
-        .await;
-        return Ok(CleanupOutcome::NoPvcsFound);
+        // Deleted PVCs can leave retained/cloud volumes behind. No provider
+        // identity is available to prove detachment, so require manual review.
+        return Ok(CleanupOutcome::CloudApiError(
+            "no owned PVC evidence remains; automatic recovery blocked".into(),
+        ));
     }
 
     // Verify every PVC is detached before touching the finalizer.
@@ -218,6 +220,10 @@ pub async fn attempt_recovery(
                 info!(name, namespace, pvc_name, "PVC volume detached");
             }
             Ok(result) => {
+                if let VolumeAttachmentState::ApiError(message) = result.state {
+                    emit_event(client, node, "CloudVerificationFailed", &message, "Warning").await;
+                    return Ok(CleanupOutcome::CloudApiError(message));
+                }
                 warn!(
                     name,
                     namespace,
@@ -245,7 +251,20 @@ pub async fn attempt_recovery(
         }
     }
 
-    // All PVCs confirmed detached — safe to strip the finalizer.
+    // A claim created or rebound while provider requests were in progress was
+    // never verified. Require the exact owned identity/binding set to remain.
+    let identities = |claims: &[PersistentVolumeClaim]| {
+        claims.iter().map(|claim| (
+            claim.name_any(), claim.metadata.uid.clone(),
+            claim.spec.as_ref().and_then(|spec| spec.volume_name.clone()),
+        )).collect::<std::collections::BTreeSet<_>>()
+    };
+    if identities(&find_owned_pvcs(client, node).await?) != identities(&pvcs) {
+        return Ok(CleanupOutcome::CloudApiError(
+            "owned PVC identities changed during volume verification".into(),
+        ));
+    }
+    // All observed PVCs confirmed detached — safe to strip the finalizer.
     strip_finalizer(client, node).await?;
     emit_event(
         client,
@@ -278,9 +297,8 @@ pub fn is_stuck_terminating(node: &StellarNode) -> bool {
 
 /// Find PVCs that belong to `node` in the same namespace.
 ///
-/// A PVC is considered owned if it carries an `ownerReference` to this
-/// StellarNode, or if its name matches the canonical PVC naming pattern:
-/// `<node-name>-data` (as used by `resources.rs`).
+/// Ownership requires this StellarNode's UID. Names can be reused and are not
+/// sufficient evidence for removing a storage-protecting finalizer.
 async fn find_owned_pvcs(
     client: &Client,
     node: &StellarNode,
@@ -292,8 +310,8 @@ async fn find_owned_pvcs(
         .await
         .map_err(Error::KubeError)?;
 
-    let node_uid = node.metadata.uid.as_deref().unwrap_or("");
-    let node_name = node.name_any();
+    let node_uid = node.metadata.uid.as_deref().filter(|uid| !uid.is_empty())
+        .ok_or_else(|| Error::FinalizerError("StellarNode UID missing".into()))?;
 
     let owned: Vec<PersistentVolumeClaim> = all_pvcs
         .items
@@ -308,11 +326,7 @@ async fn find_owned_pvcs(
                     return true;
                 }
             }
-            // Fall back to naming convention: "<node-name>-data" or "<node-name>-data-0"
-            let pvc_name = pvc.name_any();
-            pvc_name == format!("{}-data", node_name)
-                || pvc_name.starts_with(&format!("{}-data-", node_name))
-                || pvc_name == format!("{}-storage", node_name)
+            false
         })
         .collect();
 
@@ -321,8 +335,8 @@ async fn find_owned_pvcs(
 
 /// Strip our finalizer from a StellarNode via a Merge patch.
 ///
-/// Uses server-side force=false so we respect optimistic concurrency and avoid
-/// accidentally clobbering concurrent writes.
+/// UID and resourceVersion preconditions prevent replacing another object's
+/// finalizers or clobbering a concurrent finalizer update.
 async fn strip_finalizer(client: &Client, node: &StellarNode) -> Result<()> {
     let namespace = node.namespace().unwrap_or_else(|| "default".to_string());
     let api: Api<StellarNode> = Api::namespaced(client.clone(), &namespace);
@@ -334,7 +348,13 @@ async fn strip_finalizer(client: &Client, node: &StellarNode) -> Result<()> {
         .map(|f| f.as_str())
         .collect();
 
-    let patch = json!({ "metadata": { "finalizers": remaining } });
+    let uid = node.metadata.uid.as_deref().filter(|s| !s.is_empty())
+        .ok_or_else(|| Error::FinalizerError("StellarNode UID missing".into()))?;
+    let version = node.metadata.resource_version.as_deref().filter(|s| !s.is_empty())
+        .ok_or_else(|| Error::FinalizerError("StellarNode resourceVersion missing".into()))?;
+    let patch = json!({ "metadata": {
+        "uid": uid, "resourceVersion": version, "finalizers": remaining
+    } });
     api.patch(
         &node.name_any(),
         &PatchParams::default(),
@@ -399,7 +419,7 @@ async fn emit_event(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::controller::finalizers::cloud_verify::{MockChecker, VolumeAttachmentState};
+    use crate::controller::finalizers::cloud_verify::VolumeAttachmentState;
     use crate::crd::{
         NodeType, ResourceRequirements, ResourceSpec, StellarNetwork, StellarNodeSpec,
         StorageConfig,

@@ -2294,7 +2294,7 @@ or pre-populating volumes. |
 |---|---|
 | **Path** | `spec.storage.snapshotRef.restoreImage` |
 | **Type** | `string` |
-| **Description** | Container image for the restore init container. Defaults to amazon/aws-cli:latest for S3 URLs, alpine:3 for HTTPS. |
+| **Description** | Container image containing `/stellar-operator` with `snapshot-bootstrap` support. Defaults to `STELLAR_SNAPSHOT_RESTORE_IMAGE` or the operator package-version image. |
 | **Nullable** | `true` |
 
 ##### `spec.storage.snapshotRef.volumeSnapshotName`

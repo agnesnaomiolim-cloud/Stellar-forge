@@ -1,3 +1,15 @@
+// Copyright 2024 Stellar-K8s Contributors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //! Dynamic Node Topology Spread Constraint Enforcer
 //!
 //! This module implements a mutating controller that:
@@ -119,11 +131,7 @@ pub async fn discover_cluster_topology(client: &Client) -> Result<ClusterTopolog
 
         schedulable_count += 1;
 
-        if let Some(zone) = node
-            .labels()
-            .get(TOPOLOGY_ZONE_KEY)
-            .map(|z| z.to_string())
-        {
+        if let Some(zone) = node.labels().get(TOPOLOGY_ZONE_KEY).map(|z| z.to_string()) {
             if !zones.contains(&zone) {
                 zones.push(zone);
             }
@@ -148,10 +156,7 @@ pub async fn discover_cluster_topology(client: &Client) -> Result<ClusterTopolog
 /// Build the pod-template JSON patch that injects topology rules.
 ///
 /// Returns a [`serde_json::Value`] suitable for [`Patch::Merge`].
-pub fn build_statefulset_patch(
-    rule_set: &TopologyRuleSet,
-    zone_count: usize,
-) -> Result<Value> {
+pub fn build_statefulset_patch(rule_set: &TopologyRuleSet, zone_count: usize) -> Result<Value> {
     // Serialize spread constraints to plain JSON objects
     let spread_constraints: Vec<Value> = rule_set
         .spread_constraints
@@ -328,7 +333,11 @@ mod tests {
 
     fn three_zone_topo() -> ClusterTopology {
         ClusterTopology {
-            zones: vec!["us-east-1a".into(), "us-east-1b".into(), "us-east-1c".into()],
+            zones: vec![
+                "us-east-1a".into(),
+                "us-east-1b".into(),
+                "us-east-1c".into(),
+            ],
             node_count: 9,
         }
     }
@@ -363,7 +372,10 @@ mod tests {
             .iter()
             .any(|c| c["topologyKey"].as_str() == Some(TOPOLOGY_ZONE_KEY));
 
-        assert!(has_zone_key, "hard mode must include a zone spread constraint");
+        assert!(
+            has_zone_key,
+            "hard mode must include a zone spread constraint"
+        );
     }
 
     #[test]
@@ -378,7 +390,10 @@ mod tests {
             .iter()
             .any(|c| c["topologyKey"].as_str() == Some(TOPOLOGY_HOST_KEY));
 
-        assert!(has_host_key, "hard mode must include a host spread constraint");
+        assert!(
+            has_host_key,
+            "hard mode must include a host spread constraint"
+        );
     }
 
     #[test]
