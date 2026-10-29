@@ -97,3 +97,12 @@ async fn test_scheduler_constructs_with_live_client() {
     // Verify the config we passed through is reachable via the public field.
     assert_eq!(config.password_length, 32);
 }
+
+#[tokio::test]
+async fn test_secret_rotation_config_round_trip() {
+    let config = SecretRotationConfig::default();
+    let json = serde_json::to_string(&config).unwrap();
+    let deserialized: SecretRotationConfig = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(config, deserialized);
+}

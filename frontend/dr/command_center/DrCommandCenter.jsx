@@ -27,6 +27,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import drClient from '../../api/dr_client.ts';
 
 // ─── Phase catalogue ─────────────────────────────────────────────────────────
 
@@ -93,28 +94,6 @@ const bg    = (s) => BG[s]    ?? BG[STATUS.PENDING];
 const WS_BASE_MS = 1_000;
 const WS_MAX_MS  = 30_000;
 
-// ─── DR REST helpers ─────────────────────────────────────────────────────────
-
-async function triggerDrDrill({ node, dryRun = true, apiBase = '' }) {
-  const res = await fetch(`${apiBase}/api/dr/trigger`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ node, dry_run: dryRun }),
-  });
-  if (!res.ok) throw new Error(`DR trigger failed: ${res.status} ${res.statusText}`);
-  return res.json();
-}
-
-async function resetDrState({ node, apiBase = '' }) {
-  const res = await fetch(`${apiBase}/api/dr/reset`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ node }),
-  });
-  if (!res.ok) throw new Error(`DR reset failed: ${res.status}`);
-  return res.json();
-}
-
 // ─── State helpers ───────────────────────────────────────────────────────────
 
 function makeNodeState() {
@@ -137,6 +116,9 @@ function drReducer(state, action) {
       return { ...state, nodes: { ...state.nodes, [action.node]: makeNodeState() } };
 
     case 'DRILL_STARTED':
+      if (state.nodes[action.node]?.drillId === action.drillId) {
+        return { ...state, activeDrill: action.node };
+      }
       return {
         ...state,
         activeDrill: action.node,
@@ -145,6 +127,25 @@ function drReducer(state, action) {
           [action.node]: { ...makeNodeState(), drillId: action.drillId, startedAt: Date.now() },
         },
       };
+
+    case 'DRILL_STATUS_SYNC': {
+      const prev = state.nodes[action.node] ?? makeNodeState();
+      return {
+        ...state,
+        activeDrill: action.status === 'running'
+          ? action.node
+          : state.activeDrill === action.node ? null : state.activeDrill,
+        nodes: {
+          ...state.nodes,
+          [action.node]: {
+            ...prev,
+            drillId: action.drillId,
+            phases: { ...prev.phases, ...action.phases },
+            completedAt: action.status === 'running' ? prev.completedAt : prev.completedAt ?? Date.now(),
+          },
+        },
+      };
+    }
 
     case 'PHASE_UPDATE': {
       const { node, phase, status, message } = action;
@@ -431,6 +432,7 @@ export function DrCommandCenter({
   const [error, setError]   = useState(null);
   const [busy, setBusy]     = useState(false);
   const [target, setTarget] = useState(nodes[0] ?? null);
+  const lastWsStatus = useRef('connecting');
 
   const handleMsg = useCallback((msg) => {
     if (msg.type === 'phase_update') {
@@ -452,11 +454,49 @@ export function DrCommandCenter({
     onStatusChange: useCallback((s) => dispatch({ type: 'WS_STATUS', status: s }), []),
   });
 
+  useEffect(() => {
+    const reconnected = state.wsStatus === 'connected' && lastWsStatus.current === 'reconnecting';
+    lastWsStatus.current = state.wsStatus;
+    if (!reconnected) return;
+
+    Object.entries(state.nodes).forEach(([node, nodeState]) => {
+      if (!nodeState.drillId) return;
+      wsSend({ action: 'subscribe_drill', drill_id: nodeState.drillId });
+      drClient.status(nodeState.drillId, { apiBase })
+        .then((result) => {
+          const phases = Object.fromEntries(
+            Object.entries(result.phases ?? {}).map(([phase, phaseState]) => [
+              phase,
+              {
+                ...phaseState,
+                startedAt: phaseState.started_at
+                  ? Date.parse(phaseState.started_at)
+                  : nodeState.phases[phase]?.startedAt ?? null,
+                completedAt: phaseState.completed_at
+                  ? Date.parse(phaseState.completed_at)
+                  : nodeState.phases[phase]?.completedAt ?? null,
+              },
+            ]),
+          );
+          dispatch({
+            type: 'DRILL_STATUS_SYNC',
+            node,
+            drillId: result.drill_id,
+            status: result.status,
+            phases,
+          });
+        })
+        .catch((err) => {
+          setError(`Unable to restore drill status for ${node}: ${err.message}`);
+        });
+    });
+  }, [state.wsStatus, state.nodes, apiBase, wsSend]);
+
   const triggerDrill = useCallback(async () => {
     if (!target || busy) return;
     setError(null); setBusy(true);
     try {
-      const result = await triggerDrDrill({ node: target, dryRun: true, apiBase });
+      const result = await drClient.trigger(target, { dryRun: true, apiBase });
       dispatch({ type: 'DRILL_STARTED', node: target, drillId: result.drill_id });
       wsSend({ action: 'subscribe_drill', drill_id: result.drill_id });
     } catch (err) {
@@ -468,7 +508,7 @@ export function DrCommandCenter({
 
   const resetNode = useCallback(async (node) => {
     try {
-      await resetDrState({ node, apiBase });
+      await drClient.reset(node, { apiBase });
       dispatch({ type: 'RESET_NODE', node });
     } catch (err) {
       setError(err.message);

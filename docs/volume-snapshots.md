@@ -103,6 +103,30 @@ spec:
     # ...
 ```
 
+## Pre-upgrade snapshot safety
+
+Set `spec.upgradeSafety` on a Validator to snapshot the data PVC **before** a version change. The controller:
+
+1. Detects `spec.version` differs from the running StatefulSet image tag.
+2. Sets `spec.updateStrategy.rollingUpdate.partition` to the replica count so the rollout cannot replace pods.
+3. Creates a `VolumeSnapshot` (`snapshot.storage.k8s.io/v1`) of the data PVC.
+4. Requeues until `status.readyToUse` is true (no blocking wait in the Tokio loop).
+5. On ReadyToUse, resets partition to `0` and applies the new image.
+6. On CSI errors, missing snapshot class, or timeout, the upgrade stays halted and a Warning Event (`PreUpgradeSnapshotFailed` / `PreUpgradeSnapshotTimedOut`) is emitted.
+
+```yaml
+spec:
+  version: "22.0.0"
+  upgradeSafety:
+    enabled: true
+    volumeSnapshotClassName: csi-gce-pd-snapshot-class
+    flushBeforeSnapshot: true
+    readyTimeoutSeconds: 300
+    haltOnCsiUnavailable: true
+```
+
+`spec.backupConfig` remains supported as a fallback when `upgradeSafety` is unset.
+
 ## Restore from snapshot
 
 To bootstrap a **new** Validator from an existing snapshot:

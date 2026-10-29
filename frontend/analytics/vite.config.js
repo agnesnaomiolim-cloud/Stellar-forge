@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
@@ -13,6 +16,7 @@ export default defineConfig(({ mode }) => ({
         perf: path.resolve(__dirname, 'perf.html'),
         anomalies: path.resolve(__dirname, 'anomalies.html'),
       },
+      external: ['d3'],
     },
   },
   resolve: {

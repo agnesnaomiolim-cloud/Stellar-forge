@@ -45,8 +45,8 @@ Related documents:
 
 - [1. Reference hardware topology](#1-reference-hardware-topology)
 - [2. Prerequisites](#2-prerequisites)
-- [3. Path A — Talos Linux](#3-path-a--talos-linux)
-- [4. Path B — kubeadm](#4-path-b--kubeadm)
+- [3. Path A — Talos Linux](#3-path-a-talos-linux)
+- [4. Path B — kubeadm](#4-path-b-kubeadm)
 - [5. Physical network topology](#5-physical-network-topology)
 - [6. Local storage provisioning](#6-local-storage-provisioning)
 - [7. Deploy Stellar-K8s on local volumes](#7-deploy-stellar-k8s-on-local-volumes)

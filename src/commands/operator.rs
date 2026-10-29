@@ -493,6 +493,8 @@ pub async fn run_operator(args: RunArgs) -> Result<(), Error> {
         info!("Finalizer cleanup recovery controller spawned");
     }
 
+    info!("Background worker initialized successfully");
+
     let result = tokio::select! {
         res = controller::run_controller(state) => {
             res

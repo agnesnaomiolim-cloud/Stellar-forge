@@ -7,7 +7,7 @@ minutes**, most of it the first Rust build.
 
 If you would rather use k3d, see [k3d local development](../development.md).
 For the full reference on building, testing and contributing, see
-[DEVELOPMENT.md](../../DEVELOPMENT.md).
+[DEVELOPMENT.md](https://github.com/OtowoOrg/Stellar-K8s/blob/main/DEVELOPMENT.md).
 
 ---
 
@@ -18,6 +18,7 @@ For the full reference on building, testing and contributing, see
 - [The 15-minute path](#the-15-minute-path)
 - [Hot-reloading the operator](#hot-reloading-the-operator)
 - [Integration tests against kind](#integration-tests-against-kind)
+- [Running tests for a single package](#running-tests-for-a-single-package)
 - [Makefile shortcuts](#makefile-shortcuts)
 - [Diagnostics](#diagnostics)
 - [Teardown](#teardown)
@@ -82,6 +83,12 @@ chmod +x kubectl && sudo mv kubectl /usr/local/bin/
 curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 ```
 
+> **Troubleshooting Docker socket permissions.** If `docker ps` or `kind` fails
+> with `permission denied while trying to connect to the Docker daemon socket at
+> unix:///var/run/docker.sock`, your shell has not picked up the `docker` group
+> yet. Run `sudo usermod -aG docker "$USER"` followed by `newgrp docker` (or log
+> out and back in) — see [Diagnostics](#docker-socket-permission-denied) below.
+
 Raise the inotify limits before running `kind` or `cargo watch`. Both consume
 watches aggressively, and the default limits on most distributions are low
 enough that clusters fail to start with cryptic errors:
@@ -142,7 +149,7 @@ hot-reloading will silently not fire.
 From a clean clone:
 
 ```bash
-git clone https://github.com/agnesnaomiolim-cloud/Stellar-K8s.git
+git clone https://github.com/OtowoOrg/Stellar-K8s.git
 cd Stellar-K8s
 
 # 1. Toolchain: rustup components, cargo-audit, cargo-watch, pre-commit hooks
@@ -272,6 +279,35 @@ make ci-local   # fmt-check + lint + audit + test + build
 
 ---
 
+## Running tests for a single package
+
+This workspace contains multiple crates. Running the full suite on every change
+is slow, so during development target just the package you are editing. The
+operator crate is `stellar-operator`; use `-p` (or `--package`) to scope cargo
+to it:
+
+```bash
+# Run all tests for the operator crate only
+cargo test -p stellar-operator
+
+# Run a single test module or function within that package
+cargo test -p stellar-operator reconcile
+cargo test -p stellar-operator reconcile_creates_deployment
+
+# Run a specific integration suite in that package
+cargo test -p stellar-operator --test e2e_kind -- --ignored --nocapture
+
+# Compile the package's tests without running them (fast feedback)
+cargo test -p stellar-operator --no-run
+
+# See the exact package name if you are unsure
+cargo metadata --no-deps --format-version 1 | grep '" name"'
+```
+
+To also run the doctests for that package, add `--doc`.
+
+---
+
 ## Makefile shortcuts
 
 `make help` prints the full list. The ones that matter day to day:
@@ -297,6 +333,28 @@ make ci-local   # fmt-check + lint + audit + test + build
 ---
 
 ## Diagnostics
+
+### Docker socket `permission denied`
+
+If `docker ps`, `kind create cluster`, or `make quickstart` fails with:
+
+```text
+permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock
+```
+
+your user is not in the `docker` group (or your current login session predates
+the group change). Add your user to the `docker` group and reload group
+membership:
+
+```bash
+sudo groupadd -f docker
+sudo usermod -aG docker "$USER"
+newgrp docker   # activate in the current shell, or log out and back in
+docker ps       # confirm non-root access works
+```
+
+> **Security note.** Membership in the `docker` group grants privileges
+> equivalent to `root` on the host. Only add trusted local development accounts.
 
 ### The cluster never becomes ready, or nodes go `NotReady`
 
@@ -340,6 +398,21 @@ docker system prune -a --volumes   # removes unused images/volumes, not your clu
 If the operator's PVCs fill the node, delete the sample and reapply:
 `kubectl delete -f config/samples/test-stellarnode.yaml`.
 
+### Build fails: missing `wasm32-unknown-unknown` target
+
+The build requires the `wasm32-unknown-unknown` Rust target. If it is missing,
+the build fails with an error about the target not being installed. Add it:
+
+```bash
+rustup target add wasm32-unknown-unknown
+```
+
+Verify it is installed:
+
+```bash
+rustup target list --installed | grep wasm32-unknown-unknown
+```
+
 ### `cargo watch` does not rebuild on save
 
 Either the inotify limits above, or the source tree is on a mounted Windows/host
@@ -367,6 +440,23 @@ can exceed that. The release is still installing — watch it, then re-run
 ```bash
 kubectl get pods -n stellar-system -w
 ```
+
+### Docker socket permission denied (`permission denied while trying to connect to the Docker daemon socket`)
+
+If running `docker ps` or `make quickstart` fails with a permission error connecting to `/var/run/docker.sock`, your user has not been granted access to the Docker daemon socket:
+
+```bash
+# 1. Create the docker group (if it does not already exist)
+sudo groupadd docker
+
+# 2. Add your current user to the docker group
+sudo usermod -aG docker "$USER"
+
+# 3. Apply the new group membership in your active terminal session
+newgrp docker
+```
+
+> **Note:** Alternatively, log out and log back in (or restart your session) for the new group membership to take effect across all terminal windows. Verify the fix by running `docker ps` without `sudo`.
 
 ---
 

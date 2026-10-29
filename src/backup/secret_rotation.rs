@@ -864,10 +864,10 @@ mod tests {
             return;
         };
         let scheduler = SecretRotationScheduler::new(config.clone(), client);
-
         let password = scheduler.generate_secure_password();
+
         assert_eq!(password.len(), config.password_length);
-        assert!(password.chars().all(|c| c.is_alphanumeric()));
+        assert!(password.chars().all(|c| c.is_ascii_alphanumeric()));
     }
 
     #[tokio::test]
@@ -878,18 +878,12 @@ mod tests {
             return;
         };
         let scheduler = SecretRotationScheduler::new(config, client);
-
-        // Use a clearly-placeholder value so secret-audit scanners ignore it.
         let password = "test_password_placeholder";
         let hash = scheduler.hash_password(password);
 
-        // SHA256 produces 64 character hex string
         assert_eq!(hash.len(), 64);
         assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
-
-        // Same password should produce same hash
-        let hash2 = scheduler.hash_password(password);
-        assert_eq!(hash, hash2);
+        assert_eq!(scheduler.hash_password(password), hash);
     }
 
     #[test]
@@ -915,8 +909,12 @@ mod tests {
     #[tokio::test]
     async fn test_mtls_certificate_bundle_generation_and_rotation() {
         let config = MtlsConfig::default();
-        let engine = MtlsRotationEngine::new(config, Client::try_default().await.unwrap());
+        let Ok(client) = Client::try_default().await else {
+            eprintln!("skipping test_mtls_certificate_bundle_generation_and_rotation: no Kubernetes client available");
+            return;
+        };
 
+        let engine = MtlsRotationEngine::new(config, client);
         let first = engine.generate_bundle().expect("generate first bundle");
         let second = engine.generate_bundle().expect("generate rotated bundle");
 

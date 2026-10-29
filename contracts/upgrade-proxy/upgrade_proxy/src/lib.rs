@@ -67,6 +67,9 @@
 pub mod error;
 pub mod storage;
 pub mod timelock;
+#[cfg(test)]
+#[path = "../../src/test.rs"]
+mod test;
 
 use error::ProxyError;
 use storage::DataKey;

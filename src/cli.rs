@@ -685,3 +685,7 @@ mod cli_tests {
 #[cfg(test)]
 #[path = "cli_tests.rs"]
 mod cli_tests_ext;
+
+#[cfg(test)]
+#[path = "cli_flag_parsing_tests.rs"]
+mod cli_flag_parsing_tests;

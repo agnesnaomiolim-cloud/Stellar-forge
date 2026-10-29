@@ -33,7 +33,6 @@
 
 use futures::future::BoxFuture;
 use futures::FutureExt;
-use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -94,6 +93,7 @@ use super::remediation;
 use super::resources;
 use super::secret_watcher;
 use super::service_mesh;
+use super::upgrade_snapshot;
 use super::spot_drain;
 use super::sync_scale;
 use super::sync_state_monitor;
@@ -742,6 +742,18 @@ async fn workload_resource_exists(client: &Client, node: &StellarNode) -> Result
             }
         }
     }
+}
+
+pub(crate) fn extract_recent_health_or_err(
+    recent_health: Option<health::HealthCheckResult>,
+    namespace: &str,
+    name: &str,
+) -> Result<health::HealthCheckResult> {
+    recent_health.ok_or_else(|| {
+        Error::ConfigError(format!(
+            "Missing recent health check result for {namespace}/{name} after skipping status poll"
+        ))
+    })
 }
 
 pub(crate) fn build_pre_upgrade_snapshot_name(node: &StellarNode, version: &str) -> String {
@@ -2016,6 +2028,33 @@ pub(crate) fn apply_stellar_node(
             .await
             .unwrap_or(false);
 
+        // 4.5 Snapshot-gated upgrades: pause StatefulSet until VolumeSnapshot is ReadyToUse.
+        if node.spec.node_type == NodeType::Validator {
+            if let Some(cfg) = upgrade_snapshot::effective_backup_config(&node.spec) {
+                let current_version = get_current_statefulset_version(&client, &node).await?;
+                match reconcile_pre_upgrade_snapshot(
+                    &client,
+                    &ctx.event_reporter,
+                    &node,
+                    &cfg,
+                    current_version.as_deref(),
+                )
+                .await
+                {
+                    Ok(true) => {
+                        upgrade_snapshot::resume_statefulset_rollout(&client, &node).await?;
+                    }
+                    Ok(false) => {
+                        upgrade_snapshot::pause_statefulset_rollout(&client, &node).await?;
+                        return Ok(Action::requeue(Duration::from_secs(10)));
+                    }
+                    Err(e) => {
+                        upgrade_snapshot::pause_statefulset_rollout(&client, &node).await?;
+                        return Err(e);
+                    }
+                }
+            }
+        }
 
         // 5. Create/update the Deployment/StatefulSet based on node type
         let workload_result = apply_or_emit!(
@@ -2643,7 +2682,7 @@ pub(crate) fn apply_stellar_node(
         }
 
         let health_result = if skipped_poll {
-            recent_health.unwrap()
+            extract_recent_health_or_err(recent_health, &namespace, &name)?
         } else {
             health::check_node_health(&client, &node, ctx.mtls_config.as_ref()).await?
         };
@@ -3747,7 +3786,6 @@ async fn measure_canary_error_rate(
     namespace: &str,
 ) -> Result<f64> {
     use k8s_openapi::api::core::v1::Pod;
-    use std::time::Duration;
 
     let canary_name = format!("{}-canary", node.name_any());
     let pod_api: Api<Pod> = Api::namespaced(client.clone(), namespace);
@@ -4750,6 +4788,44 @@ pub async fn reconcile_for_fuzz(
     reconcile(obj, ctx).await
 }
 
+/// Calculate retry duration based on error retriability, retry count, reconciler config, and retry budgets.
+pub(crate) fn calculate_retry_duration(
+    is_retriable: bool,
+    retry_count: u32,
+    config: &super::operator_config::ReconcilerConfig,
+    retry_budget_retriable_secs: u64,
+    retry_budget_nonretriable_secs: u64,
+) -> Duration {
+    if is_retriable {
+        // If custom retriable budget is provided and different from default, use it;
+        // otherwise calculate backoff from reconciler config
+        if retry_budget_retriable_secs > 0 && retry_budget_retriable_secs != 15 {
+            Duration::from_secs(retry_budget_retriable_secs)
+        } else {
+            config.calculate_backoff(retry_count)
+        }
+    } else {
+        if retry_budget_nonretriable_secs > 0 && retry_budget_nonretriable_secs != 60 {
+            Duration::from_secs(retry_budget_nonretriable_secs)
+        } else {
+            Duration::from_secs(config.requeue_interval)
+        }
+    }
+}
+
+/// Calculate exponential backoff duration for a given retry attempt.
+///
+/// Wraps exponential backoff math with a base delay, multiplier, and maximum cap.
+pub fn calculate_exponential_backoff(
+    attempt: u32,
+    base_secs: u64,
+    max_secs: u64,
+) -> Duration {
+    let multiplier = 2u64.saturating_pow(attempt);
+    let backoff_secs = base_secs.saturating_mul(multiplier).min(max_secs);
+    Duration::from_secs(backoff_secs)
+}
+
 /// Error policy determines how to handle reconciliation errors
 pub(crate) fn error_policy(
     node: Arc<StellarNode>,
@@ -4789,11 +4865,13 @@ pub(crate) fn error_policy(
         .unwrap_or(0);
 
     // Apply operator retry budget based on error retriability.
-    let retry_duration = if error.is_retriable() {
-        Duration::from_secs(ctx.retry_budget_retriable_secs)
-    } else {
-        Duration::from_secs(ctx.retry_budget_nonretriable_secs)
-    };
+    let retry_duration = calculate_retry_duration(
+        error.is_retriable(),
+        retry_count,
+        &ctx.operator_config.reconciler,
+        ctx.retry_budget_retriable_secs,
+        ctx.retry_budget_nonretriable_secs,
+    );
 
     debug!(
         "Requeuing {} after {:?} (retry_count: {}, retriable: {})",

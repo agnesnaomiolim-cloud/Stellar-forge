@@ -34,6 +34,10 @@ hooks:
 
 webhook:
   enabled: false
+  # Whether cert-manager pulls in the TLS certificate for the webhook.
+  # When false, the caBundle must be injected manually.
+  certManager:
+    enabled: false
 
 # ── WASM Bytecode Optimizer Sidecar (issue #325) ─────────────────────────────
 # Deploys the wasm-opt Alpine sidecar and a MutatingWebhookConfiguration that
@@ -63,13 +67,106 @@ wasmOptimizer:
       cpu: "500m"
       memory: "256Mi"
 
+# ── Vault Validator Seed Injector (issue #224) ─────────────────────────────
+# Registers a MutatingWebhookConfiguration that intercepts Stellar Core pods
+# annotated `stellar.io/vault-injection: "enabled"` and injects a Vault-backed
+# init container plus a memory-only tmpfs volume carrying the generated
+# stellar-core.cfg.  Requires webhook.enabled=true.
+vaultInjector:
+  enabled: false
+  # Kubernetes admission webhook timeout (max 10 s per K8s spec).
+  webhookTimeoutSeconds: 10
+  # Ignore = fail-open; injector failures never block node startup.
+  failurePolicy: "Ignore"
+  # Extra namespaces the injector must never intercept.
+  skipNamespaces: []
+
+# ── Monitoring (ServiceMonitor / PodMonitor / PrometheusRule / dashboards) ─
+# Templates reference these unconditionally; disabled by default.
+monitoring:
+  enabled: false
+  grafanaDashboards:
+    enabled: false
+    labels: {}
+  podMonitor:
+    enabled: false
+    interval: 30s
+    portName: metrics
+    wasmCachePortName: wasm-cache-metrics
+    labels: {}
+    selector:
+      matchExpressions: []
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+  prometheusRule:
+    enabled: false
+    labels: {}
+    ledgerCloseTimeThresholdSeconds: 5
+    ingestionLagThresholdSeconds: 60
+    additionalRules: []
+    certAlerts:
+      criticalDays: 3
+      warningDays: 30
+    costAlerts: {}
+    rateLimitAlerts: {}
+
+# SCP analytics sidecar (scp-kafka-sidecar.yaml); disabled by default.
+scpAnalytics:
+  enabled: false
+  kafka:
+    bootstrapServers: ""
+    brokers: []
+    topic: ""
+    schemaRegistryUrl: ""
+    pollIntervalSecs: 5
+    lingerMs: 100
+    batchSize: 200
+    compression: snappy
+    format: json
+    enableDeduplication: true
+    partitioningEnabled: true
+    partitionCount: 25
+    partitionSeed: "0x123456789abcdef"
+    sasl:
+      mechanism: PLAIN
+      username: ""
+      password: ""
+  consumer:
+    replicas: 1
+    groupId: stellar-scp-analytics
+    logLevel: info
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+    podSecurityContext: {}
+
+# GitOps secret sidecar toggle (deployment.yaml templates).
+gitopsSecrets:
+  enabled: false
+  tmpfsSizeLimit: "16Mi"
+  mountPath: "/var/run/stellar/gitops-secrets"
+horizonHpa:
+  enabled: false
+  namespace: "stellar"
+  stellarNodeName: ""
+  targetDeployment: ""
+  minReplicas: 1
+  maxReplicas: 10
+  tpsTargetPerReplica: 100
+  queueLengthTarget: 10
+  scaleUpStabilizationSeconds: 60
+  scaleDownStabilizationSeconds: 300
 mtls:
   enabled: false
 
 certManagement:
-  enabled: false
-
-horizonHpa:
   enabled: false
 
 rateLimiting:
@@ -141,6 +238,10 @@ podSecurityContext:
   runAsGroup: 65532
   fsGroup: 65532
 
+# Default: unprivileged. eBPF network telemetry (issue #470) needs CAP_BPF,
+# CAP_PERFMON, and CAP_NET_ADMIN on the collector container when enabled; the
+# operator falls back to standard Prometheus metrics if those caps are absent.
+# See docs/ebpf-network-telemetry.md.
 securityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
@@ -184,6 +285,8 @@ arch: ""
 #     operator: "Equal"
 #     value: "arm64"
 #     effect: "NoSchedule"
+# Namespace watch scoping used by rbac.yaml (empty = cluster-wide).
+watchNamespace: ""
 
 # PodDisruptionBudget configuration for operator deployment
 podDisruptionBudget:
@@ -286,6 +389,7 @@ defaultResources:
 
 # Feature flags — toggle operator capabilities at runtime without restart.
 featureFlags:
+  rollouts: false
   enableCveScanning: false
   enableReadPool: false
   enableDr: false
@@ -331,6 +435,8 @@ security:
     failurePolicy: Fail
   imagePolicy:
     allowLatestTag: false
+
+    internalSubnets: []
 
 # Network Isolation — prevents cross-network traffic between Mainnet and Testnet namespaces.
 #
@@ -411,7 +517,7 @@ byzantineWatcher:
     tag: ""          # defaults to .Values.image.tag / chart appVersion
     pullPolicy: IfNotPresent
 
-  # Default Stellar workflow for all watchers (can be overridden per region).
+  # Default Stellar network for all watchers (can be overridden per region).
   defaultNetwork: "mainnet"
 
   # How often each watcher polls its Stellar Core node (seconds).
@@ -478,7 +584,13 @@ otel:
       repository: otel/opentelemetry-collector-contrib
       tag: "0.99.0"
       pullPolicy: IfNotPresent
-    resources: {}
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
     config:
       honeycomb:
         enabled: false
@@ -601,3 +713,10 @@ failover:
     requests:
       cpu: 50m
       memory: 64Mi
+
+# Cross-region failover settings (disabled by default)
+crossRegion:
+  enabled: false
+
+# Extra pod annotations
+extraAnnotations: {}

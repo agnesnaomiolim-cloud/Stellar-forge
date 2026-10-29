@@ -12,7 +12,7 @@ metadata:
     app.kubernetes.io/component: validator
     stellar.org/network: testnet
 spec:
-  # Node type: Validator (requires persistent storage for ledger data)
+  # nodeType: Validator (requires persistent storage for ledger data)
   nodeType: Validator
 
   # Network configuration
@@ -107,7 +107,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: fast-ssd
-provisioner: kubernetes.io/aws-ebs  # Or ebs.csi.aws.com for CSI driver
+provisioner: ebs.csi.aws.com
 parameters:
   type: gp3
   iops: "3000"

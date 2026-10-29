@@ -72,7 +72,10 @@ __pycache__/
 *.pyc
 
 # Orphaned NPM lock file (no package.json at root)
-package-lock.json
+/package-lock.json
+
+# NPM dependencies
+node_modules/
 
 # AI agent tooling
 .antigravitycli/

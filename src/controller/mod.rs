@@ -108,6 +108,7 @@ pub mod secret_watcher;
 pub mod security;
 pub mod service_mesh;
 pub mod snapshot;
+pub(crate) mod upgrade_snapshot;
 pub mod snapshot_worker;
 pub mod spot_drain;
 pub mod storage;
@@ -115,6 +116,7 @@ pub mod storage_migration;
 pub(crate) mod sync_scale;
 pub(crate) mod sync_state_monitor;
 
+#[path = "topology.rs"]
 pub mod topology;
 pub mod traffic;
 #[cfg(test)]
@@ -196,7 +198,7 @@ pub use pss::{
     restricted_pod_security_context, validate_pss_compliance, PssViolation,
 };
 #[cfg(feature = "reconciler-fuzz")]
-pub use reconciler::reconcile_for_fuzzz;
+pub use reconciler::reconcile_for_fuzz;
 pub use reconciler::{run_controller, BatchSummaryReport, ControllerState};
 
 pub use service_mesh::{

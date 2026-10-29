@@ -2,6 +2,9 @@
 name = "stellar-telemetry"
 version = "0.1.0"
 edition = "2021"
+
+# Standalone workspace so unit tests can run without the operator crate's private registry deps.
+[workspace]
 authors = ["Stellar K8s Contributors"]
 description = "Prometheus metrics exporter and rate-limiter proxy for Stellar nodes"
 license = "Apache-2.0"
@@ -38,6 +41,9 @@ regex = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
+# Error handling for log parser
+thiserror = "1"
+
 # Pinned to fix RUSTSEC-2026-0009
 time = "0.3.47"
 # Pinned to fix RUSTSEC-2026-0007
@@ -53,4 +59,8 @@ reqwest = { version = "0.12", default-features = false, features = [
 
 [[bench]]
 name = "parser_throughput"
+harness = false
+
+[[bench]]
+name = "ebpf_overhead"
 harness = false

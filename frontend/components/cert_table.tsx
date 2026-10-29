@@ -690,6 +690,7 @@ export const CertTable: React.FC<CertTableProps> = ({
                                                                         ? "Show fewer SANs"
                                                                         : `Show all ${cert.sans.length} SANs`
                                                                 }
+                                                                aria-expanded={isExpandedSans}
                                                             >
                                                                 {isExpandedSans
                                                                     ? "▲ Show less"

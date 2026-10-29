@@ -282,7 +282,6 @@ fn parse_cpu_millicores(s: &str) -> Option<u64> {
     if let Some(stripped) = s.strip_suffix('m') {
         stripped.parse::<u64>().ok()
     } else {
-        // Whole cores — multiply by 1000
         s.parse::<f64>().ok().map(|v| (v * 1000.0) as u64)
     }
 }

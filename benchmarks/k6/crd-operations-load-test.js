@@ -40,7 +40,7 @@ export default function () {
   const headers = { 'Content-Type': 'application/json' };
 
   let res = http.post(`${BASE_URL}/apis/stellar.org/v1alpha1/namespaces/${NAMESPACE}/stellarnodes`, createPayload, { headers });
-  check(res, { 'create status is 201 or 200': (r) => r.status === 201 || r.status === 200 || r.status === 409 });
+  check(res, { 'create status is 201 or 200 or 409': (r) => r.status === 201 || r.status === 200 || r.status === 409 });
 
   sleep(0.1);
 

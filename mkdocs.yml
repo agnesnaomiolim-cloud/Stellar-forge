@@ -119,9 +119,11 @@ nav:
       - Production Profiling Runbook: operations/profiling-runbook.md
       - Core Blue/Green Runbook: operations/core-blue-green-runbook.md
       - Split-Brain Recovery Runbook: operations/split-brain-recovery.md
+      - GitOps Disaster Recovery & State Rollback: operations/dr-gitops-rollback.md
       - OpenTelemetry Tracing: observability/tracing.md
       - Distributed Rate Limiting: distributed-rate-limiting.md
       - Feature Flag Rollouts: feature-flag-rollouts.md
+      - Kafka Event Streaming Bridge: event-bridge.md
   - Troubleshooting:
       - troubleshooting/index.md
       - Common Issues: troubleshooting/common-issues.md
@@ -144,6 +146,7 @@ nav:
       - Security Compliance Guide: security/compliance-guide.md
       - Container Image Security: container-image-security.md
       - Credentials & Secrets: security/credentials-and-secrets.md
+      - Vault Seed Injection Webhook: security/vault-webhook-injection.md
       - Key Sharding & Seed Custody: security/key-sharding.md
       - Pod Security Standards: security/pss.md
       - Automated Dependency Updates: security/dependency-updates.md

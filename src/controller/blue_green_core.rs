@@ -1830,7 +1830,7 @@ async fn run_cutover_steps(
                         &node.name_any(),
                         &PatchParams::apply("stellar-operator-bg").force(),
                         &Patch::Merge(&serde_json::json!({
-                            "metadata": { "annotations": { ANN_PUBLISH_ROLLOUT: rollout_token } }
+                            "metadata": { "annotations": { "stellar.org/bg-publish-rollout": rollout_token } }
                         })),
                     )
                     .await;
@@ -1872,8 +1872,8 @@ async fn run_cutover_steps(
                         &Patch::Merge(&serde_json::json!({
                             "metadata": {
                                 "annotations": {
-                                    ANN_CUTOVER_AT: Utc::now().to_rfc3339(),
-                                    ANN_CUTOVER_STEP: CutoverStep::Complete.as_str(),
+                                    "stellar.org/bg-cutover-at": Utc::now().to_rfc3339(),
+                                    "stellar.org/bg-cutover-step": CutoverStep::Complete.as_str(),
                                 }
                             }
                         })),

@@ -19,6 +19,13 @@ data:
     lingerMs: {{ .Values.scpAnalytics.kafka.lingerMs | default 100 }}
     enableDeduplication: {{ .Values.scpAnalytics.kafka.enableDeduplication | default true }}
     pollIntervalSecs: {{ .Values.scpAnalytics.kafka.pollIntervalSecs | default 1 }}
+    # Dynamic partitioning configuration.
+    # When enabled, SCP telemetry is routed to a stable partition derived
+    # from the quorum-set identity and ledge sequence. When disabled,
+    # all messages go to partition 0 for backward compatibility.
+    partitioningEnabled: {{ dig "partitioningEnabled" true .Values.scpAnalytics.kafka }}
+    partitionCount: {{ .Values.scpAnalytics.kafka.partitionCount | default 25 }}
+    partitionSeed: {{ .Values.scpAnalytics.kafka.partitionSeed | default "0x123456789abcdef" | quote }}
     {{- if .Values.scpAnalytics.kafka.schemaRegistryUrl }}
     schemaRegistryUrl: {{ .Values.scpAnalytics.kafka.schemaRegistryUrl | quote }}
     {{- end }}
@@ -28,7 +35,6 @@ data:
       username: {{ .Values.scpAnalytics.kafka.sasl.username | quote }}
       password: {{ .Values.scpAnalytics.kafka.sasl.password | quote }}
     {{- end }}
-
 ---
 # Deployment for Topology Health Consumer
 apiVersion: apps/v1
@@ -75,6 +81,10 @@ spec:
               value: {{ .Values.scpAnalytics.kafka.topic | default "stellar-scp-messages" | quote }}
             - name: CONSUMER_GROUP_ID
               value: {{ .Values.scpAnalytics.consumer.groupId | default "topology-health-consumer" | quote }}
+            - name: KAFKA_PARTITIONING_ENABLED
+              value: {{ dig "partitioningEnabled" true .Values.scpAnalytics.kafka | quote }}
+            - name: KAFKA_PARTITION_COUNT
+              value: {{ .Values.scpAnalytics.kafka.partitionCount | default 25 | quote }}
           volumeMounts:
             - name: kafka-config
               mountPath: /etc/kafka

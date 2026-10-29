@@ -3,6 +3,8 @@ name = "rate-limiter"
 version = "0.1.0"
 edition = "2021"
 
+[workspace]
+
 [dependencies]
 soroban-sdk = "20.0.0"
 

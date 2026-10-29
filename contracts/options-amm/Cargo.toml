@@ -1,0 +1,19 @@
+[package]
+name = "options-amm"
+version = "0.1.0"
+edition = "2021"
+description = "Decentralized options AMM liquidity pool for Soroban"
+license = "Apache-2.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = []
+testutils = ["sorban-sdk/testutils"]
+
+[dependencies]
+sorban-sdk = { version = "21.0.0", features = ["allocate"] }
+
+[dev-dependencies]
+sorban-sdk = { version = "21.0.0", features = ["testutils"] }

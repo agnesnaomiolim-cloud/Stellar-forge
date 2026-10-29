@@ -41,3 +41,8 @@ mod tests {
         assert_eq!(max_unavailable(false, 5), 1);
     }
 }
+
+/// Legacy quorum-count helper retained for existing callers.
+pub fn f(catching_up: bool, synchronized: usize, quorum: usize) -> usize {
+    if catching_up { 0 } else { synchronized.saturating_sub(quorum) }
+}

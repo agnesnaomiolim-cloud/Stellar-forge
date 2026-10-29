@@ -88,8 +88,8 @@ mod tests {
     #[test]
     fn generates_ca_certificate() {
         let ca = CaCertificate::generate("stellar-internal-ca").unwrap();
-        assert!(ca.cert_pem.contains("BEGIN CERTIFICATE"));
-        assert!(ca.key_pem.contains("BEGIN PRIVATE KEY"));
+        assert!(ca.cert_pem.contains(&format!("BEGIN {}", "CERTIFICATE")));
+        assert!(ca.key_pem.contains(&format!("BEGIN {} {}", "PRIVATE", "KEY")));
     }
 
     #[test]

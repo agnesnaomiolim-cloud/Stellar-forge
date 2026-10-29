@@ -7,6 +7,8 @@ metadata:
   labels:
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit-version: latest
+    pod-security.kubernetes.io/warn-version: latest
 ---
 apiVersion: v1
 kind: Namespace
@@ -26,6 +28,9 @@ kind: ServiceAccount
 metadata:
   name: stellar-operator
   namespace: stellar-system
+  labels:
+    app.kubernetes.io/name: stellar-operator
+    app.kubernetes.io/component: controller
 ---
 # Pre-create this named runtime object so the operator does not need broad
 # ConfigMap creation in stellar-system. Reapply this manifest if it is deleted.

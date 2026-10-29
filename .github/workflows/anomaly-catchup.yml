@@ -5,6 +5,8 @@ on:
     paths:
       - frontend/**
       - controller/**
+      - Cargo.toml
+      - Cargo.lock
       - src/controller/snapshot/reconciler.rs
       - .github/workflows/anomaly-catchup.yml
   push:
@@ -12,6 +14,8 @@ on:
     paths:
       - frontend/**
       - controller/**
+      - Cargo.toml
+      - Cargo.lock
       - src/controller/snapshot/reconciler.rs
       - .github/workflows/anomaly-catchup.yml
 
@@ -52,9 +56,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-rust
         with:
-          workspaces: controller
+          workspaces: "."
           cache-key: ci-catchup
-      - name: Resolve standalone controller dependencies
-        run: cargo generate-lockfile
       - name: Test catchup downloader
-        run: cargo test --locked catchup
+        run: cargo test --locked -p controller catchup

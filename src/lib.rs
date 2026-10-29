@@ -113,6 +113,7 @@ pub mod deployment_strategy;
 pub mod error;
 
 pub mod fork_detector;
+pub mod gateway;
 pub mod incident;
 pub mod infra;
 pub mod load_balancer;
@@ -136,7 +137,16 @@ pub mod simulation_cache;
 #[path = "telemetry.rs"]
 pub mod telemetry;
 pub mod version_check;
+pub mod wasm;
 pub mod websocket_streaming;
+
+pub use crate::security::eso_integration::{
+    EsoProvider, EsoSecretStoreConfig, ExternalSecretStore, SecretStoreBackend,
+};
+pub use crate::security::rotation::{
+    NodeIdentity, RotationCoordinator, RotationPolicy, RotationState, RotationStatus,
+};
+pub use crate::wasm::sandbox_pool::{SandboxPool, SandboxPoolConfig};
 
 #[cfg(feature = "rest-api")]
 pub mod rest_api;

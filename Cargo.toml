@@ -109,6 +109,9 @@ stellar-wasm-cache = { path = "wasm-plugins" }
 # Intelligent Prometheus metrics rate-limiter proxy
 stellar-telemetry = { path = "telemetry" }
 
+# Shared controller APIs and optional WASM admission policy runner.
+controller = { path = "controller", default-features = false }
+
 # Wasm runtime for custom validation plugins
 wasmtime = { version = "36.0.18", optional = true }
 wasmtime-wasi = { version = "36.0.18", features = ["preview1"], optional = true }
@@ -170,6 +173,7 @@ metrics = ["prometheus-client", "once_cell"]
 admission-webhook = [
     "wasmtime",
     "wasmtime-wasi",
+    "controller/admission-webhook",
     "tokio-rustls",
     "axum",
     "tower",
@@ -181,6 +185,8 @@ axum = ["dep:axum"]
 kafka = ["rdkafka"]
 # Expose reconciler for state-machine fuzzing (reconcile_no_panic, event sequences)
 reconciler-fuzz = []
+# Runtime ConfigMap reload integration.
+config-hot-reload = []
 
 # Kubernetes API version selection (exactly one must be enabled)
 k8s-v1-30 = ["k8s-openapi/v1_30"]
@@ -220,6 +226,12 @@ path = "src/bin/soroban-cache-proxy.rs"
 
 # Byzantine Monitoring Watcher — deployed as a sidecar in multiple cloud regions
 # to detect local vs. global consensus issues (Byzantine partition detection).
+# Multi-region RPC router added upstream.
+[[bin]]
+name = "soroban-gateway-proxy"
+path = "src/bin/soroban-gateway-proxy.rs"
+required-features = ["rest-api"]
+
 [[bin]]
 name = "stellar-watcher"
 path = "src/bin/stellar-watcher.rs"
@@ -239,4 +251,4 @@ name = "stellar-metrics-proxy"
 path = "src/bin/stellar-metrics-proxy.rs"
 
 [workspace]
-members = ["wasm-plugins", "telemetry", "security/p2p-firewall"]
+members = ["wasm-plugins", "telemetry", "security/p2p-firewall", "controller"]

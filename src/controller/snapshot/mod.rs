@@ -29,3 +29,9 @@ pub mod verifier;
 
 pub use reconciler::{ReconcileOutcome, SnapshotReconciler, SnapshotReconcilerConfig, SnapshotRef};
 pub use verifier::{compute_sha256_sync, parse_sha256_sidecar, verify_file, VerificationResult};
+
+// Preserve the public CSI snapshot API alongside verified archive bootstrap.
+pub use super::csi_snapshot::{
+    create_pre_upgrade_snapshot, get_volume_snapshot_readiness, reconcile_snapshot,
+    request_db_flush, VolumeSnapshotReadiness,
+};

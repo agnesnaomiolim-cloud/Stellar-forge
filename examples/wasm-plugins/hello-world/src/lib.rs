@@ -25,6 +25,11 @@ use std::collections::BTreeMap;
 // ---------------------------------------------------------------------------
 // Host function imports
 // ---------------------------------------------------------------------------
+//
+// On the `wasm32-unknown-unknown` target these are imported from the `env`
+// module provided by the Stellar-K8s Wasmtime runtime.  On native targets
+// (for unit tests) the `host_stubs` module below provides matching
+// `#[no_mangle]` symbols so the linker resolves them at compile time.
 
 extern "C" {
     /// Returns the byte length of the JSON input waiting in the host buffer.
@@ -40,6 +45,61 @@ extern "C" {
 
     /// Emits a UTF-8 debug log line tagged `wasm_plugin` in the operator logs.
     fn log_message(ptr: *const u8, len: i32);
+}
+
+/// Native stubs for unit testing (never linked in the Wasm target).
+///
+/// The `#[no_mangle]` attributes ensure the symbol names match the `extern "C"`
+/// declarations above so the system linker resolves them at link time.
+#[cfg(not(target_arch = "wasm32"))]
+mod host_stubs {
+    use std::sync::Mutex;
+
+    /// Shared input buffer for native tests.  Set via `set_test_input`.
+    pub static TEST_INPUT: Mutex<Vec<u8>> = Mutex::new(Vec::new());
+    /// Captured output from `write_output` calls.
+    pub static TEST_OUTPUT: Mutex<Vec<u8>> = Mutex::new(Vec::new());
+
+    #[no_mangle]
+    pub extern "C" fn get_input_len() -> i32 {
+        TEST_INPUT.lock().unwrap().len() as i32
+    }
+
+    #[no_mangle]
+    pub extern "C" fn read_input(ptr: *mut u8, len: i32) -> i32 {
+        let input = TEST_INPUT.lock().unwrap();
+        let n = std::cmp::min(len as usize, input.len());
+        unsafe {
+            std::ptr::copy_nonoverlapping(input.as_ptr(), ptr, n);
+        }
+        n as i32
+    }
+
+    #[no_mangle]
+    pub extern "C" fn write_output(ptr: *const u8, len: i32) -> i32 {
+        let mut output = TEST_OUTPUT.lock().unwrap();
+        output.clear();
+        output.extend_from_slice(unsafe { std::slice::from_raw_parts(ptr, len as usize) });
+        0
+    }
+
+    #[no_mangle]
+    pub extern "C" fn log_message(_ptr: *const u8, _len: i32) {
+        // No-op in native tests.
+    }
+}
+
+/// Set the input buffer used by native tests.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn set_test_input(data: Vec<u8>) {
+    host_stubs::TEST_INPUT.lock().unwrap().clear();
+    host_stubs::TEST_INPUT.lock().unwrap().extend_from_slice(&data);
+}
+
+/// Retrieve the captured output from the last `write_output` call (native tests).
+#[cfg(not(target_arch = "wasm32"))]
+pub fn get_test_output() -> Vec<u8> {
+    host_stubs::TEST_OUTPUT.lock().unwrap().clone()
 }
 
 // ---------------------------------------------------------------------------
@@ -268,31 +328,26 @@ fn apply_policy(object: &serde_json::Value) -> ValidationOutput {
 
 /// Read and deserialise the JSON input from the host buffer.
 fn read_validation_input() -> Result<ValidationInput, String> {
-    unsafe {
-        let len = get_input_len();
-        if len <= 0 {
-            return Err(format!("get_input_len returned {len}"));
-        }
-
-        let mut buf = vec![0u8; len as usize];
-        let read = read_input(buf.as_mut_ptr(), len);
-        if read != len {
-            return Err(format!(
-                "read_input: expected {len} bytes, got {read}"
-            ));
-        }
-
-        serde_json::from_slice(&buf)
-            .map_err(|e| format!("JSON parse error: {e}"))
+    let len = unsafe { get_input_len() };
+    if len <= 0 {
+        return Err(format!("get_input_len returned {len}"));
     }
+
+    let mut buf = vec![0u8; len as usize];
+    let read = unsafe { read_input(buf.as_mut_ptr(), len) };
+    if read != len {
+        return Err(format!("read_input: expected {len} bytes, got {read}"));
+    }
+
+    serde_json::from_slice(&buf).map_err(|e| format!("JSON parse error: {e}"))
 }
 
 /// Serialise `output` and hand it to the host.
 fn write_output_struct(output: &ValidationOutput) {
     match serde_json::to_vec(output) {
-        Ok(json) => unsafe {
-            write_output(json.as_ptr(), json.len() as i32);
-        },
+        Ok(json) => {
+            let _ = unsafe { write_output(json.as_ptr(), json.len() as i32) };
+        }
         Err(e) => log(&format!("hello-world: failed to serialise output: {e}")),
     }
 }
