@@ -101,9 +101,9 @@ jobs:
             '^(docs/|scripts/generate-api-docs\.py|config/crd/|src/crd/|src/rest_api/|Makefile)')" \
             >> "$GITHUB_OUTPUT"
           echo "rust_core=$(_match \
-            '^(src/|Cargo\.toml|Cargo\.lock|Makefile|build\.rs)')" \
+            '^(src/|contracts/|Cargo\.toml|Cargo\.lock|Makefile|build\.rs)')" \
             >> "$GITHUB_OUTPUT"
-          echo "deps=$(_match '^(Cargo\.toml|Cargo\.lock)')" >> "$GITHUB_OUTPUT"
+          echo "deps=$(_match '^(Cargo\.toml|Cargo\.lock|contracts/.*/Cargo\.(toml|lock))')" >> "$GITHUB_OUTPUT"
           echo "examples=$(_match \
             '^(examples/|config/crd/|config/samples/)')" \
             >> "$GITHUB_OUTPUT"
@@ -620,7 +620,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
@@ -688,7 +688,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
@@ -761,7 +761,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 

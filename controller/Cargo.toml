@@ -38,8 +38,6 @@ libc = "0.2"
 # Logging
 tracing = "0.1"
 
-# Async trait support (used by ingestion::worker::LedgerProcessor)
-async-trait = "0.1"
 
 # Temporary files for wasm-opt subprocess I/O
 tempfile = "3"

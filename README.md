@@ -2,6 +2,33 @@
 
 Kubernetes operator and tooling for running Stellar Core and Soroban RPC nodes.
 
+## Quickstart
+
+Get a Stellar Core validator running on an existing Kubernetes cluster in under
+five minutes.
+
+**Prerequisites:** `kubectl` ≥ 1.28, `helm` ≥ 3.14, cluster with at least one
+node (kind, k3s, EKS, GKE, AKS all work).
+
+```bash
+# 1. Install the CRD
+kubectl apply -f config/crd/stellarnode-crd.yaml
+
+# 2. Deploy the operator via Helm
+helm install stellar-operator charts/stellar-operator \
+  --namespace stellar-system --create-namespace
+
+# 3. Apply a minimal validator manifest
+kubectl apply -f config/samples/minimal-validator.yaml
+
+# 4. Watch the node come up
+kubectl get stellarnodes -n stellar -w
+```
+
+Run `./scripts/quickstart-verify.sh` to validate your local setup before
+deploying to a cluster. See `make quickstart` for a fully automated local path
+using kind.
+
 ## WebAssembly Fail-Open Caching Layer for Soroban RPC State Reads
 
 High-frequency state reads from Soroban RPC nodes place significant load on the
