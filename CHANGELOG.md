@@ -5,6 +5,67 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 
+## Chart v2.39.0 (2026-10-31) [minor]
+
+• Merge pull request #640 from Princeadim/feat/zk-verifier-bls12-381-groth16-323
+✨ feat(zk-verifier): BLS12-381 Groth16 pairing verifier with Miller loop optimisation (#323)
+🐛 fix(ci): resolve 16 failing CI checks in PR #640
+• - helm: fix {{- end } syntax error in scp-kafka-sidecar.yaml (line 37)
+• - deps: remove duplicate async-trait key from controller/Cargo.toml
+• - values: remove all duplicate top-level keys from values.yaml
+•   (scpAnalytics, horizonHpa x2, byzantineWatcher x2, gitopsSecrets,
+•   featureFlags, monitoring)
+• - docs: add Quickstart section to README.md
+• - ci: standardize action versions repo-wide
+•   (setup-python → @v5, build-push-action → @v7, metadata-action → @v6)
+• - yaml: add missing newlines to 4 chaos test files + rbac.yaml
+• - license: add Apache-2.0 headers to all 1091 applicable files
+📝 ci: include contracts/ in rust_core and deps change detection
+• The change detector only watched src/, Cargo.toml, Cargo.lock, etc. at
+• the repo root level. Changes under contracts/ (like the zk-verifier
+• BLS12-381 Groth16 work in #323) produced false for all eight outputs,
+• causing every downstream job — lint, test, benchmark-sanity-check,
+• security-audit, etc. — to be skipped instead of run.
+• Add contracts/ to rust_core and contracts/**/Cargo.(toml|lock) to deps
+• so any change under the contracts workspace triggers the correct jobs.
+✨ feat(zk-verifier): implement BLS12-381 Groth16 pairing verifier (#323)
+• - Add BLS12-381 scalar field order constant (Fr order r = 0x73eda753...)
+• - Add BLS12-381 base field prime constants (Fp split into high/low halves)
+•   to enable G1/G2 point coordinate range checks
+• - Add BLS12-381 G1 generator x-coordinate constant for reference
+• - Add NAF (Non-Adjacent Form) representation of BLS12-381 seed x for
+•   loop-unrolled Miller loop iteration (64-entry i8 array, sparse with <10
+•   non-zero digits)
+• - Retain BN254 constants for backward compatibility with existing proofs
+• - Enhance validate_g1_point() and validate_g2_point() with BLS12-381 base
+•   field range checks (rejects coordinates > 0x1a... boundary)
+• - Implement miller_loop_budget() that iterates the NAF constant and charges
+•   per-step costs (MILLER_STEP_DOUBLE_INSTR + optional MILLER_STEP_ADD_INSTR)
+•   — straight-line unrolled by the WASM compiler to eliminate branch overhead
+• - Implement final_exp_budget() for BLS12-381 final exponentiation (5.2M instr
+•   covering easy part + Fuentes-Castañeda hard part)
+• - Implement msm_budget() with Pippenger multi-exp adjusted cost (~250k/point)
+• - Update pairing_check_4() with multi-Miller optimisation: one miller loop
+•   + one final exp for all 4 pairs (saves ~15.6M instr vs 4 separate pairs)
+• - Add PROTOCOL-23-HOOK comment marking exact replacement point for
+•   env.crypto().bls12_381_g1g2_pairing_multi_check() once available
+• - 17 new unit tests covering constants, NAF properties, Miller/MSM budgets
+• - Add BLS12-381_FR_ORDER and BN254_FR_ORDER constants for sentinel rejection
+• - Add ALL_ONES_NULLIFIER sentinel constant (0xFF...FF is never a valid output)
+• - Implement validate_nullifier_format() checking: zero, all-0xFF, BLS12-381
+•   Fr order, BN254 Fr order — all rejected before storage lookup
+• - Call validate_nullifier_format() at the top of spend() so format errors
+•   are returned before the more expensive storage has() check
+• - Inline TTL extension directly in spend() at write time (was only in
+•   extend_nullifier_ttl(); now both code paths extend)
+• - Add TTL_WARNING_THRESHOLD constant (~116 days) for bumper services
+• - Add TTL_EXTEND_THRESHOLD and TTL_EXTEND_TO as named constants with docs
+• - Add batch_validate_unspent() for relayer pre-flight validation of batches
+• - Add TTL_WARNING_THRESHOLD public constant for external TTL bumper services
+• - 14 new unit tests covering format validation, spend lifecycle, TTL, batch ops
+• Closes #323
+
+
 ## Chart v2.38.0 (2026-10-28) [minor]
 
 • Merge pull request #522 from supreme2580/feat/captive-core-supervisor
