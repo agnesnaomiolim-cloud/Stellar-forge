@@ -34,7 +34,7 @@ data:
       mechanism: {{ .Values.scpAnalytics.kafka.sasl.mechanism | quote }}
       username: {{ .Values.scpAnalytics.kafka.sasl.username | quote }}
       password: {{ .Values.scpAnalytics.kafka.sasl.password | quote }}
-    {{- end }
+    {{- end }}
 
 ---
 # Deployment for Topology Health Consumer
