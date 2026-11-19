@@ -22,14 +22,14 @@
 // - Price-time priority queues storing exact price points -> `queue`.
 // - Limit order placement and instant market buys through a single entrypoint
 //   -> `engine`.
-// - Partial fill tracking and cleanup of fully filled orders -> `engine.
+// - Partial fill tracking and cleanup of fully filled orders -> `engine`.
 // - Bounded execution for large market sweeps -> `queue` + `engine`.
 //
 // The modules are declared here so that the contract can be built as a
 // single WASM artifact. The actual implementation of the queue and engine
 // lives in their respective modules.
 
-#a![no_std]
+#![no_std]
 mod instruction;
 mod engine;
 mod queue;
@@ -53,7 +53,7 @@ pub struct OrderbookContract;
 impl OrderbookContract {
     /// Initialize the orderbook for a given base asset.
     ///
-    /// This must be called exactly once. The base asset identifies is
+    /// This must be called exactly once. The base asset identifier is
     /// persisted in instance storage so that later operations can validate
     /// order assets.
     pub fn initialize(env: Env, base_asset: Address) {
@@ -86,7 +86,7 @@ impl OrderbookContract {
     }
 
     /// Execute an instant market buy against the best asks.
-    //"​
+    ///
     /// The caller specifies a maximum number of fills to process in this
     /// call. Remaining liquidity can be swept via a follow-up call.
     pub fn market_buy(
@@ -125,6 +125,5 @@ impl OrderbookContract {
     }
 }
 
-#[cfg]
-test
+#[cfg(test)]
 mod tests;
