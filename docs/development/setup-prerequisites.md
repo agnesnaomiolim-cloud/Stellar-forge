@@ -405,6 +405,6 @@ export KUBE_QUOTA=10Gi
 
 ## See Also
 
-- [DEVELOPMENT.md](../DEVELOPMENT.md) — Development workflows
+- [DEVELOPMENT.md](../../DEVELOPMENT.md) — Development workflows
 - [CONTRIBUTING.md](../../CONTRIBUTING.md) — Contribution guidelines
 - [docs/ci-failure-diagnostics.md](../ci-failure-diagnostics.md) — CI debugging

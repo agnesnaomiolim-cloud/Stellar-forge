@@ -419,7 +419,7 @@ tlc -deadlock -fair StellarReconciler.tla
 | `HealthCheckPasses` | `health::check_node_sync()` | [src/controller/health.rs](../src/controller/health.rs) |
 | `CleanupServiceMesh` | `service_mesh::delete_service_mesh_resources()` | [src/controller/service_mesh.rs#L350](../src/controller/service_mesh.rs#L350) |
 | `CleanupResources` | Deletion logic in `cleanup_stellar_node` | [src/controller/reconciler.rs#L1100-1120](../src/controller/reconciler.rs#L1100) |
-| `CleanupComplete` | Finalizer removal | [src/controller/finalizers.rs](../src/controller/finalizers.rs) |
+| `CleanupComplete` | Finalizer removal | src/controller/finalizers.rs |
 
 ### Test Coverage Mapping
 
