@@ -188,6 +188,16 @@ serviceAccount:
   # The name of the service account to use
   name: ""
 
+# Shared Kubernetes Lease coordination. For operators in separate clusters,
+# point every release at the same coordination-cluster kubeconfig and Lease namespace.
+leaderElection:
+  # Require the shared kubeconfig; enable this for multi-cluster DR deployments.
+  global: false
+  kubeconfigSecretName: ""
+  kubeconfigSecretKey: config
+  leaseName: stellar-operator-leader
+  leaseNamespace: ""
+
 # Configuration for secrets
 # It can generate standard Kubernetes Secrets or ExternalSecrets mapping to an external store
 secrets:

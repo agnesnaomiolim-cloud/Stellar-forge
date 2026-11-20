@@ -301,6 +301,12 @@ impl ScpKafkaProducer {
 
     /// Send an SCP message to Kafka
     pub async fn send_message(&self, message: &ScpMessage) -> Result<()> {
+        if !crate::controller::leader::is_leader() {
+            return Err(QuorumAnalysisError::KafkaError(
+                "refusing to publish SCP telemetry without the active leader lease".to_string(),
+            ));
+        }
+
         // Deduplication check
         if self.config.enable_deduplication {
             let mut seen = self.seen_messages.write().await;

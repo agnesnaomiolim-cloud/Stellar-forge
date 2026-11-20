@@ -304,6 +304,8 @@ pub struct ControllerState {
     /// Maximum HTTP retry attempts for SCP and quorum queries.
     pub retry_budget_max_attempts: u32,
     pub is_leader: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// Readiness probe state; an unready leader must relinquish its Lease.
+    pub leader_readiness: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// Identifies this operator when publishing Kubernetes Events via [`Recorder`].
     pub event_reporter: Reporter,
     /// Operator-level config loaded from the Helm-rendered ConfigMap (defaultResources).
@@ -394,6 +396,7 @@ impl ControllerState {
 ///         retry_budget_nonretriable_secs: 60,
 ///         retry_budget_max_attempts: 3,
 ///         is_leader: Arc::new(AtomicBool::new(true)),
+///         leader_readiness: Arc::new(AtomicBool::new(true)),
 ///         event_reporter: kube::runtime::events::Reporter {
 ///             controller: "stellar-operator".to_string(),
 ///             instance: None,

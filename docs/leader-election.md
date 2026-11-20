@@ -5,9 +5,13 @@
 The Stellar-K8s Operator implements high availability (HA) through leader election, enabling multiple operator replicas to run simultaneously with only one designated leader processing reconciliation at any given time. This ensures:
 
 - **High Availability**: If the leader becomes unavailable, a follower automatically takes over within ~20 seconds
-- **No Split-Brain**: Kubernetes-native Lease-based coordination ensures only one leader at a time
+- **Single coordination authority**: Lease updates use Kubernetes resource versions so competing claims cannot overwrite each other
 - **Zero Downtime**: Leader transitions happen without interrupting cluster operations
 - **Automatic Failover**: No manual intervention required for replica failures
+
+> **Multi-cluster requirement:** A Kubernetes Lease is scoped to one Kubernetes API server. Separate DR clusters must all use the same coordination-cluster kubeconfig and Lease namespace or each cluster can elect its own leader. The Helm chart rejects `leaderElection.global: true` unless both are configured.
+
+The Lease prevents two pods from being the current recorded holder. A process suspended beyond the TTL can still have an already-issued external request complete after a new holder takes over; sinks requiring hard fencing must also validate a fencing token. Do not treat a Kubernetes Lease alone as a transactional fence for in-flight S3 or Kafka requests.
 
 ## Architecture
 
@@ -17,37 +21,51 @@ The operator uses Kubernetes `coordination.k8s.io/v1` Lease resources for leader
 
 1. **Lease Creation**: Each operator replica attempts to create/renew a Lease named `stellar-operator-leader`
 2. **Lease Holder**: The replica that successfully holds the Lease is the leader
-3. **Renewal**: The leader continuously renews its lease every 10 seconds
-4. **Expiry**: If a leader crashes, its lease expires in 15 seconds
-5. **Takeover**: Any follower can then acquire the lease and become the new leader
+3. **Renewal**: The leader continuously renews its lease every 5 seconds
+4. **Expiry**: If a leader crashes or stops renewing, its lease expires after 15 seconds
+5. **Takeover**: Any operator using the shared coordination API retries every second and claims the expired Lease using an optimistic resource-version update
+
+Kubernetes calls have a three-second timeout. A readiness check failure causes the leader to stop renewing and release its Lease. If release cannot reach the coordination API, failover falls back to TTL expiry.
+
+### Global Coordination Cluster
+
+Create a kubeconfig Secret in each operator's local namespace that grants narrowly scoped `get`, `create`, and `update` access to the named Lease in one shared coordination cluster. Mount the same credentials and use the same Lease namespace in every DR cluster:
+
+```yaml
+leaderElection:
+  global: true
+  kubeconfigSecretName: stellar-coordination-kubeconfig
+  kubeconfigSecretKey: config
+  leaseName: stellar-operator-leader
+  leaseNamespace: stellar-coordination
+```
+
+The Secret's `config` key contains a kubeconfig for the shared coordinator. Credentials must be valid from all DR clusters and should be stored/rotated through the deployment's secret manager. The operator uses its local in-cluster client for resources in that cluster and the configured kubeconfig only for election.
+
+The pod UID is used as the holder identity, preventing same-named operator pods in different clusters from appearing to be the same holder.
 
 ### Key Components
 
 ```rust
-// In src/commands/operator.rs
+// In src/controller/leader.rs
 
 const LEASE_NAME: &str = "stellar-operator-leader";
 const LEASE_DURATION_SECS: i32 = 15;      // Lease validity period
-const RENEW_INTERVAL: Duration = Duration::from_secs(10);  // Renewal frequency
-const RETRY_INTERVAL: Duration = Duration::from_secs(5);   // Retry on failure
+const RENEW_INTERVAL: Duration = Duration::from_secs(5);   // Renewal frequency
+const RETRY_INTERVAL: Duration = Duration::from_secs(1);   // Retry on failure
+const API_TIMEOUT: Duration = Duration::from_secs(3);      // Per-request timeout
 
-// Each replica maintains this atomic flag
-let is_leader = Arc::new(AtomicBool::new(false));
-
-// Background task manages leader election
-tokio::spawn(async move {
-    run_leader_election(lease_client, &lease_ns, &identity, is_leader).await;
-});
+let election = LeaderElectionHandle::start(shared_coordination_client, None, None, None)?;
 ```
 
 ### Replica Identity
 
 Each operator replica is identified by:
 
-- **POD_NAMESPACE**: Kubernetes namespace where the operator runs
-- **HOSTNAME**: Pod name (automatically set from metadata.name in Kubernetes)
+- **POD_UID**: Globally unique pod identity for shared multi-cluster election
+- **OPERATOR_LEASE_NAMESPACE**: Namespace containing the Lease on the coordination cluster
 
-These are automatically injected by the deployment manifest.
+The deployment manifest injects `POD_UID`. The Helm chart configures the Lease namespace and mounts the shared kubeconfig when `leaderElection.global` is enabled.
 
 ## Deployment Configuration
 
@@ -166,10 +184,12 @@ Timeline:
 Timeline:
 
 - **T=0s**: Network partition isolates leader
-- **T=10s**: Leader fails to renew lease due to API server unreachability
+- **T=5s**: Leader's next renewal fails and it steps down locally
 - **T=15s**: Lease expires
-- **T=16s**: A responding follower acquires the lease
-- **T=20s**: New leader resumes reconciliation
+- **T≈16s**: A responding operator acquires the expired Lease
+- **T≈19s**: New leader resumes reconciliation after the bounded API request
+
+If the leader's readiness probe fails while the process remains alive, it stops renewing and attempts to release the Lease. If the process is killed before release, failover uses the TTL.
 
 ### Scenario 3: Planned Maintenance (Node Drain)
 
@@ -200,38 +220,36 @@ With Pod Disruption Budget enabled:
 **Monitoring**:
 
 - Serves metrics on `:9090/metrics`
-- Serves health checks on `:9090/healthz` (always returns 200)
+- Serves liveness and readiness probes when the REST API is enabled
 - Logs show `Acquired leadership: stellar-operator-leader`
 
 ### Follower Pod
 
 **Responsibilities**:
 
-- Remains ready to take over on leader failure
-- Serves metrics and health checks (same as leader)
-- Responds to liveness/readiness probes
-- Does NOT process reconciliation (skips early if not leader)
+- Waits for the shared Lease before starting the operator
+- Takes over when the Lease is released or expires
+- Does not reconcile or publish SCP telemetry while it does not hold the Lease
 
-**Benefits**:
-
-- Still observable and monitorable
-- Still counted in liveness/readiness checks
-- Can be used for leader failover detection via metrics
+Standby pods remain running while waiting for the Lease. In the current CLI lifecycle, they do not start the operator REST API until elected.
 
 ## Environment Variables
 
 The following environment variables control leader election:
 
-| Variable        | Default                      | Purpose                       |
-| --------------- | ---------------------------- | ----------------------------- |
-| `POD_NAMESPACE` | `STELLAR_OPERATOR_NAMESPACE` | Lease namespace               |
-| `HOSTNAME`      | System hostname              | Pod identity for lease holder |
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `LEADER_ELECTION_KUBECONFIG` | Unset (local API client) | Kubeconfig for the shared coordination cluster |
+| `OPERATOR_LEASE_NAMESPACE` | `POD_NAMESPACE` or `default` | Lease namespace on the coordination cluster |
+| `OPERATOR_LEASE_NAME` | `stellar-operator-leader` | Lease resource name |
+| `POD_UID` | Process-specific fallback | Globally unique Lease holder identity |
+| `REQUIRE_SHARED_LEADER_ELECTION` | `false` | Fail startup if the coordination kubeconfig is missing |
 
 These are automatically set by the Kubernetes downward API in the deployment manifest.
 
 ## RBAC Requirements
 
-The operator ServiceAccount must have permissions for Leases:
+For single-cluster use, the operator ServiceAccount needs permissions for Leases. In global mode, grant the identity in the shared kubeconfig the same scoped permissions on the coordination cluster:
 
 ```yaml
 - apiGroups: ["coordination.k8s.io"]
@@ -239,7 +257,7 @@ The operator ServiceAccount must have permissions for Leases:
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ```
 
-This is pre-configured in the Helm chart's RBAC template.
+The local-cluster role is pre-configured in the Helm chart's RBAC template. The chart cannot create RBAC in the separate coordination cluster.
 
 ## Testing
 
@@ -266,20 +284,29 @@ Deploy to a Kubernetes cluster and verify:
 ```bash
 # Deploy 3 replicas
 helm upgrade stellar-operator ./charts/stellar-operator \
-  --set replicaCount=3
+  --set replicaCount=3 \
+  --set leaderElection.global=true \
+  --set leaderElection.kubeconfigSecretName=stellar-coordination-kubeconfig \
+  --set leaderElection.leaseNamespace=stellar-coordination
 
 # Wait for deployment to settle
 kubectl rollout status deployment/stellar-operator -n stellar-operator
 
-# Find the leader
-LEADER=$(kubectl get lease -n stellar-operator stellar-operator-leader -o jsonpath='{.spec.holderIdentity}')
-echo "Current leader: $LEADER"
+# Read the shared Lease (holderIdentity is the Kubernetes pod UID)
+LEADER_UID=$(kubectl --kubeconfig ./coordination.kubeconfig \
+  get lease -n stellar-coordination stellar-operator-leader \
+  -o jsonpath='{.spec.holderIdentity}')
+echo "Current leader pod UID: $LEADER_UID"
 
-# Terminate the leader pod
-kubectl delete pod $LEADER -n stellar-operator
+# Resolve the UID to a pod in the cluster currently holding leadership, then
+# terminate that pod to exercise TTL-based takeover.
+LEADER_POD=$(kubectl get pods -n stellar-operator -o json \
+  | jq -r --arg uid "$LEADER_UID" '.items[] | select(.metadata.uid == $uid) | .metadata.name')
+kubectl delete pod "$LEADER_POD" -n stellar-operator
 
-# Watch leadership transfer (should complete within 20s)
-watch kubectl get lease -n stellar-operator stellar-operator-leader -o yaml
+# Watch the shared coordination Lease
+watch kubectl --kubeconfig ./coordination.kubeconfig \
+  get lease -n stellar-coordination stellar-operator-leader -o yaml
 
 # Verify reconciliation continues
 kubectl logs -f deployment/stellar-operator -n stellar-operator | grep "reconciling"
@@ -327,8 +354,8 @@ kubectl auth can-i patch leases --as=system:serviceaccount:stellar-operator:stel
 
 ### Overhead
 
-- **Leader**: Minimal overhead from lease renewal (10s interval)
-- **Followers**: Minimal overhead from lease acquisition attempts (5s interval)
+- **Leader**: Minimal overhead from lease renewal (5s interval)
+- **Followers**: Minimal overhead from lease acquisition attempts (1s interval)
 - **Lease creation**: ~10-50ms per operation
 
 ### Scalability
@@ -342,13 +369,13 @@ kubectl auth can-i patch leases --as=system:serviceaccount:stellar-operator:stel
 Current configuration:
 
 - **Lease Duration**: 15 seconds
-- **Renewal Interval**: 10 seconds
-- **Retry Interval**: 5 seconds
+- **Renewal Interval**: 5 seconds
+- **Retry Interval**: 1 second
+- **Per-request timeout**: 3 seconds
 
 This means:
 
-- Maximum time from leader crash to follower takeover: ~20 seconds
-- Time to detect leader failure: ~15 seconds
+- Crash failover starts after the 15-second TTL and completes after the retry/API request, usually within the configured TTL plus API latency.
 
 ## Migration Guide
 
@@ -394,23 +421,24 @@ This means:
 
 ### Custom Lease Duration
 
-To adjust lease timing, edit `src/commands/operator.rs`:
+To adjust lease timing, edit `src/controller/leader.rs`:
 
 ```rust
 const LEASE_DURATION_SECS: i32 = 30;    // Increase for higher latency networks
-const RENEW_INTERVAL: Duration = Duration::from_secs(15);
-const RETRY_INTERVAL: Duration = Duration::from_secs(5);
+const RENEW_INTERVAL: Duration = Duration::from_secs(10);
+const RETRY_INTERVAL: Duration = Duration::from_secs(1);
+const API_TIMEOUT: Duration = Duration::from_secs(3);
 ```
 
 Then rebuild the operator image.
 
 ### Custom Leader Identity
 
-The operator automatically uses the pod name (HOSTNAME) as the leader identity. To use a custom identity, set the HOSTNAME environment variable:
+The operator uses `POD_UID`, which is injected by the chart and unique across clusters. If running outside Kubernetes, set `POD_UID` or `POD_NAME` explicitly to a unique value:
 
 ```yaml
 env:
-    - name: HOSTNAME
+    - name: POD_UID
       value: "custom-operator-identity"
 ```
 

@@ -1,3 +1,9 @@
+{{- if and .Values.leaderElection.global (not .Values.leaderElection.kubeconfigSecretName) }}
+{{- fail "leaderElection.global requires leaderElection.kubeconfigSecretName" }}
+{{- end }}
+{{- if and .Values.leaderElection.global (not .Values.leaderElection.leaseNamespace) }}
+{{- fail "leaderElection.global requires leaderElection.leaseNamespace" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -52,6 +58,14 @@ spec:
             secretName: soroban-rpc-mtls-secret
             optional: true
         {{- end }}
+        {{- if .Values.leaderElection.kubeconfigSecretName }}
+        - name: leader-election-kubeconfig
+          secret:
+            secretName: {{ .Values.leaderElection.kubeconfigSecretName }}
+            items:
+              - key: {{ .Values.leaderElection.kubeconfigSecretKey | quote }}
+                path: config
+        {{- end }}
         {{- if and .Values.operator.restApiEnabled .Values.operator.profiling.enabled }}
         # Ephemeral writable temp for jemalloc heap profile dumps (NamedTempFile → /tmp).
         # Root filesystem stays read-only; this emptyDir is mounted only when profiling is on.
@@ -91,6 +105,24 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            - name: OPERATOR_LEASE_NAME
+              value: {{ .Values.leaderElection.leaseName | quote }}
+            {{- if .Values.leaderElection.leaseNamespace }}
+            - name: OPERATOR_LEASE_NAMESPACE
+              value: {{ .Values.leaderElection.leaseNamespace | quote }}
+            {{- end }}
+            {{- if .Values.leaderElection.global }}
+            - name: REQUIRE_SHARED_LEADER_ELECTION
+              value: "true"
+            {{- end }}
+            {{- if .Values.leaderElection.kubeconfigSecretName }}
+            - name: LEADER_ELECTION_KUBECONFIG
+              value: /var/run/stellar-leader-election/config
+            {{- end }}
             - name: OPERATOR_NAMESPACE
               value: {{ .Release.Namespace | quote }}
             {{- if .Values.operator.restApiEnabled }}
@@ -127,6 +159,11 @@ spec:
               readOnly: true
             - name: soroban-tls
               mountPath: /etc/soroban/tls
+              readOnly: true
+            {{- end }}
+            {{- if .Values.leaderElection.kubeconfigSecretName }}
+            - name: leader-election-kubeconfig
+              mountPath: /var/run/stellar-leader-election
               readOnly: true
             {{- end }}
             {{- if and .Values.operator.restApiEnabled .Values.operator.profiling.enabled }}

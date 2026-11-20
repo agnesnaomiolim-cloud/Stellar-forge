@@ -391,6 +391,7 @@ mod tests {
             retry_budget_nonretriable_secs: 60,
             retry_budget_max_attempts: 3,
             is_leader: Arc::new(AtomicBool::new(true)),
+            leader_readiness: Arc::new(AtomicBool::new(true)),
             event_reporter: kube::runtime::events::Reporter {
                 controller: "stellar-operator".into(),
                 instance: None,

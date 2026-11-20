@@ -72,28 +72,46 @@ pub const BOOTSTRAP_STARTED_AT_ANNOTATION: &str = "stellar.org/snapshot-bootstra
 /// as a background Tokio task:
 ///
 /// ```rust,ignore
-/// tokio::spawn(run_snapshot_worker(client.clone(), reporter.clone()));
+/// tokio::spawn(run_snapshot_worker(
+///     client.clone(),
+///     reporter.clone(),
+///     is_leader.clone(),
+/// ));
 /// ```
-pub async fn run_snapshot_worker(client: Client, reporter: Reporter) {
+pub async fn run_snapshot_worker(
+    client: Client,
+    reporter: Reporter,
+    is_leader: std::sync::Arc<std::sync::atomic::AtomicBool>,
+) {
     info!(
         "Auto-snapshot worker started (poll interval: {}s)",
         POLL_INTERVAL_SECS
     );
 
     loop {
-        if let Err(e) = tick(&client, &reporter).await {
-            warn!("Auto-snapshot worker tick error: {}", e);
+        if is_leader.load(std::sync::atomic::Ordering::SeqCst) {
+            if let Err(e) = tick(&client, &reporter, &is_leader).await {
+                warn!("Auto-snapshot worker tick error: {}", e);
+            }
         }
         tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECS)).await;
     }
 }
 
 /// One iteration of the worker loop.
-async fn tick(client: &Client, reporter: &Reporter) -> Result<()> {
+async fn tick(
+    client: &Client,
+    reporter: &Reporter,
+    is_leader: &std::sync::atomic::AtomicBool,
+) -> Result<()> {
     let nodes: Api<StellarNode> = Api::all(client.clone());
     let list = nodes.list(&ListParams::default()).await?;
 
     for node in list.items {
+        if !is_leader.load(std::sync::atomic::Ordering::SeqCst) {
+            break;
+        }
+
         // Only process Validator nodes
         if node.spec.node_type != NodeType::Validator {
             continue;
@@ -101,6 +119,9 @@ async fn tick(client: &Client, reporter: &Reporter) -> Result<()> {
 
         // --- Auto-snapshot: run scheduled VolumeSnapshot creation ---
         if let Some(ref snapshot_config) = node.spec.snapshot_schedule {
+            if !is_leader.load(std::sync::atomic::Ordering::SeqCst) {
+                break;
+            }
             if let Err(e) = reconcile_snapshot(client, &node, snapshot_config).await {
                 warn!(
                     "Auto-snapshot worker: snapshot failed for {}/{}: {}",
@@ -116,6 +137,9 @@ async fn tick(client: &Client, reporter: &Reporter) -> Result<()> {
             node.spec.storage.snapshot_ref.is_some() || node.spec.restore_from_snapshot.is_some();
 
         if is_bootstrap_node {
+            if !is_leader.load(std::sync::atomic::Ordering::SeqCst) {
+                break;
+            }
             if let Err(e) = reconcile_bootstrap_status(client, reporter, &node).await {
                 warn!(
                     "Auto-snapshot worker: bootstrap status update failed for {}/{}: {}",

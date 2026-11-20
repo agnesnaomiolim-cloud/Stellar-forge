@@ -12,6 +12,8 @@
 // limitations under the License.
 use clap::Parser;
 use std::process;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use stellar_k8s::cli::{Args, BackupCommands, Commands};
 use stellar_k8s::commands::backup::{run_backup, run_cleanup, run_list, run_restore};
 use stellar_k8s::commands::benchmark::run_benchmark_controller_cmd;
@@ -118,18 +120,30 @@ async fn main() -> Result<(), Error> {
                 process::exit(2);
             }
 
-            // Create a Kubernetes client for leader election.
-            let k8s_client = match kube::Client::try_default().await {
+            let local_k8s_client = match kube::Client::try_default().await {
                 Ok(client) => client,
                 Err(e) => {
-                    eprintln!("Failed to create Kubernetes client for leader election: {e}");
+                    eprintln!("Failed to create Kubernetes client: {e}");
                     process::exit(1);
                 }
             };
 
-            // Start leader election to ensure only one operator instance is active.
+            let coordination_client =
+                match stellar_k8s::controller::leader::coordination_client(local_k8s_client.clone())
+                    .await
+                {
+                    Ok(client) => client,
+                    Err(e) => {
+                        eprintln!("Failed to configure leader-election client: {e}");
+                        process::exit(1);
+                    }
+                };
+
             let leader = match stellar_k8s::controller::leader::LeaderElectionHandle::start(
-                k8s_client, None, None, None,
+                coordination_client,
+                None,
+                None,
+                None,
             ) {
                 Ok(handle) => handle,
                 Err(e) => {
@@ -140,11 +154,13 @@ async fn main() -> Result<(), Error> {
 
             // Wait until this pod becomes the leader before starting the operator.
             leader.wait_until_leader().await;
+            let is_leader: Arc<AtomicBool> = leader.shared_is_leader();
+            let leader_readiness = leader.shared_readiness();
 
             // Start the key-rotation daemon if enabled. Rotation is staggered
             // across the cluster so quorum thresholds are never jeopardized.
             let rotation_handle = match stellar_k8s::security::rotation::start_rotation_daemon(
-                k8s_client.clone(),
+                local_k8s_client,
             )
             .await
             {
@@ -162,21 +178,18 @@ async fn main() -> Result<(), Error> {
                 process::exit(1);
             }
 
-            // Run the operator while we hold the lease. If the lease is lost (e.g.,
-            // during network partition or pod failure), abort the operator so the pod
-            // can restart and another replica can take over.
-            tokio::select! {
-                result = run_operator(run_args) => result,
+            let result = tokio::select! {
+                result = run_operator(run_args, is_leader, leader_readiness) => result,
                 _ = leader.wait_until_lost() => {
                     eprintln!("Lost leader lease; shutting down operator");
                     Ok(())
                 }
+            };
+            leader.shutdown().await;
+            if let Some(handle) = rotation_handle {
+                handle.shutdown();
             }
-            .inspect(|_| {
-                if let Some(handle) = rotation_handle {
-                    handle.shutdown();
-                }
-            })
+            result
         }
         Commands::Webhook(webhook_args) => return run_webhook(webhook_args).await,
         Commands::Doctor(doctor_args) => return run_doctor(doctor_args).await,

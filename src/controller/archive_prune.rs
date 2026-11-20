@@ -464,7 +464,7 @@ pub fn identify_deletable_checkpoints(
 /// The `_lease` guard is required to statically prevent non-leader pods from
 /// deleting history archive checkpoints.
 pub async fn execute_prune(
-    _lease: &LeaseGuard,
+    lease: &LeaseGuard,
     deletable: Vec<Checkpoint>,
     location: &ArchiveLocation,
     force: bool,
@@ -493,6 +493,8 @@ pub async fn execute_prune(
             dry_run: true,
         });
     }
+
+    lease.ensure_held()?;
 
     // Require confirmation for actual deletion
     println!(
@@ -524,10 +526,15 @@ pub async fn execute_prune(
             let semaphore = semaphore.clone();
             let errors = errors.clone();
             let location = location.clone();
+            let lease = lease;
             async move {
                 let _permit = semaphore.acquire().await.expect("Semaphore acquired");
 
-                match delete_checkpoint(&checkpoint, &location).await {
+                let result = match lease.ensure_held() {
+                    Ok(()) => delete_checkpoint(&checkpoint, &location).await,
+                    Err(error) => Err(error),
+                };
+                match result {
                     Ok(_) => {
                         debug!("Deleted checkpoint: ledger {}", checkpoint.ledger_seq);
                     }

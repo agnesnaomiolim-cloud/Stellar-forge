@@ -289,6 +289,9 @@ pub async fn readyz(
     let listed = match api.list(&Default::default()).await {
         Ok(list) => list,
         Err(e) => {
+            state
+                .leader_readiness
+                .store(false, std::sync::atomic::Ordering::SeqCst);
             crate::controller::metrics::set_ready_status(false);
             return (
                 StatusCode::SERVICE_UNAVAILABLE,
@@ -306,6 +309,9 @@ pub async fn readyz(
         .last_reconcile_success
         .load(std::sync::atomic::Ordering::Relaxed);
     if last_success == 0 && !listed.items.is_empty() {
+        state
+            .leader_readiness
+            .store(false, std::sync::atomic::Ordering::SeqCst);
         crate::controller::metrics::set_ready_status(false);
         return (
             StatusCode::SERVICE_UNAVAILABLE,
@@ -323,6 +329,9 @@ pub async fn readyz(
     let event_age = now.saturating_sub(last_event);
 
     if last_event > 0 && event_age > STALE_WATCH_THRESHOLD_SECS {
+        state
+            .leader_readiness
+            .store(false, std::sync::atomic::Ordering::SeqCst);
         crate::controller::metrics::set_ready_status(false);
         return (
             StatusCode::SERVICE_UNAVAILABLE,
@@ -336,6 +345,9 @@ pub async fn readyz(
     }
 
     // All checks passed
+    state
+        .leader_readiness
+        .store(true, std::sync::atomic::Ordering::SeqCst);
     crate::controller::metrics::set_ready_status(true);
     (
         StatusCode::OK,

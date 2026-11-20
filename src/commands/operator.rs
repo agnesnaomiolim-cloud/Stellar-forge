@@ -10,10 +10,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use chrono::Utc;
-use k8s_openapi::api::coordination::v1::Lease;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::MicroTime;
-use kube::api::{Api, ObjectMeta, Patch, PatchParams, PostParams};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tracing::{info, info_span, warn, Instrument, Level};
@@ -25,12 +21,11 @@ use crate::logging::{init_subscriber, LogOutputFormat, SubscriberConfig};
 use crate::rest_api::metrics_store::StellarMetricsStore;
 use crate::{controller, preflight, Error};
 
-const LEASE_NAME: &str = "stellar-operator-leader";
-const LEASE_DURATION_SECS: i32 = 15;
-const RENEW_INTERVAL: std::time::Duration = std::time::Duration::from_secs(10);
-const RETRY_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
-
-pub async fn run_operator(args: RunArgs) -> Result<(), Error> {
+pub async fn run_operator(
+    args: RunArgs,
+    is_leader: Arc<AtomicBool>,
+    leader_readiness: Arc<AtomicBool>,
+) -> Result<(), Error> {
     // Handle --dump-config: print resolved configuration and exit.
     if args.dump_config {
         let operator_config = controller::OperatorConfig::load();
@@ -175,43 +170,6 @@ pub async fn run_operator(args: RunArgs) -> Result<(), Error> {
         None
     };
 
-    // Leader election configuration
-    let leader_namespace =
-        std::env::var("POD_NAMESPACE").unwrap_or_else(|_| args.namespace.clone());
-    let holder_identity = std::env::var("HOSTNAME").unwrap_or_else(|_| {
-        hostname::get()
-            .ok()
-            .and_then(|h| h.into_string().ok())
-            .unwrap_or_else(|| "unknown-host".to_string())
-    });
-
-    info!("Leader election using holder ID: {}", holder_identity);
-
-    let is_leader = Arc::new(AtomicBool::new(false));
-
-    {
-        let lease_client = client.clone();
-        let lease_ns = leader_namespace.clone();
-        let identity = holder_identity.clone();
-        let is_leader_bg = Arc::clone(&is_leader);
-
-        tokio::spawn(
-            async move {
-                let leader_flag = is_leader_bg.clone();
-                let election_task = run_leader_election(lease_client, &lease_ns, &identity, leader_flag);
-                tokio::pin!(election_task);
-                tokio::select! {
-                    _ = &mut election_task => {}
-                    _ = tokio::signal::ctrl_c() => {
-                        info!("Shutdown signal received, releasing leader lease");
-                        is_leader_bg.store(false, Ordering::SeqCst);
-                    }
-                }
-            }
-            .instrument(root_span.clone()),
-        );
-    }
-
     // Update leader-status and uptime metrics every 10 s
     #[cfg(feature = "metrics")]
     {
@@ -266,6 +224,7 @@ pub async fn run_operator(args: RunArgs) -> Result<(), Error> {
         retry_budget_nonretriable_secs: args.retry_budget_nonretriable_secs,
         retry_budget_max_attempts: args.retry_budget_max_attempts,
         is_leader: Arc::clone(&is_leader),
+        leader_readiness,
         event_reporter: kube::runtime::events::Reporter {
             controller: "stellar-operator".to_string(),
             instance: None,
@@ -419,13 +378,6 @@ pub async fn run_operator(args: RunArgs) -> Result<(), Error> {
             );
         }
     }
-
-    let shutdown_state = state.clone();
-    let shutdown_client = client.clone();
-    let shutdown_namespace = args.namespace.clone();
-    let shutdown_is_leader = Arc::clone(&is_leader);
-    let shutdown_identity = holder_identity.clone();
-
     {
         let bench_client = client.clone();
         let bench_is_leader = Arc::clone(&is_leader);
@@ -440,12 +392,18 @@ pub async fn run_operator(args: RunArgs) -> Result<(), Error> {
 
     {
         let snapshot_client = client.clone();
+        let snapshot_is_leader = Arc::clone(&is_leader);
         let snapshot_reporter = kube::runtime::events::Reporter {
             controller: "stellar-operator-snapshot-worker".to_string(),
             instance: None,
         };
         tokio::spawn(async move {
-            controller::run_snapshot_worker(snapshot_client, snapshot_reporter).await;
+            controller::run_snapshot_worker(
+                snapshot_client,
+                snapshot_reporter,
+                snapshot_is_leader,
+            )
+            .await;
         });
         info!("Auto-snapshot worker spawned");
     }
@@ -487,8 +445,9 @@ pub async fn run_operator(args: RunArgs) -> Result<(), Error> {
     // removes stuck finalizers.
     {
         let cleanup_client = client.clone();
+        let cleanup_is_leader = Arc::clone(&is_leader);
         tokio::spawn(async move {
-            controller::run_finalizer_cleanup_controller(cleanup_client).await;
+            controller::run_finalizer_cleanup_controller(cleanup_client, cleanup_is_leader).await;
         });
         info!("Finalizer cleanup recovery controller spawned");
     }
@@ -501,9 +460,6 @@ pub async fn run_operator(args: RunArgs) -> Result<(), Error> {
         }
         _ = wait_for_shutdown_signal() => {
             info!("Shutdown signal received");
-            shutdown_is_leader.store(false, Ordering::Relaxed);
-            drop(shutdown_state);
-            release_leader_lease(&shutdown_client, &shutdown_namespace, &shutdown_identity).await;
             Ok(())
         }
     };
@@ -530,136 +486,5 @@ async fn wait_for_shutdown_signal() {
     {
         signal::ctrl_c().await.expect("Failed to listen for Ctrl-C");
         info!("Received Ctrl-C");
-    }
-}
-
-async fn release_leader_lease(client: &kube::Client, namespace: &str, identity: &str) {
-    let leases: Api<Lease> = Api::namespaced(client.clone(), namespace);
-    let existing = match leases.get(LEASE_NAME).await {
-        Ok(l) => l,
-        Err(e) => {
-            warn!("Could not fetch lease: {:?}", e);
-            return;
-        }
-    };
-    let currently_held_by = existing
-        .spec
-        .as_ref()
-        .and_then(|s| s.holder_identity.as_deref())
-        .unwrap_or("");
-    if currently_held_by != identity {
-        return;
-    }
-    let patch = serde_json::json!({ "spec": { "holderIdentity": null } });
-    let _ = leases
-        .patch(LEASE_NAME, &PatchParams::default(), &Patch::Merge(&patch))
-        .await;
-}
-
-async fn run_leader_election(
-    client: kube::Client,
-    namespace: &str,
-    identity: &str,
-    is_leader: Arc<AtomicBool>,
-) {
-    let leases: Api<Lease> = Api::namespaced(client, namespace);
-
-    loop {
-        match try_acquire_or_renew(&leases, namespace, identity).await {
-            Ok(true) => {
-                if !is_leader.load(Ordering::Relaxed) {
-                    info!("Acquired leadership: {}", LEASE_NAME);
-                }
-                is_leader.store(true, Ordering::Relaxed);
-                tokio::time::sleep(RENEW_INTERVAL).await;
-            }
-            Ok(false) => {
-                if is_leader.load(Ordering::Relaxed) {
-                    warn!("Lost leadership: {}", LEASE_NAME);
-                }
-                is_leader.store(false, Ordering::Relaxed);
-                tokio::time::sleep(RETRY_INTERVAL).await;
-            }
-            Err(e) => {
-                warn!("Leader election error: {:?}", e);
-                is_leader.store(false, Ordering::Relaxed);
-                tokio::time::sleep(RETRY_INTERVAL).await;
-            }
-        }
-    }
-}
-
-async fn try_acquire_or_renew(
-    leases: &Api<Lease>,
-    namespace: &str,
-    identity: &str,
-) -> Result<bool, kube::Error> {
-    let now = Utc::now();
-
-    match leases.get(LEASE_NAME).await {
-        Ok(existing) => {
-            let spec = existing.spec.as_ref();
-            let current_holder = spec.and_then(|s| s.holder_identity.as_deref());
-
-            if current_holder == Some(identity) {
-                let patch = serde_json::json!({
-                    "spec": {
-                        "renewTime": MicroTime(now),
-                        "leaseDurationSeconds": LEASE_DURATION_SECS,
-                    }
-                });
-                leases
-                    .patch(LEASE_NAME, &PatchParams::default(), &Patch::Merge(&patch))
-                    .await?;
-                return Ok(true);
-            }
-
-            let expired = spec
-                .and_then(|s| s.renew_time.as_ref())
-                .map(|renew| {
-                    let duration = spec
-                        .and_then(|s| s.lease_duration_seconds)
-                        .unwrap_or(LEASE_DURATION_SECS);
-                    let expiry = renew.0 + chrono::Duration::seconds(duration as i64);
-                    now > expiry
-                })
-                .unwrap_or(true);
-
-            if expired {
-                let patch = serde_json::json!({
-                    "spec": {
-                        "holderIdentity": identity,
-                        "acquireTime": MicroTime(now),
-                        "renewTime": MicroTime(now),
-                        "leaseDurationSeconds": LEASE_DURATION_SECS,
-                    }
-                });
-                leases
-                    .patch(LEASE_NAME, &PatchParams::default(), &Patch::Merge(&patch))
-                    .await?;
-                Ok(true)
-            } else {
-                Ok(false)
-            }
-        }
-        Err(kube::Error::Api(err)) if err.code == 404 => {
-            let lease = Lease {
-                metadata: ObjectMeta {
-                    name: Some(LEASE_NAME.to_string()),
-                    namespace: Some(namespace.to_string()),
-                    ..Default::default()
-                },
-                spec: Some(k8s_openapi::api::coordination::v1::LeaseSpec {
-                    holder_identity: Some(identity.to_string()),
-                    acquire_time: Some(MicroTime(now)),
-                    renew_time: Some(MicroTime(now)),
-                    lease_duration_seconds: Some(LEASE_DURATION_SECS),
-                    ..Default::default()
-                }),
-            };
-            leases.create(&PostParams::default(), &lease).await?;
-            Ok(true)
-        }
-        Err(e) => Err(e),
     }
 }
