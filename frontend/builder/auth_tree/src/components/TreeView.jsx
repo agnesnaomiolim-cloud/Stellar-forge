@@ -1,408 +1,25 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  validateAuthTree,
-  generateAuthPayload,
   createAliceRouterLiquidityPoolTree,
+  generateAuthPayload,
+  validateAuthTree,
 } from '../lib/auth_validator';
 
-/**
- * @typedef {import('../lib/auth_validator').AuthTreeNode} AuthTreeNode
- * @typedef {import('../lib/auth_validator').AuthPayload} AuthPayload
- */
+const NODE_WIDTH = 150;
+const NODE_HEIGHT = 48;
+const HORIZONTAL_GAP = 220;
+const VERTICAL_GAP = 80;
 
-const NODE_WIDTH = 130;
-const NODE_HEIGHT = 44;
-const LEVEL_X_OFFSET = 180;
-const LEVEL_Y_SPACING = 64;
-const NODE_RADIUS = 8;
-
-/** TreeView — drag-and-drop tree component for building Soroban auth hierarchies.
- *
- * Supports:
- *   - Arbitrary tree depth (each contract node can have sub-contracts),
- *   - Zoom (mouse wheel) and pan (drag on empty canvas) for large graphs,
- *   - Node drag to reposition,
- *   - One-click validation + JSON payload generation for soroban-cli.
- */
 export default function TreeView() {
-  const [nodes, setNodes] = useState(defaultAliceRouterTree);
-  const [selectedId, setSelectedId] = useState(null);
+  const [nodes, setNodes] = useState([createAliceRouterLiquidityPoolTree()]);
+  const [selectedId, setSelectedId] = useState('pool-1');
   const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 40, y: 40 });
-  const [dragging, setDragging] = useState(null);
-  const [panning, setPanning] = useState(null);
-
+  const [pan, setPan] = useState({ x: 60, y: 50 });
+  const [draggingNode, setDraggingNode] = useState(null);
+  const [validation, setValidation] = useState(null);
   const svgRef = useRef(null);
-  const containerRef = useRef(null);
-  const positionsRef = useRef(new Map());
 
-  // Recompute layout whenever the tree shape or transform changes.
-  useEffect(() => {
-    positionsRef.current = computeTreeLayout(nodes, pan.x, pan.y, zoom);
-  }, [nodes, pan, zoom]);
-
-  const selectedNode = nodes.find((n) => n.id === selectedId) ?? null;
-
-  const zoomBy = useCallback((factor) => {
-    setZoom((z) => Math.max(0.25, Math.min(4, z * factor)));
-  }, []);
-
-  const handleWheel = useCallback(
-    (e) => {
-      e.preventDefault();
-      const factor = e.deltaY > 0 ? 0.9 : 1.1;
-      zoomBy(factor);
-    },
-    [zoomBy],
-  );
-
-  const handlePanStart = useCallback(
-    (e) => {
-      // Don't start pan when clicking a node.
-      if (e.target.closest('[data-node]')) return;
-      setPanning({
-        startX: e.clientX,
-        startY: e.clientY,
-        panX: pan.x,
-        panY: pan.y,
-      });
-    },
-    [pan],
-  );
-
-  const handlePanMove = useCallback(
-    (e) => {
-      if (!panning) return;
-      const dx = e.clientX - panning.startX;
-      const dy = e.clientY - panning.startY;
-      setPan({ x: panning.panX + dx, y: panning.panY + dy });
-    },
-    [panning],
-  );
-
-  const handlePanEnd = useCallback(() => {
-    setPanning(null);
-  }, []);
-
-  const handleNodeMouseDown = useCallback(
-    (e, id, x, y) => {
-      e.stopPropagation();
-      setSelectedId(id);
-      setDragging({ id, offsetX: e.clientX - x, offsetY: e.clientY - y });
-    },
-    [],
-  );
-
-  // Node drag lives outside React to keep pointer smooth.
-  useEffect(() => {
-    if (!dragging) return;
-    const onMove = (e) => {
-      const newPan = { x: pan.x, y: pan.y };
-      const updated = new Map(positionsRef.current);
-      for (const [nid, pos] of updated) {
-        if (nid === dragging.id) {
-          updated.set(nid, {
-            x: e.clientX - dragging.offsetX - newPan.x,
-            y: e.clientY - dragging.offsetY - newPan.y,
-          });
-        }
-      }
-      positionsRef.current = updated;
-    };
-    const onUp = () => setDragging(null);
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-  }, [dragging, pan]);
-
-  // ---- tree editing ----
-  const addSiblingOrLeaf = useCallback(() => {
-    const parent = selectedNode ?? nodes[0];
-    const nextId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const newNode = {
-      id: nextId,
-      label: `Address ${nodes.length + 1}`,
-      type: 'address',
-      address: makeAddress(),
-      depth: (parent?.depth ?? 0) + 1,
-    };
-    setNodes((prev) =>
-      prev.map((n) =>
-        n.id === parent?.id
-          ? { ...n, subContracts: [...(n.subContracts ?? []), newNode] }
-          : n,
-      ),
-    );
-    setSelectedId(nextId);
-  }, [nodes, selectedNode]);
-
-  const addChildToSelected = useCallback(() => {
-    const parent = selectedNode;
-    if (!parent) return;
-    const nextId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const asContract = parent.type === 'address';
-    const newNode = {
-      id: nextId,
-      label: asContract
-        ? `Sub-contract ${parent.subContracts?.length ?? 0}`
-        : `Address ${nodes.length + 1}`,
-      type: asContract ? 'contract' : 'address',
-      address: asContract ? undefined : makeAddress(),
-      contractId: asContract
-        ? `CCNTH${Math.random().toString(36).slice(2, 52).padEnd(55, 'X')}`
-        : undefined,
-      depth: (parent.depth ?? 0) + 1,
-    };
-    setNodes((prev) =>
-      prev.map((n) =>
-        n.id === parent.id
-          ? { ...n, subContracts: [...(n.subContracts ?? []), newNode] }
-          : n,
-      ),
-    );
-    setSelectedId(nextId);
-  }, [nodes, selectedNode]);
-
-  const removeSelected = useCallback(() => {
-    if (!selectedId) return;
-    const removeRecursive = (list) =>
-      list
-        .filter((n) => n.id !== selectedId)
-        .map((n) => ({
-          ...n,
-          subContracts: n.subContracts ? removeRecursive(n.subContracts) : undefined,
-        }));
-    setNodes((prev) => removeRecursive(prev));
-    setSelectedId(null);
-  }, [selectedId]);
-
-  const handlePayload = useCallback(() => {
-    const root = flattenToRoot(nodes);
-    const payload = generateAuthPayload(root);
-    if (!payload) {
-      alert('Failed to generate valid auth payload. Check the tree structure.');
-      return;
-    }
-    alert('Auth Payload Generated:\n' + JSON.stringify(payload, null, 2));
-  }, [nodes]);
-
-  const handleValidate = useCallback(() => {
-    const root = flattenToRoot(nodes);
-    const result = validateAuthTree(root);
-    if (result.valid) {
-      alert('Auth tree is valid!');
-    } else {
-      alert(
-        `Auth tree has ${result.errors.length} error(s):\n${result.errors.join('\n')}`,
-      );
-    }
-    if (result.payload) {
-      alert('Generated Payload:\n' + JSON.stringify(result.payload, null, 2));
-    }
-  }, [nodes]);
-
-  return (
-    <div
-      ref={containerRef}
-      className="tree-view-container"
-      style={{
-        width: '100%',
-        height: '800px',
-        border: '1px solid #ddd',
-        overflow: 'hidden',
-        fontFamily: 'sans-serif',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      <header
-        style={{
-          padding: '8px 12px',
-          background: '#f8f9fa',
-          borderBottom: '1px solid #dee2e3',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-        }}
-      >
-        <h2 style={{ margin: 0 }}>Soroban Auth Hierarchy Builder</h2>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
-          <button onClick={addSiblingOrLeaf} title="Add sibling/leaf node">
-            + Add
-          </button>
-          <button
-            onClick={addChildToSelected}
-            disabled={!selectedNode}
-            title="Add child of selected node"
-          >
-            + Child
-          </button>
-          <button
-            onClick={removeSelected}
-            disabled={!selectedNode}
-            title="Remove selected node"
-          >
-            − Remove
-          </button>
-          <span style={{ margin: '0 8px' }} />
-          <button onClick={handleValidate}>Validate</button>
-          <button onClick={handlePayload}>Generate JSON</button>
-        </div>
-      </header>
-
-      {/* Canvas with zoom + pan */}
-      <div
-        style={{
-          flex: 1,
-          overflow: 'hidden',
-          position: 'relative',
-          cursor: panning ? 'grabbing' : 'grab',
-        }}
-        onWheel={handleWheel}
-        onMouseDown={handlePanStart}
-        onMouseMove={handlePanMove}
-        onMouseUp={handlePanEnd}
-        onMouseLeave={handlePanEnd}
-      >
-        <svg
-          ref={svgRef}
-          width="100%"
-          height="100%"
-          style={{ display: 'block', cursor: dragging ? 'grabbing' : 'default' }}
-        >
-          <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
-            <TreeCanvas
-              nodes={nodes}
-              positions={positionsRef.current}
-              onNodeMouseDown={handleNodeMouseDown}
-              selectedId={selectedId}
-            />
-          </g>
-        </svg>
-      </div>
-    </div>
-  );
-}
-
-function makeAddress() {
-  return (
-    'G' +
-    Array.from({ length: 55 }, () =>
-      'ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567'[Math.floor(Math.random() * 32)],
-    ).join('')
-  );
-}
-
-/** Render the tree as SVG with links + draggable nodes. */
-function TreeCanvas({ nodes, positions, onNodeMouseDown, selectedId }) {
-  return (
-    <>
-      {linksFromTree(nodes, positions).map((d, i) => (
-        <path key={`link-${i}`} d={d} fill="none" stroke="#cbd5e1" strokeWidth={2} />
-      ))}
-      {nodes.map((node) => {
-        const pos = positions.get(node.id);
-        if (!pos) return null;
-        const isSelected = node.id === selectedId;
-        return (
-          <g
-            key={node.id}
-            data-node
-            transform={`translate(${pos.x} ${pos.y})`}
-            onMouseDown={(e) => onNodeMouseDown(e, node.id, pos.x, pos.y)}
-            style={{ cursor: 'grab' }}
-          >
-            <rect
-              width={NODE_WIDTH}
-              height={NODE_HEIGHT}
-              rx={NODE_RADIUS}
-              ry={NODE_RADIUS}
-              fill={node.type === 'contract' ? '#3b82f6' : '#10b981'}
-              stroke={isSelected ? '#f59e0b' : '#fff'}
-              strokeWidth={isSelected ? 3 : 2}
-            />
-            <text
-              x={NODE_WIDTH / 2}
-              y={NODE_HEIGHT / 2 + 4}
-              textAnchor="middle"
-              fill="#fff"
-              fontSize={12}
-              fontWeight={700}
-            >
-              {node.label}
-            </text>
-            {node.type === 'address' && node.address && (
-              <text
-                x={NODE_WIDTH / 2}
-                y={NODE_HEIGHT + 12}
-                textAnchor="middle"
-                fill="#64748b"
-                fontSize={9}
-              >
-                {node.address}
-              </text>
-            )}
-            {node.type === 'contract' && node.contractId && (
-              <text
-                x={NODE_WIDTH / 2}
-                y={NODE_HEIGHT + 12}
-                textAnchor="middle"
-                fill="#64748b"
-                fontSize={9}
-              >
-                {node.contractId}
-              </text>
-            )}
-          </g>
-        );
-      })}
-    </>
-  );
-}
-
-function linksFromTree(nodes, positions) {
-  const lines = [];
-  function walk(list) {
-    for (const n of list) {
-      const p = positions.get(n.id);
-      if (!p) continue;
-      for (const c of n.subContracts ?? []) {
-        const cp = positions.get(c.id);
-        if (cp) {
-          lines.push(
-            `M${p.x + NODE_WIDTH / 2} ${p.y + NODE_HEIGHT} L${cp.x + NODE_WIDTH / 2} ${cp.y}`,
-          );
-        }
-        walk(c.subContracts ?? []);
-      }
-    }
-  }
-  walk(nodes);
-  return lines;
-}
-
-function computeTreeLayout(nodes, panX, panY, zoom) {
-  const out = new Map();
-  function walk(list, x, y) {
-    let childY = y;
-    list.forEach((n) => {
-      out.set(n.id, { x, y: childY });
-      childY += NODE_HEIGHT + LEVEL_Y_SPACING;
-      walk(n.subContracts ?? [], x + LEVEL_X_OFFSET / zoom, childY);
-    });
-  }
-  walk(nodes, 40, 40);
-  return out;
-}
-
-/** Wrap top-level array elements into a synthetic root so the validator
- * always receives a single root node. */
-function flattenToRoot(nodes) {
-  if (nodes.length === 1) return nodes[0];
-  return {
+  const root = nodes.length === 1 ? nodes[0] : {
     id: 'root-synthetic',
     label: 'Auth Tree Root',
     type: 'contract',
@@ -410,8 +27,334 @@ function flattenToRoot(nodes) {
     depth: 0,
     subContracts: nodes,
   };
+
+  const positions = useMemo(() => layoutTree(nodes), [nodes]);
+  const selectedNode = useMemo(() => findNode(nodes, selectedId), [nodes, selectedId]);
+
+  const updateNode = useCallback((id, patch) => {
+    setNodes((current) => mapNode(current, (node) =>
+      node.id === id ? { ...node, ...patch } : node,
+    ));
+  }, []);
+
+  const removeNode = useCallback((id) => {
+    setNodes((current) => filterNode(current, id));
+    setSelectedId(null);
+  }, []);
+
+  const addContract = useCallback(() => {
+    const parent = selectedNode ?? nodes[0];
+    if (!parent) return;
+    if (parent.type === 'address') return;
+    const id = `contract-${Date.now()}`;
+    const child = {
+      id,
+      label: `Sub-contract ${parent.subContracts?.length ?? 0 + 1}`,
+      type: 'contract',
+      contractId: `C${'X'.repeat(55)}`,
+      depth: (parent.depth ?? 0) + 1,
+      subContracts: [],
+    };
+    setNodes((current) => mapNode(current, (node) =>
+      node.id === parent.id
+        ? { ...node, subContracts: [...(node.subContracts ?? []), child] }
+        : node,
+    ));
+    setSelectedId(id);
+  }, [nodes, selectedNode]);
+
+  const addAddress = useCallback(() => {
+    const parent = selectedNode ?? nodes[0];
+    if (!parent || parent.type === 'address') return;
+    const id = `address-${Date.now()}`;
+    const child = {
+      id,
+      label: `Alice ${parent.subContracts?.length ?? 0 + 1}`,
+      type: 'address',
+      address: `G${'A'.repeat(55)}`,
+      depth: (parent.depth ?? 0) + 1,
+    };
+    setNodes((current) => mapNode(current, (node) =>
+      node.id === parent.id
+        ? { ...node, subContracts: [...(node.subContracts ?? []), child] }
+        : node,
+    ));
+    setSelectedId(id);
+  }, [nodes, selectedNode]);
+
+  const moveNode = useCallback((nodeId, targetId) => {
+    if (nodeId === targetId) return;
+    setNodes((current) => {
+      const moving = findNode(current, nodeId);
+      if (!moving) return current;
+      const target = findNode(current, targetId);
+      if (!target || target.type !== 'contract') return current;
+      if (isDescendant(moving, targetId)) return current;
+      const removed = filterNode(current, nodeId);
+      return mapNode(removed, (node) => node.id === targetId
+        ? { ...node, subContracts: [...(node.subContracts ?? []), moving] }
+        : node,
+      );
+    });
+  }, []);
+
+  const validate = useCallback(() => {
+    const result = validateAuthTree(root);
+    setValidation(result);
+  }, [root]);
+
+  const exportPayload = useCallback(() => {
+    const payload = generateAuthPayload(root);
+    if (!payload) {
+      setValidation(validateAuthTree(root));
+      return;
+    }
+    setValidation({ valid: true, errors: [], payload });
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'soroban-auth-payload.json';
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }, [root]);
+
+  const handleWheel = useCallback((event) => {
+    event.preventDefault();
+    const factor = event.deltaY > 0 ? 0.9 : 1.1;
+    setZoom((value) => Math.min(4, Math.max(0.25, value * factor)));
+  }, []);
+
+  const handleCanvasMouseDown = useCallback((event) => {
+    if (event.target.closest('[data-node]')) return;
+    event.currentTarget.dataset.panStartX = String(event.clientX);
+    event.currentTarget.dataset.panStartY = String(event.clientY);
+    event.currentTarget.dataset.originX = String(pan.x);
+    event.currentTarget.dataset.originY = String(pan.y);
+  }, [pan]);
+
+  const handleCanvasMouseMove = useCallback((event) => {
+    const canvas = event.currentTarget;
+    if (canvas.dataset.panStartX === undefined) return;
+    const dx = event.clientX - Number(canvas.dataset.panStartX);
+    const dy = event.clientY - Number(canvas.dataset.panStartY);
+    setPan({
+      x: Number(canvas.dataset.originX) + dx,
+      y: Number(canvas.dataset.originY) + dy,
+    });
+  }, []);
+
+  const stopPanning = useCallback((event) => {
+    delete event.currentTarget.dataset.panStartX;
+    delete event.currentTarget.dataset.panStartY;
+  }, []);
+
+  return (
+    <main style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'sans-serif', background: '#eef2f7' }}>
+      <header style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 10, borderBottom: '1px solid #d8dee9', background: '#fff' }}>
+        <h2 style={{ margin: 0, fontSize: 18 }}>Soroban Authorization Builder</h2>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          <button onClick={addContract} disabled={!selectedNode || selectedNode.type === 'address'}>+ Contract</button>
+          <button onClick={addAddress} disabled={!selectedNode || selectedNode.type === 'address'}>+ Address</button>
+          <button onClick={() => selectedId && removeNode(selectedId)} disabled={!selectedId}>Remove</button>
+          <button onClick={() => setZoom((z) => Math.min(4, z * 1.15))}>Zoom +</button>
+          <button onClick={() => setZoom((z) => Math.max(0.25, z * 0.87))}>Zoom -</button>
+          <button onClick={validate}>Validate</button>
+          <button onClick={exportPayload}>Export JSON</button>
+        </div>
+      </header>
+
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 280px', minHeight: 0 }}>
+        <div
+          style={{ overflow: 'hidden', cursor: 'grab', position: 'relative' }}
+          onWheel={handleWheel}
+          onMouseDown={handleCanvasMouseDown}
+          onMouseMove={handleCanvasMouseMove}
+          onMouseUp={stopPanning}
+          onMouseLeave={stopPanning}
+        >
+          <svg ref={svgRef} width="100%" height="100%">
+            <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
+              {renderLinks(nodes, positions).map((path, index) => (
+                <path key={index} d={path} fill="none" stroke="#94a3b8" strokeWidth="2" />
+              ))}
+              {flattenNodes(nodes).map((node) => {
+                const position = positions.get(node.id);
+                if (!position) return null;
+                const selected = node.id === selectedId;
+                return (
+                  <g
+                    key={node.id}
+                    data-node
+                    transform={`translate(${position.x} ${position.y})`}
+                    draggable
+                    onDragStart={(event) => {
+                      event.stopPropagation();
+                      setDraggingNode(node.id);
+                      event.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragOver={(event) => {
+                      if (draggingNode && node.type === 'contract') event.preventEvent?.();
+                      if (node.type === 'contract') event.preventDefault();
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      if (draggingNode) moveNode(draggingNode, node.id);
+                      setDraggingNode(null);
+                    }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSelectedId(node.id);
+                    }}
+                    style={{ cursor: 'grab' }}
+                  >
+                    <rect
+                      width={NODE_WIDTH}
+                      height={NODE_HEIGHT}
+                      rx={10}
+                      fill={node.type === 'contract' ? '#2563eb' : '#059669'}
+                      stroke={selected ? '#f59e0b' : '#fff'}
+                      strokeWidth={selected ? 4 : 2}
+                    />
+                    <text x={12} y={21} fill="#fff" fontSize="13" fontWeight="700">{node.label}</text>
+                    <text x={12} y={38} fill="#dbeafe" fontSize="9">
+                      {(node.type === 'contract' ? node.contractId : node.address)?.slice(0, 22) ?? 'missing id'}
+                    </text>
+                  </g>
+                );
+              })}
+            </g>
+          </svg>
+        </div>
+
+        <aside style={{ borderLeft: '1px solid #d8dee9', background: '#fff', padding: 14, overflowY: 'auto' }}>
+          <h3 style={{ marginTop: 0 }}>Node settings</h3>
+          {selectedNode ? (
+            <div style={{ display: 'grid', gap: 10 }}>
+              <label>Label<input value={selectedNode.label} onChange={(event) => updateNode(selectedNode.id, { label: event.target.value })} /></label>
+              <label>Type
+                <select value={selectedNode.type} onChange={(event) => {
+                  const type = event.target.value;
+                  updateNode(selectedNode.id, type === 'contract'
+                    ? { type, contractId: selectedNode.contractId ?? `C${'X'.repeat(55)}`, subContracts: selectedNode.subContracts ?? [] }
+                    : { type, address: selectedNode.address ?? `G${'A'.repeat(55)}`, subContracts: undefined },
+                  );
+                }}>
+                  <option value="contract">Contract</option>
+                  <option value="address">Address</option>
+                </select>
+              </label>
+              {selectedNode.type === 'contract' ? (
+                <label>Contract ID<input value={selectedNode.contractId ?? ''} onChange={(event) => updateNode(selectedNode.id, { contractId: event.target.value })} /></label>
+              ) : (
+                <label>Address<input value={selectedNode.address ?? ''} onChange={(event) => updateNode(selectedNode.id, { address: event.target.value })} /></label>
+              )}
+            </div>
+          ) : <p>No node selected.</p>}
+
+          {validation && (
+            <section style={{ marginTop: 18 }}>
+              <h3>Validation</h3>
+              <div style={{ color: validation.valid ? '#047857' : '#b91c1c', fontWeight: 700 }}>
+                {validation.valid ? 'Valid authorization tree' : 'Invalid authorization tree'}
+              </div>
+              {validation.errors.length > 0 && (
+                <ul>{validation.errors.map((error, index) => <li key={index}>{error}</li>)}</ul>
+              )}
+              {validation.payload && (
+                <pre style={{ background: '#0f172a', color: '#e2e8f0', padding: 10, overflowX: 'auto', fontSize: 11 }}>
+                  {JSON.stringify(validation.payload, null, 2)}
+                </pre>
+              )}
+            </section>
+          )}
+        </aside>
+      </div>
+    </main>
+  );
 }
 
-function defaultAliceRouterTree() {
-  return [createAliceRouterLiquidityPoolTree()];
+function mapNode(nodes, transform) {
+  return nodes.map((node) => {
+    const transformed = transform(node);
+    if (transformed.subContracts) {
+      return { ...transformed, subContracts: mapNode(transformed.subContracts, transform) };
+    }
+    return transformed;
+  });
+}
+
+function filterNode(nodes, id) {
+  return nodes
+    .filter((node) => node.id !== id)
+    .map((node) => ({
+      ...node,
+      subContracts: node.subContracts ? filterNode(node.subContracts, id) : undefined,
+    }));
+}
+
+function findNode(nodes, id) {
+  for (const node of nodes) {
+    if (node.id === id) return node;
+    const found = findNode(node.subContracts ?? [], id);
+    if (found) return found;
+  }
+  return null;
+}
+
+function isDescendant(node, id) {
+  return (node.subContracts ?? []).some((child) => child.id === id || isDescendant(child, id));
+}
+
+function flattenNodes(nodes) {
+  return nodes.flatMap((node) => [node, ...flattenNodes(node.subContracts ?? [])]);
+}
+
+function layoutTree(nodes) {
+  const positions = new Map();
+  let leafIndex = 0;
+  function walk(list, depth) {
+    for (const node of list) {
+      const children = node.subContracts ?? [];
+      if (children.length === 0) {
+        const y = 40 + leafIndex * VERTICAL_GAP;
+        positions.set(node.id, { x: 40 + depth * HORIZONTAL_GAP, y });
+        leafIndex += 1;
+      } else {
+        const childPositionsBefore = positions.size;
+        walk(children, depth + 1);
+        const childPositions = children.map((child) => positions.get(child.id)).filter(Boolean);
+        const y = childPositions.length
+          ? (childPositions[0].y + childPositions[childPositions.length - 1].y) / 2
+          : 40;
+        positions.set(node.id, { x: 40 + depth * HORIZONTAL_GAP, y });
+      }
+    }
+  }
+  walk(nodes, 0);
+  return positions;
+}
+
+function renderLinks(nodes, positions) {
+  const paths = [];
+  function walk(list) {
+    for (const node of list) {
+      const from = positions.get(node.id);
+      for (const child of node.subContracts ?? []) {
+        const to = positions.get(child.id);
+        if (from && to) {
+          const startX = from.x + NODE_WIDTH;
+          const startY = from.y + NODE_HEIGHT / 2;
+          const endX = to.x;
+          const endY = to.y + NODE_HEIGHT / 2;
+          const midX = startX + (endX - startX) / 2;
+          paths.push(`M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`);
+        }
+      }
+      walk(node.subContracts ?? []);
+    }
+  }
+  walk(nodes);
+  return paths;
 }

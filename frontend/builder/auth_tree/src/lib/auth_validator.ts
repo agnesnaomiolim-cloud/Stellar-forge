@@ -82,6 +82,7 @@ export interface ValidationResult {
 export function validateAuthTree(root: AuthTreeNode): ValidationResult {
   const errors: string[] = [];
   const actions: AuthAction[] = [];
+  const ids = new Set<string>();
   let deepestContractId: string | undefined;
   let deepestContractDepth = -1;
 
@@ -95,17 +96,30 @@ export function validateAuthTree(root: AuthTreeNode): ValidationResult {
       return false;
     }
 
+    if (!node.id) {
+      errors.push(`Node "${node.label || 'unlabelled'}" is missing an id`);
+    } else if (ids.has(node.id)) {
+      errors.push(`Duplicate node id "${node.id}"`);
+    } else {
+      ids.add(node.id);
+    }
+
     if (visited.has(node.id)) {
       errors.push(`Cycle detected at node "${node.label}" (id=${node.id})`);
       return false;
     }
 
-    if (!node.label) {
-      errors.push(`Node ${node.id} is missing a label`);
+    if (!node.label?.trim()) {
+      errors.push(`Node ${node.id || '(missing id)'} is missing a label`);
       return false;
     }
 
     if (node.type === 'contract') {
+      if (!node.contractId?.trim()) {
+        errors.push(
+          `Contract node "${node.label}" (id=${node.id}) is missing its contract id`,
+        );
+      }
       // Track the deepest (most-specific) contract — this is the protected
       // resource being accessed.
       if (depth > deepestContractDepth) {
@@ -244,27 +258,28 @@ export function createAliceRouterLiquidityPoolTree(): AuthTreeNode {
  * and the tree renderer's zoom/pan behavior.
  */
 export function createDeepAuthTree(depth: number): AuthTreeNode {
-  function build(remaining: number, label: string): AuthTreeNode {
+  const safeDepth = Math.max(0, Math.floor(depth));
+  function build(remaining: number, label: string, currentDepth: number): AuthTreeNode {
     if (remaining <= 0) {
       return {
-        id: `leaf-${Math.random().toString(36).slice(2, 11)}`,
+        id: `leaf-${currentDepth}`,
         label,
         type: 'address' as const,
-        address: `G${Math.random().toString(36).slice(2).padStart(55, 'A').slice(0, 55)}`,
-        depth: 0,
+        address: `G${'A'.repeat(55)}`,
+        depth: currentDepth,
       };
     }
     return {
-      id: `node-${Math.random().toString(36).slice(2, 11)}`,
+      id: `contract-${currentDepth}`,
       label,
       type: 'contract' as const,
-      contractId: `CCNTH${Math.random().toString(36).slice(2, 52).padEnd(55, 'X')}`,
-      depth: 0,
-      subContracts: [build(remaining - 1, `Lvl${remaining - 1}`)],
+      contractId: `C${'X'.repeat(55)}`,
+      depth: currentDepth,
+      subContracts: [build(remaining - 1, `Lvl${remaining - 1}`, currentDepth + 1)],
     };
   }
 
-  return build(depth, `Root depth ${depth}`);
+  return build(safeDepth, `Root depth ${safeDepth}`, 0);
 }
 
 // ---------------------------------------------------------------------------
