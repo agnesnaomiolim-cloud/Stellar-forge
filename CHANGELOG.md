@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 
+## Chart v3.0.0 (2026-11-20) [major]
+
+
+
+
 ## Chart v2.39.0 (2026-10-31) [minor]
 
 • Merge pull request #640 from Princeadim/feat/zk-verifier-bls12-381-groth16-323
