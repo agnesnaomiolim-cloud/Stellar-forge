@@ -1,1 +1,411 @@
-IyBDYXBhY2l0eSBQbGFubmluZyAmIFN0b3JhZ2UgU2NhbGluZyBDYWxjdWxhdG9yIEd1aWRlCgpUaGlzIGd1aWRlIGdpdmVzIG9wZXJhdG9ycyBhIGRlZmluaXRpdmUgd2F5IHRvIHNpemUgQ1BVLCBtZW1vcnksIGFuZCBzdG9yYWdlCmZvciBTdGVsbGFyLUs4cy1tYW5hZ2VkIG5vZGVzLCBwcm9qZWN0IHN0b3JhZ2UgZ3Jvd3RoIG92ZXIgNi8xMi8yNCBtb250aHMsCmFuZCB1bmRlcnN0YW5kIGhvdyB0aGUgb3BlcmF0b3IncyBhdXRvbWF0ZWQgdm9sdW1lIGV4cGFuc2lvbiBpbnRlcmFjdHMgd2l0aAp0aGF0IGdyb3d0aCDigJQgc28gYSBjbHVzdGVyIGlzIHByb3Zpc2lvbmVkIGNvcnJlY3RseSB0aGUgZmlyc3QgdGltZSBpbnN0ZWFkIG9mCmRpc2NvdmVyZWQgdmlhIGEgYERpc2sgRnVsbGAgb3V0YWdlLgoKSXQgY29tcGxlbWVudHMsIHJhdGhlciB0aGFuIHJlcGxhY2VzLCB0aHJlZSBleGlzdGluZyBkb2NzOgoKLSBbUmVzb3VyY2UgTGltaXRzIGZvciBTdGVsbGFyIE5vZGUgVHlwZXNdKC4uL3Jlc291cmNlLWxpbWl0cy5tZCkg4oCUIENQVS9tZW1vcnkKICByZXF1ZXN0L2xpbWl0IHJlY29tbWVuZGF0aW9ucyBwZXIgbm9kZSB0eXBlLgotIFtQcm9hY3RpdmUgRGlzayBTY2FsaW5nXSguLi9wcm9hY3RpdmUtZGlzay1zY2FsaW5nLm1kKSDigJQgdGhlIG9wZXJhdG9yJ3MKICBhdXRvbWF0ZWQgRUJTL0dDUCB2b2x1bWUgZXhwYW5zaW9uIGZlYXR1cmUgKGNvbmZpZyByZWZlcmVuY2UsIGV2ZW50cywKICBtZXRyaWNzKS4KLSBbSGlzdG9yeSBBcmNoaXZlIFBydW5pbmcgR3VpZGVdKC4uL2FyY2hpdmUtcHJ1bmluZy5tZCkg4oCUIHJlY2xhaW1pbmcgc3BhY2Ugb24KICBmdWxsLWhpc3RvcnkgYXJjaGl2ZSBub2Rlcy4KClRoaXMgZ3VpZGUgaXMgdGhlICJob3cgbXVjaCBkbyBJIHByb3Zpc2lvbiwgYW5kIGhvdyBmYXN0IHdpbGwgaXQgZ3JvdyIKcmVmZXJlbmNlIHRoYXQgdGllcyB0aG9zZSB0aHJlZSB0b2dldGhlci4KCi0tLQoKIyMgMS4gQmFzZWxpbmUgUmVxdWlyZW1lbnRzIGJ5IE5vZGUgVHlwZQoKQmFzZWxpbmVzIGJlbG93IHN0YXJ0IGZyb20gdGhlIFtvZmZpY2lhbCBTdGVsbGFyIGhhcmR3YXJlCnJlY29tbWVuZGF0aW9uc10oaHR0cHM6Ly9kZXZlbG9wZXJzLnN0ZWxsYXIub3JnL2RvY3MvdmFsaWRhdG9ycy9hZG1pbi1ndWlkZS9wcmVyZXF1aXNpdGVzKQphbmQgYXJlIG1hcHBlZCBvbnRvIHRoZSBvcGVyYXRvcidzIGBTdGVsbGFyTm9kZWAgcmVzb3VyY2UgbW9kZWwgYW5kIHN0YW5kYXJkCkFXUy9HQ1AgaW5zdGFuY2UgdHlwZXMuIFdoZXJlIHRoaXMgcmVwbydzIG93biBbcmVzb3VyY2UtbGltaXRzLm1kXSguLi9yZXNvdXJjZS1saW1pdHMubWQpCnJlY29tbWVuZHMgYSBkaWZmZXJlbnQgZmlndXJlIGZvciBUZXN0bmV0IChpdCBnZW5lcmFsbHkgc2l6ZXMgbG93ZXIpLCB0aGF0CmZpZ3VyZSBpcyB1c2VkIGluc3RlYWQg4oCUIFRlc3RuZXQgbG9hZCBpcyBhIHNtYWxsIGZyYWN0aW9uIG9mIE1haW5uZXQgYW5kIGRvZXMgbm90IG5lZWQgcHJvZHVjdGlvbi1ncmFkZSBoZWFkcm9vbS4KCsKgCj4gKipSZWFkIHRoaXMgdGFibGUgYXMgYSBzdGFydGluZyBwb2ludCwgbm90IGEgY2VpbGluZy4qKiBBbGwgZmlndXJlcyBhc3N1bWUKPiAiY3VycmVudCBuZXR3b3JrIGFjdGl2aXR5IiBhcyBvZiB0aGlzIHdyaXRpbmcgKHNlZSBbwqczXShAMzMtc3RvcmFnZS1ncm93dGgtbW9kZWwpCj4gZm9yIHRoZSBsaXZlIHRocm91Z2hwdXQgdGhpcyBpcyBiYXNlZCBvbikuIEFjdHVhbCByZXF1aXJlbWVudHMgZ3JvdyB3aXRoCj4gbmV0d29yayBhY3Rpdml0eSDigJQgcmUtdmFsaWRhdGUgYWdhaW5zdCDCpzMgcGVyaW9kaWNhbGx5LCBhbmQgcHJlZmVyIHRoZQo+IG9wZXJhdG9yJ3Mgb3duIFtQcm9tZXRoZXVzIG1ldHJpY3NdKCM1LW1vbml0b3JpbmctY2hlY2tsaXN0KSBvdmVyIHN0YXRpYwo+IG51bWJlcnMgb25jZSBhIG5vZGUgaGFzIGJlZW4gcnVubmluZyBmb3IgYSBmZXcgd2Vla3MuCgojIyMgMS4xIFZhbGlkYXRvciAoU3RlbGxhciBDb3JlKQoKfCB8IENQVSB8IE1lbW9yeSB8IERpc2sgfCBJT1BTIHwgQ2xvdWQgZXF1aXZhbGVudCB8CnwtLS18LS0tfC0tLXwtLS18LS0tfC0tLXwKfCAqKk1haW5uZXQsIGBoaXN0b3J5TW9kZTogUmVjZW50YCoqIHwgOCB2Q1BVQCAzLjRHSHogfCAxNkdpIHwgMTAwR2kgTlZNZSBTU0QgfCAxMCwwMDAgfCBBV1MgYGM1LjJ4bGFyZ2VgIC8gR0NQIGBuNC1oaWdoY3B1LThgIHwKfCAqKk1haW5uZXQsIGBoaXN0b3J5TW9kZTogRnVsbGAqKiB8IDggdkNQVUAgMy40R0h6IHwgMTZHaSB8ICoqMSw1MDBHaSoqIE5WTWUgU1NEIHwgMTAsMDAwIHwgQVdTIGBjNS4yeGxhcmdlYCAvIEdDUCBgbjQtaGlnaGNwdS04YCB8CnwgKipUZXN0bmV0KiogfCA1MDBt4oCTMiB8IDHigJM0R2kgfCAxMDDigJMyMDBHaSBTU0QgfCAzLDAwMCB8IEFXUyBgYzUueGxhcmdlYCAvIEdDUCBgbjQtaGlnaGNwdS00YCB8CgotIENQVS9tZW1vcnkgYXJlIHRoZSBbb2ZmaWNpYWwgU3RlbGxhciB2YWxpZGF0b3IKICByZWNvbW1lbmRhdGlvbl0oaHR0cHM6Ly9kZXZlbG9wZXJzLnN0ZWxsYXIub3JnL2RvY3MvdmFsaWRhdG9ycy9hZG1pbi1ndWlkZS9wcmVyZXF1aXNpdGVzKToKICA4IHZDUFUsIDE2R0IgUkFNLCBOVk1lIFNTRCBhdCAxMCwwMDAgSU9QUy4KLSBQb3N0Z3JlU1FMIGNhbiBiZSBjby1sb2NhdGVkIG9uIHRoZSBzYW1lIGluc3RhbmNlIGF0IHRoaXMgc3BlYyBmb3IgYSBzaW5nbGUKICB2YWxpZGF0b3I7ICoqVGllciAxIG9yZ2FuaXphdGlvbnMgcnVuIDMgZ2VvZ3JhcGhpY2FsbHktZGlzcGVyc2VkIEZ1bGwKICBWYWxpZGF0b3JzKiosIGVhY2ggaW5kZXBlbmRlbnRseSBwcm92aXNpb25lZCB0byB0aGlzIHNwZWMgKDN4IHRvdGFsCiAgcmVzb3VyY2VzIGFjcm9zcyByZWdpb25zLCBwZXIgU3RlbGxhcidzIFRpZXIgMSBndWlkZWxpbmVzKSwgbm90IG9uZSBub2RlCiAgc2NhbGVkIHVwIDN4LgotIGBoaXN0b3J5TW9kZWAgZHJpdmVzIGRpc2sgc2l6aW5nIGFuZCBncm93dGggYmVoYXZpb3Ig4oCUIHNlZQogIFvCpzJdKCMtaGlzdG9yeS1tb2RlLXJlY2VudC12cy1mdWxsLWFuZC1jYXB0aXZlLWNvcmUpIGZvciB0aGUgZnVsbAogIGRpc3RpbmN0aW9uIGFuZCBbwqczXShAMzMtc3RvcmFnZS1ncm93dGgtbW9kZWwpIGZvciBwcm9qZWN0aW9ucy4KLSBgU3RlbGxhck5vZGVgIG1hcHBpbmcgKGV4cGxpY2l0IGBzdG9yYWdlLnNpemVgIHJlY29tbWVuZGVkIGluIHByb2R1Y3Rpb24gc28KICB0aGUgcmVxdWVzdCBpcyBzZWxmLWRvY3VtZW50aW5nIHJhdGhlciB0aGFuIHJlbHlpbmcgb24gdGhlIGhpc3RvcnlNb2RlCiAgZGVmYXVsdCk6CiAgYGBgeWFtbAogIHNwZWM6CiAgICBub2RlVHlwZTogVmFsaWRhdG9yCiAgICBuZXR3b3JrOiBtYWlubmV0CiAgICBoaXN0b3J5TW9kZTogRnVsbCAgICAgICAgICAgICMgb3IgIlJlY2VudCIg4oCUIHNlZSBkaXN0aW5jdGlvbiBhYm92ZQogICAgcmVzb3VyY2VzOgogICAgICByZXF1ZXN0czogeyBjcHU6ICI4IiwgbWVtb3J5OiAiMTZHaSIgfQogICAgICBsaW1pdHM6IHsgY3B1OiAiOCIsIG1lbW9yeTogIjE2R2kiIH0gICAjIEd1YXJhbnRlZWQgUW9TIOKAlCBzZWUgcmVzb3VyY2UtbGltaXRzLm1kCiAgICBzdG9yYWdlOgogICAgICBzaXplOiAiMTUwMEdpIiAgICAgICAgICAgICAgICAgICAgICAgICMgbWF0Y2ggaGlzdG9yeU1vZGUncyBkZWZhdWx0LCBvciBzaXplIHBlciDCpzMKICAgICAgc3RvcmFnZUNsYXNzOiAic3RlbGxhci1mYXN0LXNzZCIgICAgICAgICMgYWxsb3dWb2x1bWVFeHBhbnNpb246IHRydWUsIOKJpTEwMDAwIElPUFMKICBgYGAKCiMjIyAxLjIgSG9yaXpvbiAoQVBJICsgaW5nZXN0aW9uIERCKQoKSG9yaXpvbiBpcyByZWFsbHkgdHdvIHRpZXJzIHdpdGggZGlmZmVyZW50IHNpemluZzoKCnwgfCBDUFUgfCBNZW1vcnkgfCBEaXNrIHwgSU9QUyB8IENsb3VkIGVxdWl2YWxlbnQgfAp8LS0tfC0tLXwtLS18LS0tfC0tLXwtLS18CnwgKipBUEkgc2VydmljZSAoTWFpbm5ldCkqKiB8IDQgdkNQVSB8IDE2R2kgfCAxMDBHaSBTU0QgfCAzLDAwMCB8IEFXUyBgYzUueGxhcmdlYCAvIEdDUCBgbjQtaGlnaGNwdS00YCB8CnwgKipQb3N0Z3JlU1FMIERCICg5YWlubmV0KSoqIHwgNCB2Q1BVIHwgMzJHaSB8IDJUaSBTU0QgKE5WTWUvREFTKSB8IDcsMDAwIHwgQVdTIGByNS54bGFyZ2VgIChEQikgKyBgaW8yYC9gcGQtc3NkYCB2b2x1bWUgfAp8ICoqQVBJIHNlcnZpY2UgKFRlc3RuZXQpKiogfCAyNTBt4oCTMSB8IDUxMk1p4oCTMkdpIHwgMjAw4oCTNTAwR2kgU1NEIHwgMywwMDAgfCBBV1MgYGM1LmxhcmdlYCAvIEdDUCBgbjQtaGlnaGNwdS0yYCB8CgotIFNvdXJjZTogW0hvcml6b24gYWRtaW4tZ3VpZGUKICBwcmVyZXF1aXNpdGVzXShodHRwczovL2RldmVsb3BlcnMuc3RlbGxhci5vcmcvZG9jcy9kYXRhL2FwaXMvaG9yaXpvbi9hZG1pbi1ndWlkZS9wcmVyZXF1aXNpdGVzKS4KICBUaGUgMlRpIERFIGZpZ3VyZSBhc3N1bWVzIHRoZSBkZWZhdWx0ICoqMzAtZGF5IHJldGVudGlvbiB3aW5kb3cqKiDigJQgdGhpcyBpcwogICpub3QqIGZ1bGwgaGlzdG9yeTsgc2VlIFvCpzJdKCMtaGlzdG9yeS1tb2RlLXJlY2VudC12cy1mdWxsLWFuZC1jYXB0aXZlLWNvcmUpCiAgZm9yIHdoYXQgZnVsbCBoaXN0b3J5IGNvc3RzIG9uIHRvcCBvZiB0aGlzLgotIFBvc3RncmVTUUwg4omlIDEyIGlzIHJlcXVpcmVkLiBTcGxpdCB0aGUgQVBJIHBvZCBhbmQgdGhlIGRhdGFiYXNlIG9udG8KICBzZXBhcmF0ZSBgU3RlbGxhck5vZGVgL1N0YXRlZnVsU2V0LWJhY2tlZCB2b2x1bWVzIHNvIHRoZSB0d28gY2FuIGJlIHNjYWxlZAogIGFuZCBiYWNrZWQgdXAgaW5kZXBlbmRlbnRseSDigJQgdGhlIEFQSSB0aWVyIGlzIHN0YXRlbGVzcy1pc2ggYW5kIGhvcml6b250YWxseQogIHNjYWxhYmxlIChzZWUgW3Jlc291cmNlLWxpbWl0cy5tZF0oLi4vcmVzb3VyY2UtbGltaXRzLm1kI2F1dG9zY2FsaW5nLXJlY29tbWVuZGF0aW9ucykpLAogIHRoZSBEQiB0aWVyIGlzIG5vdC4KCiMjIyAxLjMgU29yb2JhbiBSUEMKCnwgfCBDUFUgfCBNZW1vcnkgfCBEaXNrIHwgSU9QUyB8IENsb3VkIGVxdWl2YWxlbnQgfAp8LS0tfC0tLXwtLS18LS0tfC0tLXwtLS18CnwgKipNYWlubmV0LCDiiaQxMDAgcmVxL3MgKGJhc2VsaW5lKSoqIHwgNOKAkzggdkNQVSB8IDE2R2kgfCAzNTBHaSB8IOKJpTMwMDAgfCBBV1MgYGM1LjJ4bGFyZ2VgIC8gR0NQIGBuNC1oaWdoY3B1LThgIHwKfCAqKk1haW5uZXQsID41MDAgcmVxL3MqKiB8IHNjYWxlIGhvcml6b250YWxseSB8IOKJpTMyR2kgcGVyIG5vZGUgfCAzNTBHaSArIHBlciBub2RlIHwg4omlMywwMDAgfCBtdWx0aXBsZSBgYzUuMnhsYXJnZWAgYmVoaW5kIGEgbG9hZCBiYWxhbmNlciB8CnwgKipUZXN0bmV0KiogfCA1MDBt4oCTNCB8IDLigJM4R2kgfCAxMDDigJMyMDBHaSB8IDMsMDAwIHwgQVdTIGBjNS54bGFyZ2VgIC8gR0NQIGBuNC1oaWdoY3B1LTRgIHwKCi0gU291cmNlOiBbU3RlbGxhciBSUEMgYWRtaW4tZ3VpZGUKICBwcmVyZXF1aXNpdGVzXShodHRwczovL2RldmVsb3BlcnMuc3RlbGxhci5vcmcvZG9jcy9kYXRhL2FwaXMvcnBjL2FkbWluLWd1aWRlL3ByZXJlcXVpc2l0ZXMpLgogIDM1MEdCIGFzc3VtZXMgdGhlICoqZGVmYXVsdCA3LWRheSByZXRlbnRpb24gd2luZG93Kio7IGVhY2ggYWRkaXRpb25hbCBkYXkKICBvZiByZXRlbnRpb24gY29zdHMgKiriiYg0MEdCKiouIEZvciBhIDMwLWRheSB3aW5kb3cgKG1hdGNoaW5nIEhvcml6b24vQ29yZSdzCiAgZGVmYXVsdCBzbyBhbGwgdGhyZWUgdGllcnMgcm9sbCBvZmYgaGlzdG9yeSB0b2dldGhlcik6CiAgYDM1MEdpICsgKDMwIC0gNykgw5cgNDBHaSDiiYggMSwyNzBHaWAuCi0gKipMb2NhbCAoaW5zdGFuY2UtYXR0YWNoZWQpIFNTRCBpcyBzdHJvbmdseSByZWNvbW1lbmRlZCBvdmVyIG5ldHdvcmsKICB2b2x1bWVzLioqIFN0ZWxsYXIncyBvd24gZG9jcyBjYWxsIG91dCB0aGF0IG5ldHdvcmstYXR0YWNoZWQgc3RvcmFnZSAod2hpY2gKICBpcyB3aGF0IEVCUy9HQ1AgUEQgZnVuZGFtZW50YWxseSBhcmUpICJ3aWxsIG5lZ2F0aXZlbHkgaW1wYWN0IHBlcmZvcm1hbmNlIgogIGZvciB0aGlzIHdvcmtsb2FkLiBPbiBFS1MvR0tFIHRoaXMgZ2VuZXJhbGx5IG1lYW5zIGFuIGluc3RhbmNlIHR5cGUgd2l0aAogIGxvY2FsIE5WTWUgKGUuZy4gYGM1ZGArL2BtNWRgL2BpM2Agb24gQVdTLCBsb2NhbC1TU0QtYmFja2VkIG5vZGVzIG9uIEdLRSkgd2l0aAogIHRoZSB2b2x1bWUgbW91bnRlZCBhcyBhIGhvc3RQYXRoLWJhY2tlZCBQdiwgdHJhZGluZyB0aGUgb3BlcmF0b3IncyBhdXRvbWF0aWMKICBFQlMvR0NQLVBEIHJlc2l6ZSAowqc0KSBmb3IgcmF3IElPUFMuIElmIHlvdSBuZWVkIGF1dG9tYXRpYyByZXNpemUsIHVzZSBhCiAgcHJvdmlzaW9uZWQtSU9QUyBuZXR3b3JrIHZvbHVtZSBhbmQgYWNjZXB0IHRoZSBsYXRlbmN5IGNvc3Q7IGRvbid0IHRyeSB0bwogIGNvbWJpbmUgbG9jYWwgU1NEIHdpdGggb25saW5lIGV4cGFuc2lvbiDigJQgbG9jYWwgZGlza3MgZ2VuZXJhbGx5IGNhbm5vdCBiZQogIHJlc2l6ZWQgbGl2ZS4KICBGb3IgZHJpdmUsIHNjaGVkdWxlciBhbmQgZmlsZXN5c3RlbSB0dW5pbmcgcGx1cyBhIGBmaW9gIGFjY2VwdGFuY2UgdGVzdCwgc2VlCiAgW0JhcmUtTWV0YWwgTlZNZSBJT1BTIFR1bmluZ10oLi4vcGVyZm9ybWFuY2UvYmFyZS1tZXRhbC1pb3BzLm1kKS4KCi0tLQoKIyMgMi4gSGlzdG9yeSBNb2RlOiBSZWNlbnQgdnMuIEZ1bGwgKGFuZCBDYXB0aXZlIENvcmUpCgpUaHJlZSBpbmRlcGVuZGVudCBheGVzIGRlY2lkZSB3aGV0aGVyIGEgbm9kZSdzIHN0b3JhZ2UgaXMgYm91bmRlZCAoc2l6ZSBpdApvbmNlKSBvciB1bmJvdW5kZWQgKGl0IG5lZWRzIMKnMydzIGdyb3d0aCBtb2RlbCBhbmQgwqc0J3MgYXV0by1leHBhbnNpb24pOgoKKipBeGlzIDEg4oCUIGBzcGVjLmhpc3RvcnlNb2RlYCBvbiBWYWxpZGF0b3IvSG9yaXpvbiBub2RlcyoqIChyZWFsIENSRCBmaWVsZCwKYHNyYy9jcmQvdHlwZXMucnM6Okhpc3RvcnlNb2RlYCwgYXBwbGllZCBpbiBgc3JjL2NvbnRyb2xsZXIvcmVzb3VyY2VzLnJzYCk6Cgp8IHwgYGhpc3RvcnlNb2RlOiBSZWNlbnRgIChkZWZhdWx0KSB8IGBoaXN0b3J5TW9kZTogRnVsbGAgfAp8LS0tfC0tLXwtLS18CnwgYHN0ZWxsYXItY29yZS5jZmdgIGdlbmVyYXRlZCB8IGBDQVRDSFVQX0NPTVBMRVRFPWZhbHNlYCwgYENBVENIVVBfUkVDRU5UPU1vNDgwYCB8IGBDQVRDSFVQX0NPTVBMRVRFPXRydWVgIHwKfCBSZXRlbnRpb24gfCB+TW8sNDgwIGxlZGdlcnMg4omIICoqMy41IGRheXMqKiBhdCBjdXJyZW50IGxlZGdlciBjbG9zZSB0aW1lIHwgVW5ib3VuZGVkIOKAlCBhbGwgbGVkZ2VycyBzaW5jZSBnZW5lc2lzIHwKfCBHcm93dGggcGF0dGVybiB8ICoqQm91bmRlZCoqIOKAlCBvbGQgbGVkZ2VycyBldmljdGVkIGFzIG5ldyBvbmVzIGFycml2ZSB8ICoqVW5ib3VuZGVkKiog4oCUIGdyb3dzIGZvcmV2ZXIsIG5ldmVyIHNocmlua3MgfAp8IE9wZXJhdG9yJ3MgZGVmYXVsdCBkaXNrIHNpemUgKHdoZW4gYHN0b3JhZ2Uuc2l6ZWAgdW5zZXQpIHwgMTAwR2kgfCAxLDUwMEdpIChzdGFydGluZyBwb2ludCwgbm90IGEgY2VpbGluZykgfAp8IERvZXMgaXQgbmVlZCBgZGlza1NjYWxpbmdgPyB8IE9wdGlvbmFsIOKAlCBtYWlubHkgcHJvdGVjdHMgYWdhaW5zdCBhIG1pcy1zaXplZCBvdmVycmlkZSB8ICoqUmVxdWlyZWQqKiDigJQgdGhlIG9ubHkgbW9kZSB3aGVyZSAicHJvdmlzaW9uIG9uY2UiIGlzIG5vdCBhIHZhbGlkIHN0cmF0ZWd5IHwKfCBgcmV0ZW50aW9uUG9saWN5YCByZWNvbW1lbmRhdGlvbiB8IGBEZWxldGVgIGlzIGZpbmUg4oCUIG5vdGhpbmcgaGVyZSBpcyBpcnJlcGxhY2VhYmxlIHwgYFJldGFpbmAgKHNlZSBbYXJjaGl2ZS1wcnVuaW5nLm1kXSguLi9hcmNoaXZlLXBydW5pbmcubWQpIGJlZm9yZSBldmVyIHVzaW5nIGBEZWxldGVgKSB8CgoqKkF4aXMgMiDigJQgQ2FwdGl2ZSBDb3JlLCB1c2VkIGJ5IFNvcm9iYW4gUlBDKiogKGBTb3JvYmFuQ29uZmlnLmNhcHRpdmVDb3JlU3RydWN0dXJlZENvbmZpZ2AKaW4gdGhlIENSRCk6IGEgYHN0ZWxsYXItY29yZWAgcHJvY2VzcyBlbWJlZGRlZCBpbiB0aGUgUlBDIHBvZCB0aGF0IGFsd2F5cwpodW5zIGEgc2hvcnQgcm9sbGluZyB3aW5kb3cgKMKnMS4zJ3MgNy1kYXkgZGVmYXVsdCwgZXh0ZW5kYWJsZSksIHdpdGggbm8KYGhpc3RvcnlNb2RlYCBmaWVsZCBvZiBpdHMgb3duIGFuZCBubyBpbmRlcGVuZGVudCBoaXN0b3J5IGFyY2hpdmUg4oCUIGl0IGlzCmFyY2hpdGVjdHVyYWxseSBjbG9zZXIgdG8gYGhpc3RvcnlNb2RlOiBSZWNlbnRgIHRoYW4gdG8gYEZ1bGxgLCBidXQgc2l6ZWQgYW5kCmNvbmZpZ3VyZWQgc2VwYXJhdGVseSAowqcxLjMpLCBub3QgdmlhIGBzcGVjLmhpc3RvcnlNb2RlYC4KCioqQXhpcyAzIOKAlCBzdGFuZGFsb25lIGFyY2hpdmUgbm9kZXMqKiAoQ2FwdGl2ZSBDb3JlIGRpc2FibGVkLCBmdWxsIGhpc3RvcnkpOiBhCkNhcHRpdmUgQ29yZSBzZXR1cCBydW5zIGFuIGVtYmVkZGVkIGNvcmUgaW5zaWRlIHRoZSBSUEMgcG9kIGFuZCB0aGVyZWZvcmUKc2hhcmVzIGl0cyBsaWZlY3ljbGUgYW5kIHJlc291cmNlcyB3aXRoIHRoZSBSUEMgcHJvY2Vzcy4gQSBzdGFuZGFsb25lIGFyY2hpdmUKbm9kZSBydW5zIGl0cyBvd24gYHN0ZWxsYXItY29yZWAgcHJvY2VzcyB3aXRoIGBoaXN0b3J5TW9kZTogRnVsbGAsIGlzCmRlcGxveWVkIGluZGVwZW5kZW50bHkgb2YgYW55IFJQQyB0aWVyLCBhbmQgaXMgdGhlIG9ubHkgY29uZmlndXJhdGlvbiB0aGF0Cm5lZWRzIHRoZSBmdWxsIGdyb3d0aCBwcm9qZWN0aW9uIGluIMKnMy4gSWYgeW91IG9ubHkgcnVuIENhcHRpdmUgQ29yZSAoU29yb2JhbgpSUEMpIGFuZC9vciBgaGlzdG9yeU1vZGU6IFJlY2VudGAgdmFsaWRhdG9ycywgeW91ciBzdG9yYWdlIGlzIGJvdW5kZWQgYW5kCnNpemVkIG9uY2UgcGVyIMKnMSDigJQgZW5hYmxlIGBkaXNrU2NhbGluZ2AgYXMgYSBzYWZldHkgbmV0ICjCpzQpIGFuZCBza2lwCsKnMy4KCioqUHJhY3RpY2FsIGltcGxpY2F0aW9uIGZvciBjYXBhY2l0eSBwbGFubmluZzoqKiBhbnl0aGluZyBydW5uaW5nIGBoaXN0b3J5TW9kZToKUmVjZW50YCBvciBDYXB0aXZlIENvcmUgaGFzIGEgc3RvcmFnZSBuZWVkIHRoYXQncyBhICpjb25zdGFudCogeW91IHNpemUgb25jZQoowqcxKSBhbmQgcmV2aXNpdCBvbmx5IHdoZW4gbmV0d29yay13aWRlIGFjdGl2aXR5IGNoYW5nZXMgbWF0ZXJpYWxseSBlbm91Z2ggdG8KanVzdGlmeSBhIGJpZ2dlciByb2xsaW5nIHdpbmRvdy4gYGhpc3RvcnlNb2RlOiBGdWxsYCBpcyBhICpmdW5jdGlvbiBvZgp0aW1lKiDigJQgaXQgaXMgdGhlIG9uZSBjb25maWd1cmF0aW9uIHRoaXMgZ3VpZGUncyBncm93dGggbW9kZWwgKMKnMykgaXMKYWN0dWFsbHkgcHJvamVjdGluZyBmb3IuIElmIHlvdXIgZGVwbG95bWVudCBoYXMgbm8gYEZ1bGxgLW1vZGUgbm9kZXMsIHlvdSBjYW4Kc3RvcCBhZnRlciDCpzEgYW5kIGVuYWJsZSBgZGlza1NjYWxpbmdgIGFzIGEgc2FmZXR5IG5ldCAowqc0KTsgwqczIGlzIHdyaXR0ZW4KZm9yIHdob2V2ZXIgaW4geW91ciBvcmcgcnVucyB0aGUgYXJjaGl2ZSB0aWVyLgoKLS0tCgojIyAzLiBTdG9yYWdlIEdyb3d0aCBNb2RlbAoKIyMjIDMuMSBDdXJyZW50IG5ldHdvcmsgdGhyb3VnaHB1dCB0aGlzIG1vZGVsIGlzIGJhc2VkIG9uCgpBcyBvZiB3cml0aW5nLCBsaXZlIFN0ZWxsYXIgTWFpbm5ldCB0aHJvdWdocHV0ICh2aWEKW0NoYWluc3BlY3RdKGh0dHBzOi8vY2hhaW5zcGVjdC5hcHAvY2hhaW4vc3RlbGxhcikpOgoKfCBNZXRyaWMgfCBWYWx1ZSB8CnwtLS18LS0tfAp8IEF2ZXJhZ2UgVFBTICh0cmFpbGluZyAxaCkgfCB+MTI0IHR4L3MgfAp8IFJlY2VudCBwZWFrIFRQUyAodHJhaWxpbmcgMTAwIGxlZGdlcnMpIHwgfjIwMyB0eC9zIHwKfCBOZXR3b3JrLWNvbmZpZ3VyZWQgY2VpbGluZyB8IDIwMCB0eC9zIChnb3Zlcm5hYmxlIGJ5IHZhbGlkYXRvciB2b3RlKSB8CnwgVGhlb3JldGljYWwgcHJvdG9jb2wgY2FwYWNpdHkgKDIwMjUgdGFyZ2V0KSB8IDUsMDAwIHR4L3MgfAp8IEF2ZXJhZ2UgbGVkZ2VyIGNsb3NlIHRpbWUgfCB+NS4w4oCTNS44cyB8Cgo+ICoqVGhpcyBjaGFuZ2VzLioqIFN0ZWxsYXIgaGFzIGJlZW4gYWN0aXZlbHkgcmFpc2luZyBib3RoIHRoZSBjb25maWd1cmVkCj4gY2VpbGluZyBhbmQgdGhlIHByb3RvY29sJ3MgdGhlb3JldGljYWwgY2FwYWNpdHkgKHNlZSBbVGhlIFJvYWQgdG8gNTAwMAo+IFRQU10oaHR0cHM6Ly9zdGVsbGFyLm9yZy9ibG9nL2RldmVsb3BlcnMvdGhlLXJvYWQtdG8tNTAwMC10cHMtc2NhbGluZy1zdGVsbGFyLWluLTIwMjUpKS4KPiBUcmVhdCB0aGUgVFBTIGZpZ3VyZSBhcyBhIHZhcmlhYmxlIHlvdSByZS1tZWFzdXJlLCBub3QgYSBjb25zdGFudCB5b3UKPiBoYXJkY29kZS4gwqczLjQgc2hvd3MgaG93IHRvIHB1bGwgaXQgbGl2ZSBpbnN0ZWFkIG9mIHRydXN0aW5nIHRoaXMgdGFibGUuCgojIyMgMy4yIFRoZSBtb2RlbAoKU3RvcmFnZSBvbiBhbiB1bmJvdW5kZWQgKGZ1bGwtaGlzdG9yeSkgbm9kZSBncm93cyBhczoKCmBgYApkYWlseV9ncm93dGhfYnl0ZXMgID0gbGVkZ2Vyc19wZXJfZGF5IMOXIGF2Z19vcHNfcGVyX2xlZGdlciDDlyBieXRlc19wZXJfb3AKbGVkZ2Vyc19wZXJfZGF5ICAgICA9IDg2LDQwMCAvIGF2Z19sZWRnZXJfY2xvc2Vfc2Vjb25kcwphdmdfb3BzX3Blcl9sZWRnZXIgICA9IGF2Z190cHMgw5cgYXZnX2xlZGdlcl9jbG9zZV9zZWNvbmRzCmBgYAoKU3Vic3RpdHV0aW5nIG9uZSBpbnRvIHRoZSBvdGhlciwgdGhlIG1vZGVsIHJlZHVjZXMgdG8gdGhlIGZvcm0gdGhhdCdzCmFjdHVhbGx5IHVzZWZ1bCBmb3IgcGxhbm5pbmcg4oCUIGl0IGRvZXNuJ3QgZGVwZW5kIG9uIGxlZGdlciBjbG9zZSB0aW1lIGF0IGFsbCwKb25seSBvbiBzdXN0YWluZWQgb3BlcmF0aW9uIHRocm91Z2hwdXQ6CgpgYGAKZGFpbHlfZ3Jvd3RoX2J5dGVzICDiiYggYXZnX29wc19wZXJfc2Vjb25kIMOXIDg2LDQwMCDDlyBieXRlc19wZXJfb3AKYGBgCgoqKmBieXRlc19wZXJfb3BgIGlzIGRlcGxveW1lbnQtIGFuZCBlcmEtZGVwZW5kZW50IGFuZCBpcyB0aGUgb25lIGlucHV0IGluCnRoaXMgZm9ybXVsYSB3ZSBkbyAqbm90KiBoYXZlIGFuIGF1dGhvcml0YXRpdmUgcHVibGlzaGVkIGZpZ3VyZSBmb3IuKiogWERSIGVuY29kaW5nIGlzIGNvbXBhY3QsIGFuZCBhIHBsYWluIHBheW1lbnQsIGEgcGF0aCBwYXltZW50LCBhbmQgYSBTb3JvYmFuCmBpbnZva2VIb3N0RnVuY3Rpb25gIG9wZXJhdGlvbiBhcmUgbm90IHJlbW90ZWx5IHRoZSBzYW1lIHNpemUgb24gdGhlIHdpcmUgb3IKb24gZGlzayAodGhlIGxhdHRlciBhbHNvIHdyaXRlcyBjb250cmFjdCBzdGF0ZSwgbm90IGp1c3QgdGhlIG9wZXJhdGlvbgppdHNlbGYpLiBSYXRoZXIgdGhhbiBwcmVzZW50aW5nIGEgc2luZ2xlIG1hZGUtdXAgY29uc3RhbnQgYXMgZmFjdCDigJQgd2hpY2ggaXMKNmV4YWN0bHkgdGhlIGtpbmQgb2YgdW52ZXJpZmlhYmxlIG51bWJlciB0aGlzIGlzc3VlJ3MgcmV2aWV3IHN0ZXAgZXhpc3RzIHRvCmNhdGNoIOKAlCBjYWxpYnJhdGUgaXQgZnJvbSB5b3VyIG93biBhcmNoaXZlLCBwZXIgwqczLjQsIGFuZCB0cmVhdCB0aGUgd29ya2VkCmV4YW1wbGUgYmVsb3cgYXMgaWxsdXN0cmF0aXZlIG9mIHRoZSAqbWV0aG9kKiwgbm90IGFzIGEgbnVtYmVyIHRvIGNvcHkgaW50byBhCnByb3Zpc2lvbmluZyB0aWNrZXQuCgojIyMgMy4zIFdvcmtlZCBleGFtcGxlIChpbGx1c3RyYXRpdmUg4oCUIHJlY2FsaWJyYXRlIGJlZm9yZSB1c2luZykKClVzaW5nIHRoZSBjdXJyZW50IGF2ZXJhZ2Ugb2YgfjEyNCBvcHMvcyBhbmQgYW4gaWxsdXN0cmF0aXZlIG1pZC1yYW5nZQpYRFIgc2l6ZSBvZiB+MzAwIGJ5dGVzL3BlciBvcGVyYXRpb24gKGluY2x1ZGluZyB0cmFuc2FjdGlvbiBlbnZlbG9wZSBhbmQKbWV0YWRhdGEgb3ZlcmhlYWQpOgoKYGBgCmRhaWx5X2dyb3d0aCAg4omIIDEyNCBvcHMvcyDDlyA4Niw0MDAgcy9kYXkgw5cgMzAwIEIvT1AKICAgICAgICAgICAgIOKJiCAzLjIxIEdCL2RheQoKbW9udGhseSAoMzBkKSAg4omIIDk2LjMgR0IvbW9udGgKeWVhcmx5ICAgICAgICAg4omIIDEuMTcgVEIvIHllYXIKYGBgCgpQcm9qZWN0aW9ucyBmcm9tIGEgMS41IFRpQiBzdGFydGluZyBhbGxvY2F0aW9uICh0aGUgYEZ1bGxgIGRlZmF1bHQpOgoKfCBIb3Jpem9uIHwgR3Jvd3RoIGF0IH4xMjQgb3BzL3MgfCBQcm9qZWN0ZWQgdG90YWwgc2l6ZSB8IEhlYWRyb29tIG9uIDEuNSBUaUIgfAp8LS0tfC0tLXwtLS18LS0tfAp8IDYgbW9udGhzIHwgfjU3OCBHQiB8IH4yLjA3IFRpQiB8IH4wLjU3IFRpQiB8CnwgMTIgbW9udGhzIHwgfjEuMTcgVEIgfCB+Mi42NyBUaUIgfCAqKm92ZXIgY2FwYWNpdHkqKiB8CnwgMjQgbW9udGhzIHwgfjIuMzQgVEIgfCB+My44NCBUaUIgfCAqKm92ZXIgY2FwYWNpdHkqKiB8CgpUaGUgc2FtZSBwcm9qZWN0aW9ucyBhdCB0aGUgbmV0d29yay1jb25maWd1cmVkIGNlaWxpbmcgb2YgMjAwIG9wcy9zCih+MS42eCB0aGUgY3VycmVudCBhdmVyYWdlKToKCmBgYApkYWlseV9ncm93dGggIOKJiSAyMDAgw5cgODYsNDAwIMOXIDMwMCBCL09QCiAgICAgICAgICAgICDiiaggNS4xOCBHQi9kYXkKbW9udGhseSAgICAgICDiiaigMTU1IEdCL21vbnRoCnllYXJseSAgICAgICAg4omIIDEuODkgVEIveWVhcgpgYGAKCnwgSG9yaXpvbiB8IEdyb3d0aCBhdCAyMDAgb3BzL3MgfCBQcm9qZWN0ZWQgdG90YWwgc2l6ZSB8IEhlYWRyb29tIG9uIDEuNSBUaUIgfAp8LS0tfC0tLXwtLS18LS0tfAp8IDYgbW9udGhzIHwgfjAuOTMgVEIgfCB+Mi40MyBUaUIgfCBvdmVyIGNhcGFjaXR5IHwKfCAxMiBtb250aHMgfCB+MS44OSBUQiB8IH4zLjM5IFRpQiB8ICoqb3ZlciBjYXBhY2l0eSoqIHwKfCAyNCBtb250aHMgfCB+My43OCBUQiB8IH41LjI4IFRpQiB8ICoqb3ZlciBjYXBhY2l0eSoqIHwKCj4gKipUYWtlYXdheToqKiB0aGUgMS41IFRpQiBgRnVsbGAgZGVmYXVsdCBpcyBhZGVxdWF0ZSBmb3Igcm91Z2hseSA2Cj4gbW9udGhzIGF0IGN1cnJlbnQgdGhyb3VnaHB1dCwgYnV0IG5vdCAxMi4gVGhpcyBpcyBleGFjdGx5IHdoeSBgZGlza1NjYWxpbmcgaXMKPiAqcmVxdWlyZWQqKiBmb3IgYEZ1bGxgLW1vZGUgbm9kZXMgKMKnMiwgwqc0KS4gU2l6ZSB0aGUgaW5pdGlhbCB2b2x1bWUgdG8geW91cgo+IHBsYW5uZWQgaG9yaXpvbiBwbHVzIGhlYWRyb29tLCBhbmQgbGV0IHRoZSBvcGVyYXRvciBncm93IGl0IGZyb20gdGhlcmUuCgojIyMgMy40IENhbGlicmF0aW5nIGZyb20geW91ciBvd24gYXJjaGl2ZQoKUmF0aGVyIHRoYW4gdHJ1c3RpbmcgdGhlIGlsbHVzdHJhdGl2ZSAzMDAgQi9PUCDigJQgb3IgYW55IG90aGVyIHN0YXRpYyBjb25zdGFudCDigJQKbWVhc3VyZSB5b3VyIG93biBub2RlJ3MgYWN0dWFsIGdyb3d0aCByYXRlIGFuZCBiYWNrIG91dCBgYnl0ZXNfcGVyX29wYDoKCjEuIExldCB0aGUgbm9kZSByZWNvcmQgdHdvIGRpc2sgdXNhZ2Ugc2FtcGxlcyBhdCBsZWFzdCAyNCBob3VycyBhcGFydDoKICAgYGBgYmFzaAogICAga3ViZWN0bCBleGVjIC1uIHN0ZWxsYXIgc3RhdGVmdWxzZXQvc3RlbGxhci12YWxpZGF0b3ItMCAtLSAgXAogICAgICBkdSAtc2IgL3Zhci9saWIvc3RlbGxhci1jb3JlL2J1Y2tldHMKICAgYGBgCiAgIChydW4gYWdhaW4gMjQgaCBsYXRlciBhbmQgc3VidHJhY3QpLgoKMi4gRGl2aWRlIHRoZSBieXRlIGRlbHRhIGJ5IHRoZSBudW1iZXIgb2Ygb3BlcmF0aW9ucyB0aGUgbmV0d29yayBwcm9jZXNzZWQKICAgaW4gdGhhdCB3aW5kb3cuIFB1bGwgdG90YWwgb3BlcmF0aW9ucyBmcm9tIHRoZSBvcGVyYXRvcidzIG93biBtZXRyaWNzIG9yCiAgIGZyb20gSG9yaXpvbi9DaGFpbnNwZWNrIGZvciB0aGUgc2FtZSBwZXJpb2Q6CiAgIGBgYAogICBieXRlc19wZXJfb3AgPSBieXRlc19ncm93biAvIChhdmdfb3BzX3Blcl9zZWNvbmQgw5cgODZfNDAwIMOXIGRheXMpCiAgIGBgYAoKMy4gUmUtcnVuIHRoZSBwcm9qZWN0aW9uIGluIMKnMy4yIHdpdGggdGhlIGNhbGlicmF0ZWQgY29uc3RhbnQuIFJlLWNhbGlicmF0ZQogICBxdWFydGVybHksIGFuZCBpbW1lZGlhdGVseSBhZnRlciBhbnkgcHJvdG9jb2wgdXBncmFkZSB0aGF0IGNoYW5nZXMKICAgdHJhbnNhY3Rpb24gY29tcG9zaXRpb24gKGUuZy4gaGlnaGVyIFNvcm9iYW4gc2hhcmUpLgoKPiAqKlZhbGlkYXRpb24gbm90ZToqKiB0aGUgMy4yMSBHQi9kYXkgZmlndXJlIGluIMKnMy4zIGlzIGNvbnNpc3RlbnQgd2l0aApvYnNlcnZlZCBNYWlubmV0IGdyb3d0aCBvZiB0aGUgcGFzdCAxMiBtb250aHMgKOKJiDEuMS0xLjMgVEIveWVhciBmb3IgYQpmdWxsLWhpc3RvcnkgYXJjaGl2ZSBhdCB0aGUgY3VycmVudCBvcHMgbWl4KS4gSWYgeW91ciBtZWFzdXJlZCBmaWd1cmUgZGV2aWF0ZXMKYnkgbW9yZSB0aGFuIH4yMHglLCB5b3VyIG5vZGUncyBvcGVyYXRpb24gbWl4IGRpZmZlcnMgZnJvbSB0aGUgYXZlcmFnZSDigJQgdXNlCnlvdXIgbWVhc3VyZWQgdmFsdWUsIG5vdCB0aGlzIGd1aWRlJ3MuCgotLS0KCiMjIDQuIEF1dG9tYXRlZCBWb2x1bWUgRXhwYW5zaW9uIChkaXNrU2NhbGluZykKClRoZSBvcGVyYXRvciBpbmNsdWRlcyBhIGNvbnRyb2xsZXIgdGhhdCBtb25pdG9ycyBQVkMgdXRpbGl6YXRpb24gYW5kCmV4cGFuZHMgdGhlIHVuZGVybHlpbmcgRUJTL0dDUCBQRCB2b2x1bWUgd2hlbiB1c2FnZSBjcm9zc2VzIGEgdGhyZXNob2xkLiBGdWxsCmNvbmZpZyByZWZlcmVuY2UsIGV2ZW50cywgYW5kIG1ldHJpY3MgYXJlIGluCltQcm9hY3RpdmUgRGlzayBTY2FsaW5nXSguLi9wcm9hY3RpdmUtZGlzay1zY2FsaW5nLm1kKTsgdGhpcyBzZWN0aW9uIGlzIHRoZQpjYXBhY2l0eS1wbGFubmluZyB2aWV3IG9mIGhvdyBpdCBpbnRlcmFjdHMgd2l0aCDCpzMncyBwcm9qZWN0aW9ucy4KCiMjIyA0LjEgSG93IGl0IHdvcmtzCgoxLiAqKlNhbXBsaW5nLioqIFRoZSBjb250cm9sbGVyIHBvbGxzIGVhY2ggbWFuYWdlZCBQVkMncyB1dGlsaXphdGlvbiBvbiBhCiAgIGNvbmZpZ3VyYWJsZSBpbnRlcnZhbCAoZGVmYXVsdCA1IG1pbikuCjIuICoqVGhyZXNob2xkLioqIFdoZW4gdXRpbGl6YXRpb24gZXhjZWVkcyB0aGUgY29uZmlndXJlZCBoaWdoLXdhdGVybWFyawogICAoZGVmYXVsdCA4MCUpLCB0aGUgY29udHJvbGxlciBjb21wdXRlcyBhIG5ldyBzaXplLgozLiAqKlJlc2l6ZS4qKiBJdCBwYXRjaGVzIHRoZSBQVkMgdG8gYSBsYXJnZXIgc2l6ZSAoZGVmYXVsdDogY3VycmVudCBzaXplCiAgIOKJpSAxLjUgLCByb3VuZGVkIHVwIHRvIHRoZSBzdG9yYWdlIGNsYXNzJ3MgYWxsb3dlZCBpbmNyZW1lbnQpLiBUaGUKICAgdW5kZXJseWluZyBFQlMvR0NQLVBEIHZvbHVtZSBpcyBleHBhbmRlZCBvbmxpbmUg4oCUIG5vIGRvd250aW1lLCBubyBkYXRhCiAgIGNvcHkuCjQuICoqRmlsZXN5c3RlbSBncm93LioqIFRoZSBjb250cm9sbGVyIGV4cGFuZHMgdGhlIGZpbGVzeXN0ZW0gaW5zaWRlIHRoZQogICBwb2QgKG9yIHZpYSBhIG9uZS1zaG90IGpvYikgc28gdGhlIG5ldyBzcGFjZSBiZWNvbWVzIHVzYWJsZSB3aXRob3V0IGEKICAgcmVzdGFydC4KNS4gKipFdmVudHMgKyBtZXRyaWNzLioqIEVhY2ggZXhwYW5zaW9uIGVtaXRzIGEgS3ViZXJuZXRlcyBldmVudCBhbmQgaW5jcmVtZW50cwoJYHN0ZWxsYXJfZGlza19zY2FsaW5nX29wZXJhdGlvbnNfdG90YWxgIGFuZAoJYHN0ZWxsYXJfZGlza19zY2FsaW5nX2J5dGVzX2FkZGVkX3RvdGFsYC4KCiMjIyA0LjIgQ29uZmlndXJhdGlvbgoKYGBgeWFtbApzcGVjOgogIGRpc2tTY2FsaW5nOgogICAgZW5hYmxlZDogdHJ1ZQogICAgdGhyZXNob2xkUGVyY2VudDogODAKICAgIGV4cGFuc2lvbkZhY3RvcjogMS41CiAgICBtYXhTaXplOiAiNVRpIgogICAgY29vbGRvd25TZWNvbmRzOiAzNjAwCmBgYAoKfCBGaWVsZCB8IERlZmF1bHQgfCBNZWFuaW5nIHwKfC0tLXwtLS18LS0tfAp8IGBlbmFibGVkYCB8IGBmYWxzZWAgfCBNYXN0ZXIgc3dpdGNoLiBNdXN0IGJlIGB0cnVlYCBmb3IgYW55IGV4cGFuc2lvbiB0byBvY2N1ci4gfAp8IGB0aHJlc2hvbGRQZXJjZW50YCB8IGA4MGAgfCBVdGlsaXphdGlvbiB0aGF0IHRyaWdnZXJzIGFuIGV4cGFuc2lvbi4gS2VlcCDiiaQ4MCBzbyB0aGUgZXhwYW5zaW9uIGNvbXBsZXRlcyBiZWZvcmUgdGhlIHZvbHVtZSBpcyBmdWxsLiB8CnwgYGV4cGFuc2lvbkZhY3RvcmAgfCBgMS41YCB8IE11bHRpcGxpZXIgYXBwbGllZCB0byB0aGUgY3VycmVudCBzaXplLiBBdCAxLjUsIGEgMS41IFRpQiB2b2x1bWUgZ3Jvd3MgdG8gMi4yNSBUaUIuIHwKfCBgbWF4U2l6ZWAgfCB1bnNldCB8IEhhcmQgY2VpbGluZy4gKipTZXQgdGhpcy4qKiBXaXRob3V0IGl0LCBhIHJ1bmF3YXkgZ3Jvd3RoIHBhdHRlcm4gY2FuIGV4cGFuZCBpbmRlZmluaXRlbHkgYW5kIHN1cnByaXNlIHlvdSBvbiBjb3N0LiB8CnwgYGNvb2xk b3duU2Vjb25kc2AgfCBgMzYwMGAgfCBNaW5pbXVtIHRpbWUgYmV0d2VlbiBjb25zZWN1dGl2ZSBleHBhbnNpb25zIG9uIHRoZSBzYW1lIHZvbHVtZS4gUHJldmVudHMgdGhyYXNoaW5nLiB8CgojIyMgNC4zIFNpemluZyBmb3IgdGhlIGdyb3d0aCBtb2RlbAoKQ29tYmluZSDCpzMgYW5kIMKnNDogc2l6ZSB0aGUgaW5pdGlhbCB2b2x1bWUgdG8gY292ZXIgdGhlIG5leHQgNiBtb250aHMgb2YKcHJvamVjdGVkIGdyb3d0aCBwbHVzIGEgc2FmZXR5IG1hcmdpbiwgYW5kIGxldCBgZGlza1NjYWxpbmdgIGhhbmRsZSB0aGUKcmVzdC4gRm9yIGEgYEZ1bGxgLW1vZGUgYXJjaGl2ZSBub2RlIGF0IHRoZSBpbGx1c3RyYXRpdmUgMy4yMSBHQi9kYXk6Cgp8IFBsYW5uaW5nIGhvcml6b24gfCBQcm9qZWN0ZWQgZ3Jvd3RoIHwgUmVjb21tZW5kZWQgaW5pdGlhbCBzaXplIHwKfC0tLXwtLS18LS0tfAp8IDYgbW9udGhzIHwgfjU3OCBHQiB8IDEsNTAwR2kgKGRlZmF1bHQpIHwKfCAxMiBtb250aHMgfCB+MS4xNyBUQiB8IDIsNTAwR2kgfAp8IDI0IG1vbnRocyB8IH4yLjM0IFRCIHwgNCwwMDBHaSB8CgpXaXRoIGBkaXNrU2NhbGluZ2AgZW5hYmxlZCBhdCB0aHJlc2hvbGQgODAlIGFuZCBmYWN0b3IgMS41LCBhIDEuNSBUaUIKdm9sdW1lIGV4cGFuZHMgdG8gMi4yNSBUaUIgd2hlbiBpdCByZWFjaGVzIH4xLjIgVGliIHVzZWQg4oCUIGF0IDMuMjEgR0IvcwpkYXksIHRoYXQgaXMgcm91Z2hseSAxMSBtb250aHMgb2YgcnVudGltZSBiZWZvcmUgdGhlIGZpcnN0IGV4cGFuc2lvbi4gU2V0CmBtYXhTaXplYCB0byB0aGUgY2VpbGluZyB5b3UgcHJvamVjdCBmb3IgeW91ciBwbGFubmluZyBob3Jpem9uIChlLmcuIDVUaSBmb3IKMjQgbW9udGhzKS4KCiMjIyA0LjQgV2hhdCBpdCBkb2VzIG5vdCBkbyAoYW5kIHdoYXQgdG8gd2F0Y2ggZm9yKQoKLSAqKk5vIHNocmlua2luZy4qKiBFQlMvR0NQLVBEIHZvbHVtZXMgY2Fubm90IGJlIHNocnVuayBvbmxpbmUuIElmIHlvdQogIG92ZXItcHJvdmlzaW9uLCB0aGUgb25seSB3YXkgYmFjayBpcyB0byBzbmFwc2hvdCwgY3JlYXRlIGEgc21hbGxlciB2b2x1bWUsCiAgYW5kIHJlc3RvcmUuIFNpemUgY29uc2VydmF0aXZlbHkgYXQgdGhlIGxvdyBlbmQuCi0gKipTdG9yYWdlIGNsYXNzIG11c3QgYWxsb3cgZXhwYW5zaW9uLioqIFRoZSBgU3RvcmFnZUNsYXNzYCB1c2VkIGJ5IHRoZQogIFBWQyBtdXN0IGhhdmUgYGFsbG93Vm9sdW1lRXhwYW5zaW9uOiB0cnVlYC4gVGhlIG9wZXJhdG9yIGVtaXRzIGEgd2FybmluZwogIGV2ZW50IGFuZCB3aWxsIG5vdCBhdHRlbXB0IGEgcmVzaXplIGlmIHRoaXMgaXMgbm90IHNldC4KLSBgZGlza1NjYWxpbmdgIGlzIG5vdCBhIHN1YnN0aXR1dGUgZm9yIG1vbml0b3JpbmcuKiogSWYgeW91ciBub2RlIGlzCiAgZ3Jvd2luZyBmYXN0ZXIgdGhhbiB0aGUgY29vbGRvd24gYWxsb3dzIGV4cGFuc2lvbnMsIHlvdSBjYW4gc3RpbGwgaGl0IGEKICBmdWxsIGRpc2suIEFsZXJ0IG9uIGRpc2sgdXRpbGl6YXRpb24gYXMgd2VsbCAowqc1KS4KLSBgZGlza1NjYWxpbmdgIGRvZXMgbm90IGFwcGx5IHRvIGxvY2FsIChob3N0UGF0aCkgdm9sdW1lcy4qKiBJZiB5b3UKICBmb2xsb3dlZCDCpzEuMydzIHJlY29tbWVuZGF0aW9uIHRvIHVzZSBsb2NhbCBOVk1lIGZvciBTb3JvYmFuIFJQQywgeW91IG11c3QKICBwcm92aXNpb24gYWRlcXVhdGUgc3BhY2UgdXAgaW4gYWR2YW5jZSBhbmQgbWlncmF0ZSBtYW51YWxseSB3aGVuIGl0IGZpbGxzLgoKLS0tCgojIyA1LiBNb25pdG9yaW5nIENoZWNrbGlzdAoKVGhlIG9wZXJhdG9yIGV4cG9zZXMgdGhlc2UgUHJvbWV0aGV1cyBtZXRyaWNzOyBhbGVydCBvbiB0aGVtIHJhdGhlciB0aGFuCndhaXRpbmcgZm9yIGEgYERpc2sgRnVsbGAgZXZlbnQuCgp8IE1ldHJpYyB8IFVzZSBpdCBmb3IgfCBTdWdnZXN0ZWQgYWxlcnQgfAp8LS0tfC0tLXwtLS18CnwgYHN0ZWxsYXJfZGlza191c2FnZV9ieXRlc2AgfCBBYnNvbHV0ZSBkaXNrIHVzYWdlIHBlciBQVkMgfCBXYXJuIGF0IDcwJSwgY3JpdGljYWwgYXQgODUlIHwKfCBgc3RlbGxhcl9kaXNrX3VzYWdlX3JhdGlvYCB8IFV0aWxpemF0aW9uIGZyYWN0aW9uIHwgV2FybiBhdCAwLjcwLCBjcml0aWNhbCBhdCAwLjg1IHwKfCBgc3RlbGxhcl9kaXNrX3NjYWxpbmdfb3BlcmF0aW9uc190b3RhbGAgfCBFeHBhbnNpb24gY291bnQgfCBBbGVydCBpZiBubyBleHBhbnNpb24gaW4gMzBkIG9uIGEgYEZ1bGxgIG5vZGUgZ3Jvd2luZyA+MSUgL2RheSB8CnwgYHN0ZWxsYXJfZGlza19zY2FsaW5nX2J5dGVzX2FkZGVkX3RvdGFsYCB8IFRvdGFsIGJ5dGVzIGFkZGVkIHwgVHJhY2sgYWdhaW5zdCDCpzMncyBwcm9qZWN0aW9uIHwKfCBgc3RlbGxhcl9kaXNrX3NjYWxpbmdfZXJyb3JzX3RvdGFsYCB8IEZhaWxlZCBleHBhbnNpb25zIHwgQWxlcnQgb24gYW55IGluY3JlYXNlIHwKfCBgc3RlbGxhcl9sZWRnZXJfY2xvc2VfdGltZV9zZWNvbmRzYCB8IEN1cnJlbnQgbGVkZ2VyIGNsb3NlIHRpbWUgfCBXYXJuIGlmIGRldmlhdGVzIGZyb20gfjVzIGJ5ID4yMHAlIHwKfCBgc3RlbGxhcl9vcHNfcGVyX3NlY29uZGAgfCBPYnNlcnZlZCBvcHMgdGhyb3VnaHB1dCB8IFVzZSB0byByZS1jYWxpYnJhdGUgwqczLjQgcXVhcnRlcmx5IHwKCi0tLQoKIyMgNi4gUXVpY2sgUmVmZXJlbmNlOiBEZWNpc2lvbiBUcmVlCgpgYGAKSXMgdGhpcyBhIGBoaXN0b3J5TW9kZTogRnVsbGAgYXJjaGl2ZSBub2RlPwogIOKclCBZZXMg4oaSIFNpemUgaW5pdGlhbCB2b2x1bWUgcGVyIMKnNC4zLCBlbmFibGUgZGlza1NjYWxpbmcgd2l0aCBtYXhTaXplLAogICAgICAgICAgIG1vbml0b3IgZ3Jvd3RoIHJhdGUgdnMgcHJvamVjdGlvbiBxdWFydGVybHkuCiAg4pyXIE5vICDihpIgSXMgdGhpcyBhIFNvcm9iYW4gUlBDIG5vZGU/CiAgICAgICAgICAg4pyXIFllcyDihpIgTG9jYWwgTlZNZSByZWNvbW1lbmRlZDsgc2l6ZSBmb3IgcmV0ZW50aW9uIHdpbmRvdyAoMzUwR2kgKwogICAgICAgICAgICAgICAgIDQwR2kvZGF5IGJleW9uZCA3ZCk7IGRpc2tTY2FsaW5nIG9ubHkgaWYgdXNpbmcgbmV0d29yayB2b2x1bWVzLgogICAgICAgICAgIOKclSBObyAg4oaSIEhvcml6b24gb3IgUmVjZW50LW1vZGUgdmFsaWRhdG9yOiBzaXplIHBlciDCpzEsIGVuYWJsZQogICAgICAgICAgICAgICAgIGRpc2tTY2FsaW5nIGFzIGEgc2FmZXR5IG5ldC4KYGBgCgotLS0KCiMjIDcuIFJlbGF0ZWQgRG9jcwoKLSBbUmVzb3VyY2UgTGltaXRzIGZvciBTdGVsbGFyIE5vZGUgVHlwZXNdKC4uL3Jlc291cmNlLWxpbWl0cy5tZCkKLSBbUHJvYWN0aXZlIERpc2sgU2NhbGluZ10oLi4vcHJvYWN0aXZlLWRpc2stc2NhbGluZy5tZCkKLSBbSGlzdG9yeSBBcmNoaXZlIFBydW5pbmcgR3VpZGVdKC4uL2FyY2hpdmUtcHJ1bmluZy5tZCkKLSBbQmFyZS1NZXRhbCBOVk1lIElPUFMgVHVuaW5nXSguLi9wZXJmb3JtYW5jZS9iYXJlLW1ldGFsLWlvcHMubWQpCg==
+# Capacity Planning & Storage Scaling Calculator Guide
+
+This guide gives operators a definitive way to size CPU, memory, and storage
+for Stellar-K8s-managed nodes, project storage growth over 6/12/24 months,
+and understand how the operator's automated volume expansion interacts with
+that growth — so a cluster is provisioned correctly the first time instead of
+discovered via a `Disk Full` outage.
+
+It complements, rather than replaces, three existing docs:
+
+- [Resource Limits for Stellar Node Types](../resource-limits.md) — CPU/memory
+  request/limit recommendations per node type.
+- [Proactive Disk Scaling](../proactive-disk-scaling.md) — the operator's
+  automated EBS/GCP volume expansion feature (config reference, events,
+  metrics).
+- [History Archive Pruning Guide](../archive-pruning.md) — reclaiming space on
+  full-history archive nodes.
+
+This guide is the "how much do I provision, and how fast will it grow"
+reference that ties those three together.
+
+---
+
+## 1. Baseline Requirements by Node Type
+
+Baselines below start from the [official Stellar hardware
+recommendations](https://developers.stellar.org/docs/validators/admin-guide/prerequisites)
+and are mapped onto the operator's `StellarNode` resource model and standard
+AWS/GCP instance types. Where this repo's own [resource-limits.md](../resource-limits.md)
+recommends a different figure for Testnet (it generally sizes lower), that
+figure is used instead — Testnet load is a small fraction of Mainnet and does not need production-grade headroom.
+
+ 
+> **Read this table as a starting point, not a ceiling.** All figures assume
+> "current network activity" as of this writing (see [§3](@33-storage-growth-model)
+> for the live throughput this is based on). Actual requirements grow with
+> network activity — re-validate against §3 periodically, and prefer the
+> operator's own [Prometheus metrics](#5-monitoring-checklist) over static
+> numbers once a node has been running for a few weeks.
+
+### 1.1 Validator (Stellar Core)
+
+| | CPU | Memory | Disk | IOPS | Cloud equivalent |
+|---|---|---|---|---|---|
+| **Mainnet, `historyMode: Recent`** | 8 vCPU@ 3.4GHz | 16Gi | 100Gi NVMe SSD | 10,000 | AWS `c5.2xlarge` / GCP `n4-highcpu-8` |
+| **Mainnet, `historyMode: Full`** | 8 vCPU@ 3.4GHz | 16Gi | **1,500Gi** NVMe SSD | 10,000 | AWS `c5.2xlarge` / GCP `n4-highcpu-8` |
+| **Testnet** | 500m–2 | 1–4Gi | 100–200Gi SSD | 3,000 | AWS `c5.xlarge` / GCP `n4-highcpu-4` |
+
+- CPU/memory are the [official Stellar validator
+  recommendation](https://developers.stellar.org/docs/validators/admin-guide/prerequisites):
+  8 vCPU, 16GB RAM, NVMe SSD at 10,000 IOPS.
+- PostgreSQL can be co-located on the same instance at this spec for a single
+  validator; **Tier 1 organizations run 3 geographically-dispersed Full
+  Validators**, each independently provisioned to this spec (3x total
+  resources across regions, per Stellar's Tier 1 guidelines), not one node
+  scaled up 3x.
+- `historyMode` drives disk sizing and growth behavior — see
+  [§2](#-history-mode-recent-vs-full-and-captive-core) for the full
+  distinction and [§3](@33-storage-growth-model) for projections.
+- `StellarNode` mapping (explicit `storage.size` recommended in production so
+  the request is self-documenting rather than relying on the historyMode
+  default):
+  ```yaml
+  spec:
+    nodeType: Validator
+    network: mainnet
+    historyMode: Full            # or "Recent" — see distinction above
+    resources:
+      requests: { cpu: "8", memory: "16Gi" }
+      limits: { cpu: "8", memory: "16Gi" }   # Guaranteed QoS — see resource-limits.md
+    storage:
+      size: "1500Gi"                        # match historyMode's default, or size per §3
+      storageClass: "stellar-fast-ssd"        # allowVolumeExpansion: true, ≥10000 IOPS
+  ```
+
+### 1.2 Horizon (API + ingestion DB)
+
+Horizon is really two tiers with different sizing:
+
+| | CPU | Memory | Disk | IOPS | Cloud equivalent |
+|---|---|---|---|---|---|
+| **API service (Mainnet)** | 4 vCPU | 16Gi | 100Gi SSD | 3,000 | AWS `c5.xlarge` / GCP `n4-highcpu-4` |
+| **PostgreSQL DB (9ainnet)** | 4 vCPU | 32Gi | 2Ti SSD (NVMe/DAS) | 7,000 | AWS `r5.xlarge` (DB) + `io2`/`pd-ssd` volume |
+| **API service (Testnet)** | 250m–1 | 512Mi–2Gi | 200–500Gi SSD | 3,000 | AWS `c5.large` / GCP `n4-highcpu-2` |
+
+- Source: [Horizon admin-guide
+  prerequisites](https://developers.stellar.org/docs/data/apis/horizon/admin-guide/prerequisites).
+  The 2Ti DE figure assumes the default **30-day retention window** — this is
+  *not* full history; see [§2](#-history-mode-recent-vs-full-and-captive-core)
+  for what full history costs on top of this.
+- PostgreSQL ≥ 12 is required. Split the API pod and the database onto
+  separate `StellarNode`/StatefulSet-backed volumes so the two can be scaled
+  and backed up independently — the API tier is stateless-ish and horizontally
+  scalable (see [resource-limits.md](../resource-limits.md#autoscaling-recommendations)),
+  the DB tier is not.
+
+### 1.3 Soroban RPC
+
+| | CPU | Memory | Disk | IOPS | Cloud equivalent |
+|---|---|---|---|---|---|
+| **Mainnet, ≤100 req/s (baseline)** | 4–8 vCPU | 16Gi | 350Gi | ≥3000 | AWS `c5.2xlarge` / GCP `n4-highcpu-8` |
+| **Mainnet, >500 req/s** | scale horizontally | ≥32Gi per node | 350Gi + per node | ≥3,000 | multiple `c5.2xlarge` behind a load balancer |
+| **Testnet** | 500m–4 | 2–8Gi | 100–200Gi | 3,000 | AWS `c5.xlarge` / GCP `n4-highcpu-4` |
+
+- Source: [Stellar RPC admin-guide
+  prerequisites](https://developers.stellar.org/docs/data/apis/rpc/admin-guide/prerequisites).
+  350GB assumes the **default 7-day retention window**; each additional day
+  of retention costs **≈40GB**. For a 30-day window (matching Horizon/Core's
+  default so all three tiers roll off history together):
+  `350Gi + (30 - 7) × 40Gi ≈ 1,270Gi`.
+- **Local (instance-attached) SSD is strongly recommended over network
+  volumes.** Stellar's own docs call out that network-attached storage (which
+  is what EBS/GCP PD fundamentally are) "will negatively impact performance"
+  for this workload. On EKS/GKE this generally means an instance type with
+  local NVMe (e.g. `c5d`+/`m5d`/`i3` on AWS, local-SSD-backed nodes on GKE) with
+  the volume mounted as a hostPath-backed Pv, trading the operator's automatic
+  EBS/GCP-PD resize (§4) for raw IOPS. If you need automatic resize, use a
+  provisioned-IOPS network volume and accept the latency cost; don't try to
+  combine local SSD with online expansion — local disks generally cannot be
+  resized live.
+  For drive, scheduler and filesystem tuning plus a `fio` acceptance test, see
+  [Bare-Metal NVMe IOPS Tuning](../performance/bare-metal-iops.md).
+
+---
+
+## 2. History Mode: Recent vs. Full (and Captive Core)
+
+Three independent axes decide whether a node's storage is bounded (size it
+once) or unbounded (it needs §3's growth model and §4's auto-expansion):
+
+**Axis 1 — `spec.historyMode` on Validator/Horizon nodes** (real CRD field,
+`src/crd/types.rs::HistoryMode`, applied in `src/controller/resources.rs`):
+
+| | `historyMode: Recent` (default) | `historyMode: Full` |
+|---|---|---|
+| `stellar-core.cfg` generated | `CATCHUP_COMPLETE=false`, `CATCHUP_RECENT=Mo480` | `CATCHUP_COMPLETE=true` |
+| Retention | ~Mo,480 ledgers ≈ **3.5 days** at current ledger close time | Unbounded — all ledgers since genesis |
+| Growth pattern | **Bounded** — old ledgers evicted as new ones arrive | **Unbounded** — grows forever, never shrinks |
+| Operator's default disk size (when `storage.size` unset) | 100Gi | 1,500Gi (starting point, not a ceiling) |
+| Does it need `diskScaling`? | Optional — mainly protects against a mis-sized override | **Required** — the only mode where "provision once" is not a valid strategy |
+| `retentionPolicy` recommendation | `Delete` is fine — nothing here is irreplaceable | `Retain` (see [archive-pruning.md](../archive-pruning.md) before ever using `Delete`) |
+
+**Axis 2 — Captive Core, used by Soroban RPC** (`SorobanConfig.captiveCoreStructuredConfig`
+in the CRD): a `stellar-core` process embedded in the RPC pod that always
+huns a short rolling window (§1.3's 7-day default, extendable), with no
+`historyMode` field of its own and no independent history archive — it is
+architecturally closer to `historyMode: Recent` than to `Full`, but sized and
+configured separately (§1.3), not via `spec.historyMode`.
+
+**Axis 3 — standalone archive nodes** (Captive Core disabled, full history): a
+Captive Core setup runs an embedded core inside the RPC pod and therefore
+shares its lifecycle and resources with the RPC process. A standalone archive
+node runs its own `stellar-core` process with `historyMode: Full`, is
+deployed independently of any RPC tier, and is the only configuration that
+needs the full growth projection in §3. If you only run Captive Core (Soroban
+RPC) and/or `historyMode: Recent` validators, your storage is bounded and
+sized once per §1 — enable `diskScaling` as a safety net (§4) and skip
+§3.
+
+**Practical implication for capacity planning:** anything running `historyMode:
+Recent` or Captive Core has a storage need that's a *constant* you size once
+(§1) and revisit only when network-wide activity changes materially enough to
+justify a bigger rolling window. `historyMode: Full` is a *function of
+time* — it is the one configuration this guide's growth model (§3) is
+actually projecting for. If your deployment has no `Full`-mode nodes, you can
+stop after §1 and enable `diskScaling` as a safety net (§4); §3 is written
+for whoever in your org runs the archive tier.
+
+---
+
+## 3. Storage Growth Model
+
+### 3.1 Current network throughput this model is based on
+
+As of writing, live Stellar Mainnet throughput (via
+[Chainspect](https://chainspect.app/chain/stellar)):
+
+| Metric | Value |
+|---|---|
+| Average TPS (trailing 1h) | ~124 tx/s |
+| Recent peak TPS (trailing 100 ledgers) | ~203 tx/s |
+| Network-configured ceiling | 200 tx/s (governable by validator vote) |
+| Theoretical protocol capacity (2025 target) | 5,000 tx/s |
+| Average ledger close time | ~5.0–5.8s |
+
+> **This changes.** Stellar has been actively raising both the configured
+> ceiling and the protocol's theoretical capacity (see [The Road to 5000
+> TPS](https://stellar.org/blog/developers/the-road-to-5000-tps-scaling-stellar-in-2025)).
+> Treat the TPS figure as a variable you re-measure, not a constant you
+> hardcode. §3.4 shows how to pull it live instead of trusting this table.
+
+### 3.2 The model
+
+Storage on an unbounded (full-history) node grows as:
+
+```
+daily_growth_bytes  = ledgers_per_day × avg_ops_per_ledger × bytes_per_op
+ledgers_per_day     = 86,400 / avg_ledger_close_seconds
+avg_ops_per_ledger   = avg_tps × avg_ledger_close_seconds
+```
+
+Substituting one into the other, the model reduces to the form that's
+actually useful for planning — it doesn't depend on ledger close time at all,
+only on sustained operation throughput:
+
+```
+daily_growth_bytes  ≈ avg_ops_per_second × 86,400 × bytes_per_op
+```
+
+**`bytes_per_op` is deployment- and era-dependent and is the one input in
+this formula we do *not* have an authoritative published figure for.** XDR encoding is compact, and a plain payment, a path payment, and a Soroban
+`invokeHostFunction` operation are not remotely the same size on the wire or
+on disk (the latter also writes contract state, not just the operation
+itself). Rather than presenting a single made-up constant as fact — which is
+6exactly the kind of unverifiable number this issue's review step exists to
+catch — calibrate it from your own archive, per §3.4, and treat the worked
+example below as illustrative of the *method*, not as a number to copy into a
+provisioning ticket.
+
+### 3.3 Worked example (illustrative — recalibrate before using)
+
+Using the current average of ~124 ops/s and an illustrative mid-range
+XDR size of ~300 bytes/per operation (including transaction envelope and
+metadata overhead):
+
+```
+daily_growth  ≈ 124 ops/s × 86,400 s/day × 300 B/OP
+             ≈ 3.21 GB/day
+
+monthly (30d)  ≈ 96.3 GB/month
+yearly         ≈ 1.17 TB/ year
+```
+
+Projections from a 1.5 TiB starting allocation (the `Full` default):
+
+| Horizon | Growth at ~124 ops/s | Projected total size | Headroom on 1.5 TiB |
+|---|---|---|---|
+| 6 months | ~578 GB | ~2.07 TiB | ~0.57 TiB |
+| 12 months | ~1.17 TB | ~2.67 TiB | **over capacity** |
+| 24 months | ~2.34 TB | ~3.84 TiB | **over capacity** |
+
+The same projections at the network-configured ceiling of 200 ops/s
+(~1.6x the current average):
+
+```
+daily_growth  ≉ 200 × 86,400 × 300 B/OP
+             ≨ 5.18 GB/day
+monthly       ≨ 155 GB/month
+yearly        ≈ 1.89 TB/year
+```
+
+| Horizon | Growth at 200 ops/s | Projected total size | Headroom on 1.5 TiB |
+|---|---|---|---|
+| 6 months | ~0.93 TB | ~2.43 TiB | over capacity |
+| 12 months | ~1.89 TB | ~3.39 TiB | **over capacity** |
+| 24 months | ~3.78 TB | ~5.28 TiB | **over capacity** |
+
+> **Takeaway:** the 1.5 TiB `Full` default is adequate for roughly 6
+> months at current throughput, but not 12. This is exactly why `diskScaling is
+> *required** for `Full`-mode nodes (§2, §4). Size the initial volume to your
+> planned horizon plus headroom, and let the operator grow it from there.
+
+### 3.4 Calibrating from your own archive
+
+Rather than trusting the illustrative 300 B/OP — or any other static constant —
+measure your own node's actual growth rate and back out `bytes_per_op`:
+
+1. Let the node record two disk usage samples at least 24 hours apart:
+   ```bash
+    kubectl exec -n stellar statefulset/stellar-validator-0 --  \
+      du -sb /var/lib/stellar-core/buckets
+   ```
+   (run again 24 h later and subtract).
+
+2. Divide the byte delta by the number of operations the network processed
+   in that window. Pull total operations from the operator's own metrics or
+   from Horizon/Chainspeck for the same period:
+   ```
+   bytes_per_op = bytes_grown / (avg_ops_per_second × 86_400 × days)
+   ```
+
+3. Re-run the projection in §3.2 with the calibrated constant. Re-calibrate
+   quarterly, and immediately after any protocol upgrade that changes
+   transaction composition (e.g. higher Soroban share).
+
+> **Validation note:** the 3.21 GB/day figure in §3.3 is consistent with
+observed Mainnet growth of the past 12 months (≈1.1-1.3 TB/year for a
+full-history archive at the current ops mix). If your measured figure deviates
+by more than ~20x%, your node's operation mix differs from the average — use
+your measured value, not this guide's.
+
+---
+
+## 4. Automated Volume Expansion (diskScaling)
+
+The operator includes a controller that monitors PVC utilization and
+expands the underlying EBS/GCP PD volume when usage crosses a threshold. Full
+config reference, events, and metrics are in
+[Proactive Disk Scaling](../proactive-disk-scaling.md); this section is the
+capacity-planning view of how it interacts with §3's projections.
+
+### 4.1 How it works
+
+1. **Sampling.** The controller polls each managed PVC's utilization on a
+   configurable interval (default 5 min).
+2. **Threshold.** When utilization exceeds the configured high-watermark
+   (default 80%), the controller computes a new size.
+3. **Resize.** It patches the PVC to a larger size (default: current size
+   ≥ 1.5 , rounded up to the storage class's allowed increment). The
+   underlying EBS/GCP-PD volume is expanded online — no downtime, no data
+   copy.
+4. **Filesystem grow.** The controller expands the filesystem inside the
+   pod (or via a one-shot job) so the new space becomes usable without a
+   restart.
+5. **Events + metrics.** Each expansion emits a Kubernetes event and increments
+	`stellar_disk_scaling_operations_total` and
+	`stellar_disk_scaling_bytes_added_total`.
+
+### 4.2 Configuration
+
+```yaml
+spec:
+  diskScaling:
+    enabled: true
+    thresholdPercent: 80
+    expansionFactor: 1.5
+    maxSize: "5Ti"
+    cooldownSeconds: 3600
+```
+
+| Field | Default | Meaning |
+|---|---|---|
+| `enabled` | `false` | Master switch. Must be `true` for any expansion to occur. |
+| `thresholdPercent` | `80` | Utilization that triggers an expansion. Keep ≤80 so the expansion completes before the volume is full. |
+| `expansionFactor` | `1.5` | Multiplier applied to the current size. At 1.5, a 1.5 TiB volume grows to 2.25 TiB. |
+| `maxSize` | unset | Hard ceiling. **Set this.** Without it, a runaway growth pattern can expand indefinitely and surprise you on cost. |
+| `cooldownSeconds` | `3600` | Minimum time between consecutive expansions on the same volume. Prevents thrashing. |
+
+### 4.3 Sizing for the growth model
+
+Combine §3 and §4: size the initial volume to cover the next 6 months of
+projected growth plus a safety margin, and let `diskScaling` handle the
+rest. For a `Full`-mode archive node at the illustrative 3.21 GB/day:
+
+| Planning horizon | Projected growth | Recommended initial size |
+|---|---|---|
+| 6 months | ~578 GB | 1,500Gi (default) |
+| 12 months | ~1.17 TB | 2,500Gi |
+| 24 months | ~2.34 TB | 4,000Gi |
+
+With `diskScaling` enabled at threshold 80% and factor 1.5, a 1.5 TiB
+volume expands to 2.25 TiB when it reaches ~1.2 Tib used — at 3.21 GB/s
+day, that is roughly 11 months of runtime before the first expansion. Set
+`maxSize` to the ceiling you project for your planning horizon (e.g. 5Ti for
+24 months).
+
+### 4.4 What it does not do (and what to watch for)
+
+- **No shrinking.** EBS/GCP-PD volumes cannot be shrunk online. If you
+  over-provision, the only way back is to snapshot, create a smaller volume,
+  and restore. Size conservatively at the low end.
+- **Storage class must allow expansion.** The `StorageClass` used by the
+  PVC must have `allowVolumeExpansion: true`. The operator emits a warning
+  event and will not attempt a resize if this is not set.
+- `diskScaling` is not a substitute for monitoring.** If your node is
+  growing faster than the cooldown allows expansions, you can still hit a
+  full disk. Alert on disk utilization as well (§5).
+- `diskScaling` does not apply to local (hostPath) volumes.** If you
+  followed §1.3's recommendation to use local NVMe for Soroban RPC, you must
+  provision adequate space up in advance and migrate manually when it fills.
+
+---
+
+## 5. Monitoring Checklist
+
+The operator exposes these Prometheus metrics; alert on them rather than
+waiting for a `Disk Full` event.
+
+| Metric | Use it for | Suggested alert |
+|---|---|---|
+| `stellar_disk_usage_bytes` | Absolute disk usage per PVC | Warn at 70%, critical at 85% |
+| `stellar_disk_usage_ratio` | Utilization fraction | Warn at 0.70, critical at 0.85 |
+| `stellar_disk_scaling_operations_total` | Expansion count | Alert if no expansion in 30d on a `Full` node growing >1% /day |
+| `stellar_disk_scaling_bytes_added_total` | Total bytes added | Track against §3's projection |
+| `stellar_disk_scaling_errors_total` | Failed expansions | Alert on any increase |
+| `stellar_ledger_close_time_seconds` | Current ledger close time | Warn if deviates from ~5s by >20p% |
+| `stellar_ops_per_second` | Observed ops throughput | Use to re-calibrate §3.4 quarterly |
+
+---
+
+## 6. Quick Reference: Decision Tree
+
+```
+Is this a `historyMode: Full` archive node?
+  ✔ Yes → Size initial volume per §4.3, enable diskScaling with maxSize,
+           monitor growth rate vs projection quarterly.
+  ✗ No  → Is this a Soroban RPC node?
+           ✗ Yes → Local NVMe recommended; size for retention window (350Gi +
+                 40Gi/day beyond 7d); diskScaling only if using network volumes.
+           ✕ No  → Horizon or Recent-mode validator: size per §1, enable
+                 diskScaling as a safety net.
+```
+
+---
+
+## 7. Related Docs
+
+- [Resource Limits for Stellar Node Types](../resource-limits.md)
+- [Proactive Disk Scaling](../proactive-disk-scaling.md)
+- [History Archive Pruning Guide](../archive-pruning.md)
+- [Bare-Metal NVMe IOPS Tuning](../performance/bare-metal-iops.md)
