@@ -1,0 +1,83 @@
+# Stellar Operator Helm Chart
+
+`charts/stellar-operator` is the Helm chart for the **Stellar-K8s** Kubernetes operator. It packages the operator Deployment, its RBAC and CRDs, admission webhooks, monitoring and alerting resources, security/network-isolation policies, and optional sidecars so the operator can be installed and upgraded on a Kubernetes cluster with `helm install` / `helm upgrade`.
+
+## Contents
+
+- `Chart.yaml` — Helm chart metadata (name, version, appVersion, maintainers) plus Artifact Hub/OCI publishing annotations.
+- `values.yaml` — Default values for every configurable part of the chart (image, replicas, operator settings, webhooks, monitoring, security, network isolation, sidecars, feature flags, and more).
+- `values-ha.yaml` — High-availability override values (3 replicas, PodDisruptionBudget, larger resource requests/limits); apply with `-f values-ha.yaml`.
+- `values.schema.json` — JSON Schema (draft-07) that validates user-supplied values at install/upgrade time, covering core fields such as `image`, `operator`, `service`, `webhook`, and `logShipper`.
+- `UPGRADE_GUIDE.md` — Step-by-step upgrade instructions, including the pre-upgrade checklist, version-specific migration notes, rollback procedure, post-upgrade verification, and troubleshooting.
+- `dashboards/` — Grafana dashboard JSON definitions that can be imported into the monitoring namespace:
+  - `cost-dashboard.json` — Cost optimization dashboard (monthly cost, cost by namespace, forecast, anomalies, spot savings, right-sizing) backed by the `stellar_cost_*` metrics.
+  - `operator-health.json` — Operator health and performance dashboard (reconciliation rate/duration, error rate, managed nodes, CPU/memory).
+- `examples/` — Ready-to-use values files for common environments:
+  - `values-development.yaml` — Local development settings (debug logging, relaxed security, minimal resources, hooks disabled).
+  - `values-production.yaml` — Production settings (HA, network isolation, Byzantine watcher, OpenTelemetry, Horizon HPA, hardened security).
+- `rendered/` — Reference output of `helm template` for each values preset, useful for inspecting exactly what the chart generates:
+  - `default.yaml` — Rendered manifests using `values.yaml`.
+  - `development.yaml` — Rendered manifests using `examples/values-development.yaml`.
+  - `production.yaml` — Rendered manifests using `examples/values-production.yaml`.
+  - `ha.yaml` — Rendered manifests using `values-ha.yaml`.
+  - `dr-cross-region.yaml` — Rendered manifests with cross-region DR/failover enabled.
+- `templates/` — Helm templates that render the Kubernetes manifests:
+  - `_helpers.tpl` — Named-template helpers for resource names, labels, selector labels, service account name, component labels, and container images.
+  - `_hook-job.tpl` — Shared Helm hook Job skeleton used by the pre-install and pre-upgrade hooks.
+  - `byzantine-watcher.yaml` — Per-region watcher Deployments/Services that poll Stellar Core and export consensus metrics for Byzantine-partition detection.
+  - `cert-manager-certificates.yaml` — cert-manager `Certificate` resources configured through `certManagement.certificates`.
+  - `cert-manager-issuer.yaml` — Let's Encrypt staging and production `ClusterIssuer` resources.
+  - `cert-manager-mtls.yaml` — Self-signed CA `Issuer` and inter-service mTLS `Certificate` resources (standalone mechanism; see file header).
+  - `cost-optimization-configmap.yaml` — ConfigMap carrying cost-tracking, spot-instances, and monthly-budget settings.
+  - `crd.yaml` — `CustomResourceDefinition` for `StellarNode` (`stellarnodes.stellar.org`).
+  - `crd-tenant.yaml` — `CustomResourceDefinition` for `Tenant` (`tenants.stellar.org`).
+  - `cross-region-bridge.yaml` — Cross-region state-sync RBAC, ExternalName Services, NetworkPolicy, and the global failover operator resources.
+  - `deployment.yaml` — The main operator `Deployment`, including injected sidecars (e.g. fork detector) and configured volumes/containers.
+  - `externalsecret.yaml` — `ExternalSecret` rendered from the legacy `secrets.externalSecret` values shape when external secrets are enabled.
+  - `feature-flags-configmap.yaml` — ConfigMap exposing runtime feature flags and gradual-rollout rules.
+  - `fork-detector.yaml` — Standalone fork-detector `Deployment` (the sidecar variant is injected by `deployment.yaml`).
+  - `hooks/pre-install-job.yaml` — Pre-install Helm hook Job that runs installation safety checks.
+  - `hooks/pre-upgrade-job.yaml` — Pre-upgrade Helm hook Job that runs upgrade safety checks and rollback validation.
+  - `hpa-custom-wasm.yaml` — `HorizontalPodAutoscaler` driven by the Soroban WASM execution-latency pods metric.
+  - `hpa-horizon.yaml` — `HorizontalPodAutoscaler` for Horizon using custom TPS and queue-length metrics.
+  - `log-shipper.yaml` — Fluent Bit log-shipper ConfigMap, ServiceAccount/RBAC, and DaemonSet for per-node log forwarding.
+  - `monitoring/grafana-dashboards-configmap.yaml` — ConfigMaps that expose the JSON dashboards under `dashboards/` to Grafana.
+  - `monitoring/podmonitor.yaml` — `PodMonitor` scraping StellarNode pod metrics endpoints.
+  - `monitoring/prometheusrule.yaml` — Prometheus alerting/recording rules for node health, ingestion lag, ledger close time, certificates, and costs.
+  - `monitoring/servicemonitor.yaml` — `ServiceMonitor` scraping the operator's metrics port.
+  - `network-isolation.yaml` — Namespace-level NetworkPolicies that block cross-network traffic between Mainnet and Testnet namespaces.
+  - `networkpolicy.yaml` — Default-deny NetworkPolicy for the operator namespace, with optional egress-shaper annotations.
+  - `operator-config.yaml` — ConfigMap carrying default managed-node resources, key rotation, and other operator defaults.
+  - `otel-collector.yaml` — OpenTelemetry Collector ConfigMap/Deployment for OTLP trace export to Honeycomb, Jaeger, Tempo, Loki, or Elasticsearch.
+  - `pdb.yaml` — `PodDisruptionBudget` for the operator, honoring `minAvailable`/`maxUnavailable`.
+  - `rate-limit-configmap.yaml` — ConfigMap carrying distributed rate-limiting, Redis, tiers, and egress-shaping configuration.
+  - `rbac.yaml` — ClusterRole/ClusterRoleBinding (or namespaced Role/RoleBinding when `watchNamespace` is set).
+  - `scp-kafka-sidecar.yaml` — Kafka config ConfigMap and SCP analytics consumer Deployments.
+  - `secret.yaml` — Standard Kubernetes `Secret`, or an `ExternalSecret` built from the `secrets.externalSecrets` values shape, selected by `secrets.create`/`secrets.useExternalSecrets`.
+  - `service.yaml` — Operator `Service` exposing the REST API and metrics ports.
+  - `serviceaccount.yaml` — Operator `ServiceAccount`.
+  - `tests/helm-test.yaml` — In-cluster Helm test hook Pod run by `helm test`.
+  - `vault-injector.yaml` — `MutatingWebhookConfiguration` that injects Vault-backed validator seeds into Stellar Core pods.
+  - `wasm-optimizer.yaml` — wasm-opt sidecar and `MutatingWebhookConfiguration` that optimizes StellarNode WASM payloads.
+  - `webhook.yaml` — Admission webhook stack: Namespace, RBAC, Deployment, Service, webhook configurations, and cert-manager TLS.
+- `tests/` — [helm-unittest](https://github.com/helm-unittest/helm-unittest) suites for the templates:
+  - `crd_test.yaml` — Asserts the StellarNode CRD kind, group, schema, and printer columns.
+  - `deployment_test.yaml` — Asserts Deployment name, replicas, image, and container configuration.
+  - `edge_cases_test.yaml` — Edge-case coverage for resource and scheduling values.
+  - `feature_flags_test.yaml` — Asserts the feature-flag ConfigMap keys and labels.
+  - `full_render_smoke_test.yaml` — Smoke-renders the core templates with default values to catch render-time errors.
+  - `hooks_test.yaml` — Asserts the pre-install/pre-upgrade hook Jobs render correctly.
+  - `hpa_custom_wasm_test.yaml` — Asserts custom-WASM HPA rendering and its disabled-by-default behavior.
+  - `hpa_horizon_test.yaml` — Asserts Horizon HPA rendering and its disabled-by-default behavior.
+  - `log_shipper_test.yaml` — Asserts the log-shipper ConfigMap/RBAC/DaemonSet render when enabled.
+  - `monitoring_test.yaml` — Asserts ServiceMonitor, PodMonitor, PrometheusRule, and dashboard ConfigMap rendering.
+  - `operator_config_test.yaml` — Asserts the operator-defaults ConfigMap content and labels.
+  - `pdb_test.yaml` — Asserts PodDisruptionBudget minAvailable/maxUnavailable behavior.
+  - `rbac_test.yaml` — Asserts ClusterRole rules for StellarNode/Benchmark resources.
+  - `scp_kafka_sidecar_test.yaml` — Asserts SCP Kafka sidecar rendering and pod security context.
+  - `secret_test.yaml` — Asserts the Secret vs ExternalSecret rendering paths.
+  - `service_test.yaml` — Asserts Service name, type, and ports.
+  - `serviceaccount_test.yaml` — Asserts ServiceAccount creation and the `create: false` toggle.
+  - `snapshot_test.yaml` — Deterministic snapshot assertions pinning rendered manifest output.
+  - `upgrade_preservation_test.yaml` — Asserts production values keep scheduling, resources, and tracing working across upgrades.
+  - `webhook_test.yaml` — Asserts the webhook stack renders all expected resource kinds.
