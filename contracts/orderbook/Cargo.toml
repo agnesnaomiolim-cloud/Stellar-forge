@@ -14,7 +14,7 @@ crate-type = ["cdylib"]
 doctest = false
 
 [profile.release]
-opt-level = "z3
+opt-level = "z"
 lto = true
 codegen-units = 1
 codegen-lto = true
