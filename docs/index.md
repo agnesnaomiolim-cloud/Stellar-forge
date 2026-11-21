@@ -59,7 +59,7 @@ Get started quickly with our installation guide:
 
 ```bash
 # Clone the repository
-git clone https://github.com/OtowoOrg/Stellar-K8s.git
+git clone https://github.com/agnesnaomiolim-cloud/Stellar-forge.git
 cd Stellar-K8s
 
 # Install with Helm
@@ -84,7 +84,7 @@ helm install stellar-k8s ./charts/stellar-k8s
 
 - **Documentation Search**: Use the search bar above to find specific topics
 - **Troubleshooting Guide**: Check our [common issues](troubleshooting/common-issues.md) section
-- **GitHub Issues**: Report bugs or request features on [GitHub](https://github.com/OtowoOrg/Stellar-K8s/issues)
+- **GitHub Issues**: Report bugs or request features on [GitHub](https://github.com/agnesnaomiolim-cloud/Stellar-forge/issues)
 - **Contributing**: Learn how to [contribute](contributing/index.md) to the project
 
 ## :material-star-circle: Project Status
@@ -92,7 +92,7 @@ helm install stellar-k8s ./charts/stellar-k8s
 Stellar-K8s is actively maintained and production-ready. We follow semantic versioning and provide migration guides for breaking changes.
 
 !!! info "Latest Release"
-    Check the [releases page](https://github.com/OtowoOrg/Stellar-K8s/releases) for the latest version and changelog.
+    Check the [releases page](https://github.com/agnesnaomiolim-cloud/Stellar-forge/releases) for the latest version and changelog.
 
 ---
 

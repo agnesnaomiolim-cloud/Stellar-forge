@@ -7,7 +7,7 @@ This guide walks you through installing Stellar-K8s on your Kubernetes cluster.
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/OtowoOrg/Stellar-K8s.git
+git clone https://github.com/agnesnaomiolim-cloud/Stellar-forge.git
 cd Stellar-K8s
 ```
 

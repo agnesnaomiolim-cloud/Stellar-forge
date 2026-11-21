@@ -7,7 +7,7 @@ minutes**, most of it the first Rust build.
 
 If you would rather use k3d, see [k3d local development](../development.md).
 For the full reference on building, testing and contributing, see
-[DEVELOPMENT.md](https://github.com/OtowoOrg/Stellar-K8s/blob/main/DEVELOPMENT.md).
+[DEVELOPMENT.md](https://github.com/agnesnaomiolim-cloud/Stellar-forge/blob/main/DEVELOPMENT.md).
 
 ---
 
@@ -149,7 +149,7 @@ hot-reloading will silently not fire.
 From a clean clone:
 
 ```bash
-git clone https://github.com/OtowoOrg/Stellar-K8s.git
+git clone https://github.com/agnesnaomiolim-cloud/Stellar-forge.git
 cd Stellar-K8s
 
 # 1. Toolchain: rustup components, cargo-audit, cargo-watch, pre-commit hooks
