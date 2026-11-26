@@ -11,3 +11,7 @@ This folder contains the checks that the GitHub Actions workflows in [`.github/w
 - [`test-db-migrations.sh`](./test-db-migrations.sh) runs the Rust database migration harness (fresh install, existing data, rollback) against the Postgres instance in `DATABASE_URL`, which it requires and never provisions.
 - [`validate-config-samples.sh`](./validate-config-samples.sh) checks the YAML in `examples/` and `config/samples/` with kubeconform, skipping CRDs and `_`-prefixed files.
 - [`validate-yaml.sh`](./validate-yaml.sh) runs yamllint, the CRD JSON schema drift check and kubeconform against Helm-rendered manifests (repository-wide structure checks live in `scripts/validate-yaml-manifests.py`).
+
+## Running locally
+
+Every script in this folder is invoked from the repository root, the same way CI invokes it. For a local reproduction of a failing CI job, run the matching command from [`.github/CI_COMMANDS.md`](../../.github/CI_COMMANDS.md); the Python script needs Python 3, and `test-db-migrations.sh` expects a reachable Postgres via `DATABASE_URL`.
