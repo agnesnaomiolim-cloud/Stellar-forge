@@ -333,7 +333,7 @@ stellar_database_size_bytes + (stellar_database_growth_rate_bytes_per_hour * 24 
 **Example Query**:
 ```promql
 # Total SCP consensus time (p99)
-histogram_quantile(0.99, 
+histogram_quantile(0.99,
   rate(stellar_scp_nomination_time_seconds_bucket[5m]) +
   rate(stellar_scp_ballot_prepare_time_seconds_bucket[5m]) +
   rate(stellar_scp_ballot_commit_time_seconds_bucket[5m]) +

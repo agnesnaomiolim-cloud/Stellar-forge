@@ -49,8 +49,8 @@ Amazon Route 53 Latency-Based Routing automatically directs DNS queries to the A
 
 ### 2.1 Deep Stellar Core & Soroban RPC Health Checking
 
-> **Important Constraint:** General HTTP 200 health checks on an Ingress or load balancer are insufficient. An ingress controller may return HTTP 200 while underlying Stellar Core nodes have lost quorum, fallen behind ledgers (`Catching up`), or suffered database disconnects. 
-> 
+> **Important Constraint:** General HTTP 200 health checks on an Ingress or load balancer are insufficient. An ingress controller may return HTTP 200 while underlying Stellar Core nodes have lost quorum, fallen behind ledgers (`Catching up`), or suffered database disconnects.
+>
 > Health checks **must** inspect the deep `/health` endpoint of Stellar Core or the Soroban RPC health probe.
 
 Stellar Core exposes a diagnostic `/health` endpoint on its HTTP administration port (default `11626` or exposed via Kubernetes Service at `/health`). The health check must evaluate:

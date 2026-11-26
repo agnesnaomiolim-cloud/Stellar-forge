@@ -249,7 +249,7 @@ groups:
       
       - alert: LowWASMCacheHitRate
         expr: |
-          rate(stellar_soroban_wasm_cache_hits[5m]) / 
+          rate(stellar_soroban_wasm_cache_hits[5m]) /
           (rate(stellar_soroban_wasm_cache_hits[5m]) + rate(stellar_soroban_wasm_cache_misses[5m])) < 0.7
         for: 10m
         labels:

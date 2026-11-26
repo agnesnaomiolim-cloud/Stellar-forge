@@ -13,6 +13,10 @@
 
 #![no_std]
 
+//! A binary prediction market where traders place limit orders on Yes/No outcomes.
+//! Orders are matched through an on-chain order book, and winning shares pay out
+//! once an admin resolves the market.
+
 pub mod orderbook;
 pub mod matching;
 

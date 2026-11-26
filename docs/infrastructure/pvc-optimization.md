@@ -6,7 +6,7 @@ Stellar's ledger processes massive amounts of state data. Utilizing improper phy
 ## Stateless Containers vs. Stateful Blockchain Pods
 Kubernetes was originally designed for stateless workloads where containers can be spun up, destroyed, and replaced without data loss. In a stateless architecture, the container image and environment variables are sufficient to maintain the application's state.
 
-However, blockchain nodes (like Stellar Core and Horizon) are **stateful**. They maintain a local copy of the distributed ledger. If a Stellar pod is destroyed and recreated, it must either re-sync from the network (which can take days) or reconnect to its existing local storage. 
+However, blockchain nodes (like Stellar Core and Horizon) are **stateful**. They maintain a local copy of the distributed ledger. If a Stellar pod is destroyed and recreated, it must either re-sync from the network (which can take days) or reconnect to its existing local storage.
 
 This is why **external physical storage provisioning via the Container Storage Interface (CSI)** is critical for data survival. By decoupling the storage lifecycle from the pod lifecycle through Persistent Volumes (PVs) and Persistent Volume Claims (PVCs), we ensure that a node's ledger data survives pod restarts, rescheduling, and cluster upgrades.
 

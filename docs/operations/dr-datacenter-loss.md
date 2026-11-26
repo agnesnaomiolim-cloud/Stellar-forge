@@ -10,7 +10,7 @@ This runbook provides the procedure for restoring a Tier-1 Stellar validator clu
 
 1. **Provision New Infrastructure**: Spin up a new Kubernetes cluster in the designated DR region.
 2. **Restore etcd (If Applicable)**: If your cluster requires stateful etcd restoration, follow your cloud provider's guide to restore etcd from the latest snapshot. (For stateless stellar-operator deployments, this step may be skipped, relying instead on fresh CRD application).
-3. **Deploy the Stellar Operator**: 
+3. **Deploy the Stellar Operator**:
    Apply the stellar-operator to the new cluster:
    ```bash
    kubectl apply -f deploy/crds/

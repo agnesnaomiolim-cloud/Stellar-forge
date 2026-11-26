@@ -2,6 +2,7 @@
 name = "gas-oracle"
 version = "0.1.0"
 edition = "2021"
+description = "Soroban oracle that tracks gas fee rates using an exponential moving average."
 
 [lib]
 crate-type = ["cdylib", "rlib"]

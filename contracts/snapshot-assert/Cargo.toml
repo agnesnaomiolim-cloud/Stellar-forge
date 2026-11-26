@@ -2,6 +2,7 @@
 name = "snapshot-assert"
 version = "0.1.0"
 edition = "2021"
+description = "Soroban contract for submitting and comparing cluster state-root snapshots."
 
 [lib]
 crate-type = ["cdylib", "rlib"]

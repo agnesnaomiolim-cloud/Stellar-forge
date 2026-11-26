@@ -820,7 +820,7 @@ Several files in this repo are generated from a source of truth. Always regenera
 
 ### Policy on Compiled Binaries & WebAssembly Artifacts
 
-To maintain a clean and lightweight repository, compiled binaries, WebAssembly modules (`*.wasm`), and auto-generated shell completion scripts must **never** be committed to the repository. These paths are explicitly ignored in `.gitignore`. 
+To maintain a clean and lightweight repository, compiled binaries, WebAssembly modules (`*.wasm`), and auto-generated shell completion scripts must **never** be committed to the repository. These paths are explicitly ignored in `.gitignore`.
 
 If you modify source code that affects these outputs (such as CRDs, CLI definitions, or WebAssembly plugins):
 1. **Source Code**: Commit only the source code changes (e.g., Rust files, build scripts, templates).

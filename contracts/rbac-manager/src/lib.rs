@@ -89,6 +89,7 @@ impl Address {
     pub const fn from_bytes(bytes: [u8; 32]) -> Self {
         Address(bytes)
     }
+    /// Returns the address as its raw 32-byte identifier.
     pub fn to_bytes(&self) -> [u8; 32] {
         self.0
     }

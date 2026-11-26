@@ -324,7 +324,7 @@ let quorum = QuorumSetConfig {
 let validator = QuorumValidator::new(ValidationPolicy::default());
 let result = validator.validate(&quorum);
 
-println!("Unique Organizations: {}", 
+println!("Unique Organizations: {}",
     result.validation_metadata.unique_organizations);
 ```
 
@@ -364,7 +364,7 @@ let quorum = QuorumSetConfig {
 let validator = QuorumValidator::new(ValidationPolicy::default());
 let result = validator.validate(&quorum);
 
-println!("Max Dependency Level: {}", 
+println!("Max Dependency Level: {}",
     result.validation_metadata.max_dependency_level);
 ```
 

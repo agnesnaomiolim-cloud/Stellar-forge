@@ -2,6 +2,7 @@
 name = "rate-limiter"
 version = "0.1.0"
 edition = "2021"
+description = "Token-bucket rate limiter for Soroban contract entry points."
 
 [workspace]
 

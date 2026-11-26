@@ -40,6 +40,7 @@ pub enum BatchPayError {
 
 #[contractimpl]
 impl BatchPayContract {
+    /// Sets up the contract with its admin and payment token; can only be called once.
     pub fn initialize(env: Env, admin: Address, token: Address) -> Result<(), BatchPayError> {
         admin.require_auth();
         if env.storage().instance().has(&DataKey::Config) {
@@ -52,6 +53,8 @@ impl BatchPayContract {
         Ok(())
     }
 
+    /// Validates a batch and transfers the given token amounts to each recipient.
+    /// Rejects empty, oversized, or previously processed batches.
     pub fn process_batch(
         env: Env,
         batch_id: BytesN<32>,

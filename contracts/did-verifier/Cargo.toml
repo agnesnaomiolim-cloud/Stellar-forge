@@ -2,6 +2,7 @@
 name = "did-verifier"
 version = "0.1.0"
 edition = "2021"
+description = "Soroban contract for verifying signed and revocable verifiable credentials."
 
 [lib]
 crate-type = ["cdylib", "rlib"]

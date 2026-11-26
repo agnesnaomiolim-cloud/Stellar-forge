@@ -7,7 +7,7 @@ This audit addresses security vulnerabilities and dependency management issues i
 ## Current Security Posture
 
 ### ✅ Strengths
-- Comprehensive security monitoring via `cargo-deny` and `cargo-audit` 
+- Comprehensive security monitoring via `cargo-deny` and `cargo-audit`
 - Well-documented advisory exceptions with justifications
 - License compliance enforcement
 - Explicit crate banning (openssl blocked in favor of rustls)
@@ -16,14 +16,14 @@ This audit addresses security vulnerabilities and dependency management issues i
 ### ⚠️  Areas for Improvement
 - 23 security advisories currently ignored (though most are justified)
 - Some transitive dependencies cannot be upgraded due to ecosystem constraints
-- Major version upgrades needed for wasmtime (24.x → 36.x) 
+- Major version upgrades needed for wasmtime (24.x → 36.x)
 - Several unmaintained dependencies in the dependency tree
 
 ## Priority Security Issues
 
 ### HIGH PRIORITY - Action Required
 
-1. **wasmtime 24.x → 36.x Upgrade** 
+1. **wasmtime 24.x → 36.x Upgrade**
    - **Impact**: 6 critical vulnerabilities affecting Winch backend (unused by us, but still present)
    - **Current**: wasmtime 24.0.11, wasmtime-wasi 24.0.11  
    - **Target**: wasmtime ≥36.x
@@ -39,7 +39,7 @@ This audit addresses security vulnerabilities and dependency management issues i
 
 3. **Unmaintained Dependencies**
    - `backoff 0.4.0` (via kube-runtime)
-   - `derivative 2.2.0` (via kube-runtime) 
+   - `derivative 2.2.0` (via kube-runtime)
    - `instant 0.1.13` (via backoff)
    - `fxhash 0.2.1` (via wasmtime)
    - `paste 1.0.15` (via wasmtime)
@@ -119,7 +119,7 @@ lto = true            # Link-time optimization
 ```bash
 # Current commands
 cargo deny check
-cargo audit 
+cargo audit
 
 # Proposed additions  
 cargo outdated --root-deps-only

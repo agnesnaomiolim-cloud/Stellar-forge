@@ -11,7 +11,7 @@ This cleanup wave focused on repository stability, CI command reliability, and p
 **File:** `Dockerfile` line 68
 **Impact:** Eliminates "invalid digest format" build failures
 
-### 2. Security Audit Configuration 
+### 2. Security Audit Configuration
 **Problem:** 20+ CVE ignores inline in CI without justification
 **Fix:** Centralized to `.cargo/audit.toml` with documented rationales
 **Files:** `.github/workflows/ci.yml`, `.cargo/audit.toml`

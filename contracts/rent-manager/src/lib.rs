@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! A token vault where users deposit and withdraw a single asset.
+//! It manages rent by extending the time-to-live of the contract instance and
+//! per-user balance entries so deposits and balances stay available on-chain.
+
 mod ttl_extension;
 
 #[cfg(test)]

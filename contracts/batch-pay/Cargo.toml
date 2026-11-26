@@ -2,6 +2,7 @@
 name = "batch-pay"
 version = "0.1.0"
 edition = "2021"
+description = "Soroban contract for processing batched token payouts to multiple recipients."
 
 [workspace]
 

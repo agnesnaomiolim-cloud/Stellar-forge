@@ -2,6 +2,7 @@
 name = "prediction-market"
 version = "0.1.0"
 edition = "2021"
+description = "Soroban contract implementing a binary prediction market with limit-order matching."
 
 [workspace]
 
